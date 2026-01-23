@@ -219,12 +219,18 @@ This system is designed to comply with:
 
 ### Running Tests
 ```bash
-# Backend tests (if implemented)
+# Backend tests (Jest)
 cd backend && npm test
+cd backend && npm run test:watch  # Watch mode
+cd backend && npm run test:coverage  # With coverage
 
-# Frontend tests (if implemented)
+# Frontend tests (Vitest)
 cd frontend && npm test
+cd frontend && npm run test:ui  # UI mode
+cd frontend && npm run test:coverage  # With coverage
 ```
+
+See `TESTING.md` for complete testing documentation.
 
 ### Building for Production
 ```bash
