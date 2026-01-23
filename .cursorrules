@@ -228,14 +228,27 @@ All form fields must follow the standardized labeling pattern established in Ste
 
 ## Testing Considerations
 
+### Testing Framework
+- **Backend**: Jest with ES modules support
+- **Frontend**: Vitest with Vue Test Utils
+- **Test Files**: Located in `__tests__/` directories
+- **Reference**: See `TESTING.md` for complete testing guide
+
+### Running Tests
+- Backend: `cd backend && npm test`
+- Frontend: `cd frontend && npm test`
+- Coverage: `npm run test:coverage` in respective directories
+
 ### Before Deploying
+- Run all tests: `npm test` in both backend and frontend
 - Verify SSNs are not in database queries
 - Test form validation (phone, email)
 - Test draft saving/loading
 - Test step navigation with dependencies
 - Verify PDF generation includes SSN correctly
-- Test Google Drive upload
+- Test Google Drive upload (or local storage fallback)
 - Verify encryption is working
+- Check test coverage meets minimum (80% for critical paths)
 
 ## Common Pitfalls to Avoid
 
@@ -264,6 +277,21 @@ Use Tailwind config colors from `frontend/tailwind.config.js`:
 
 ## Git Workflow
 
+### Commit Structure
+- **Use atomic commits**: Each commit should represent a single, logical change
+- **Follow Conventional Commits**: Use the conventional commit format
+  - Format: `<type>(<scope>): <description>`
+  - Types: `feat`, `fix`, `test`, `docs`, `style`, `refactor`, `perf`, `chore`
+  - Examples:
+    - `feat(auth): add rate limiting for signup endpoint`
+    - `fix(forms): resolve 429 error on account creation`
+    - `test(backend): add unit tests for auth routes`
+    - `style(forms): standardize auto-filled field labeling`
+    - `refactor(forms): improve I-9 document option visibility`
+- **Break large changes into smaller commits**: Each commit should be reviewable and revertible independently
+- **Write clear commit messages**: Describe what and why, not how (code shows how)
+
+### Files to Exclude
 - Don't commit `.env` files
 - Don't commit `node_modules/`
 - Don't commit database files (`*.db`)
