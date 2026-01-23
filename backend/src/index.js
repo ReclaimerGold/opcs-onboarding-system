@@ -44,12 +44,23 @@ app.use(session({
   }
 }))
 
-// Rate limiting
-const limiter = rateLimit({
+// Rate limiting - more lenient for auth endpoints
+const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100 // limit each IP to 100 requests per windowMs
 })
-app.use('/api/', limiter)
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each IP to 20 auth requests per windowMs (signup/login attempts)
+  message: 'Too many authentication attempts. Please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// Apply rate limiting
+app.use('/api/auth', authLimiter)
+app.use('/api/', generalLimiter)
 
 // Audit middleware
 app.use('/api/', auditMiddleware)
