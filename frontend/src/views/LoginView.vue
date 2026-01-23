@@ -6,17 +6,17 @@
           OPCS Onboarding System
         </h2>
         <p class="mt-2 text-center text-sm text-gray-600">
-          {{ isSignUp ? 'Start your onboarding process' : 'Continue your onboarding process' }}
+          {{ getModeDescription() }}
         </p>
       </div>
       
-      <div class="flex justify-center space-x-4 mb-6">
+      <div class="flex justify-center space-x-2 mb-6">
         <button
           @click="switchToSignUp"
           :class="[
             'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            isSignUp
-              ? 'bg-primary text-white'
+            mode === 'signup'
+              ? 'bg-primary text-white shadow-md'
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           ]"
         >
@@ -26,12 +26,23 @@
           @click="switchToSignIn"
           :class="[
             'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            !isSignUp
-              ? 'bg-primary text-white'
+            mode === 'signin'
+              ? 'bg-primary text-white shadow-md'
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           ]"
         >
           Sign In
+        </button>
+        <button
+          @click="switchToManager"
+          :class="[
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            mode === 'manager'
+              ? 'bg-primary text-white shadow-md'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          ]"
+        >
+          Manager Login
         </button>
       </div>
 
@@ -81,14 +92,17 @@
               <h3 class="text-sm font-medium text-red-800">
                 {{ error }}
               </h3>
-              <div v-if="error.includes('already exists') && isSignUp" class="mt-2 text-sm text-red-700">
+              <div v-if="error.includes('already exists') && mode === 'signup'" class="mt-2 text-sm text-red-700">
                 <p>Click "Sign In" above to access your account.</p>
               </div>
-              <div v-if="error.includes('No account found') && !isSignUp" class="mt-2 text-sm text-red-700">
+              <div v-if="error.includes('No account found') && mode !== 'signup'" class="mt-2 text-sm text-red-700">
                 <p>Click "Sign Up" above to create a new account.</p>
               </div>
-              <div v-if="error.includes('Unable to create account') && isSignUp" class="mt-2 text-sm text-red-700">
+              <div v-if="error.includes('Unable to create account') && mode === 'signup'" class="mt-2 text-sm text-red-700">
                 <p>If you already have an account, try clicking "Sign In" above.</p>
+              </div>
+              <div v-if="error.includes('Access denied') || error.includes('manager privileges')" class="mt-2 text-sm text-red-700">
+                <p>Please contact your administrator if you believe you should have manager access.</p>
               </div>
             </div>
           </div>
@@ -100,8 +114,8 @@
             :disabled="loading"
             class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
           >
-            <span v-if="loading">{{ isSignUp ? 'Creating account...' : 'Signing in...' }}</span>
-            <span v-else>{{ isSignUp ? 'Get Started' : 'Continue' }}</span>
+            <span v-if="loading">{{ getButtonLoadingText() }}</span>
+            <span v-else>{{ getButtonText() }}</span>
           </button>
         </div>
       </form>
@@ -118,22 +132,69 @@ import api from '../services/api.js'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const isSignUp = ref(true)
+const mode = ref('signup') // 'signup', 'signin', or 'manager'
 const firstName = ref('')
 const lastName = ref('')
 const email = ref('')
 const loading = ref(false)
 const error = ref('')
 
-// Clear error when switching tabs
+// Get description based on current mode
+const getModeDescription = () => {
+  switch (mode.value) {
+    case 'signup':
+      return 'Start your onboarding process'
+    case 'signin':
+      return 'Continue your onboarding process'
+    case 'manager':
+      return 'Manager and administrator access'
+    default:
+      return 'Start your onboarding process'
+  }
+}
+
+// Clear error when switching modes
 const switchToSignUp = () => {
   error.value = ''
-  isSignUp.value = true
+  mode.value = 'signup'
 }
 
 const switchToSignIn = () => {
   error.value = ''
-  isSignUp.value = false
+  mode.value = 'signin'
+}
+
+const switchToManager = () => {
+  error.value = ''
+  mode.value = 'manager'
+}
+
+// Get button text based on mode
+const getButtonText = () => {
+  switch (mode.value) {
+    case 'signup':
+      return 'Get Started'
+    case 'signin':
+      return 'Continue'
+    case 'manager':
+      return 'Login as Manager'
+    default:
+      return 'Get Started'
+  }
+}
+
+// Get button loading text based on mode
+const getButtonLoadingText = () => {
+  switch (mode.value) {
+    case 'signup':
+      return 'Creating account...'
+    case 'signin':
+      return 'Signing in...'
+    case 'manager':
+      return 'Logging in...'
+    default:
+      return 'Processing...'
+  }
 }
 
 const handleSubmit = async () => {
@@ -141,7 +202,8 @@ const handleSubmit = async () => {
   loading.value = true
   
   try {
-    const endpoint = isSignUp.value ? '/auth/signup' : '/auth/login'
+    // Manager login uses the same login endpoint
+    const endpoint = mode.value === 'signup' ? '/auth/signup' : '/auth/login'
     const response = await api.post(endpoint, {
       firstName: firstName.value,
       lastName: lastName.value,
@@ -157,7 +219,13 @@ const handleSubmit = async () => {
       
       // Redirect based on user type and onboarding status
       if (authStore.isAdmin) {
+        // Admin/Manager always goes to admin dashboard
         router.push('/admin')
+      } else if (mode.value === 'manager') {
+        // User selected manager login but is not an admin
+        error.value = 'Access denied. This account does not have manager privileges.'
+        loading.value = false
+        return
       } else if (response.data.isNewUser) {
         router.push('/forms')
       } else {
@@ -199,9 +267,13 @@ const handleSubmit = async () => {
             : 'Account already exists. Please sign in to continue.'
           break
         case 'ACCOUNT_NOT_FOUND':
-          // Only show this error on login, not signup
-          if (!isSignUp.value) {
-            error.value = 'No account found with this information. Please sign up to get started.'
+          // Only show this error on login/manager, not signup
+          if (mode.value !== 'signup') {
+            if (mode.value === 'manager') {
+              error.value = 'No manager account found with this information. Please verify your credentials or contact your administrator.'
+            } else {
+              error.value = 'No account found with this information. Please sign up to get started.'
+            }
           } else {
             // This shouldn't happen on signup, but if it does, show generic error
             error.value = 'Unable to create account. Please try again.'
@@ -214,36 +286,44 @@ const handleSubmit = async () => {
         default:
           // Handle HTTP status codes - context-aware messages
           if (statusCode === 400) {
-            if (isSignUp.value) {
+            if (mode.value === 'signup') {
               error.value = 'Unable to create account. Please check your information and try again.'
+            } else if (mode.value === 'manager') {
+              error.value = 'Unable to sign in as manager. Please check your information and try again.'
             } else {
               error.value = 'Unable to sign in. Please check your information and try again.'
             }
           } else if (statusCode === 404) {
             // 404 on signup shouldn't happen, but if it does, show appropriate message
-            if (isSignUp.value) {
+            if (mode.value === 'signup') {
               error.value = 'Unable to create account. Please try again.'
+            } else if (mode.value === 'manager') {
+              error.value = 'No manager account found. Please verify your credentials or contact your administrator.'
             } else {
               error.value = 'No account found with this information. Please sign up to create a new account.'
             }
           } else if (statusCode === 500) {
             error.value = 'Server error. Please try again in a few moments.'
           } else {
-            error.value = isSignUp.value 
-              ? 'Failed to create account. Please check your information and try again.' 
-              : 'Failed to sign in. Please check your information and try again.'
+            if (mode.value === 'signup') {
+              error.value = 'Failed to create account. Please check your information and try again.'
+            } else if (mode.value === 'manager') {
+              error.value = 'Failed to sign in as manager. Please check your information and try again.'
+            } else {
+              error.value = 'Failed to sign in. Please check your information and try again.'
+            }
           }
       }
     }
     
     // Auto-switch mode based on error (only if it makes sense)
-    if (errorData.existingAccount && isSignUp.value) {
+    if (errorData.existingAccount && mode.value === 'signup') {
       // User tried to sign up but account exists - switch to sign in
       setTimeout(() => {
         switchToSignIn()
       }, 3000)
     }
-    if (errorData.notFound && !isSignUp.value) {
+    if (errorData.notFound && mode.value !== 'signup' && mode.value !== 'manager') {
       // User tried to sign in but account doesn't exist - switch to sign up
       setTimeout(() => {
         switchToSignUp()
