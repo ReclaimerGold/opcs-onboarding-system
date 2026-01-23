@@ -14,7 +14,7 @@
         <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
           <p class="text-sm text-blue-800">
             <strong>Auto-population:</strong> Your name and date of birth were entered during signup and will be automatically filled in. 
-            These fields are locked to ensure consistency across all forms.
+            Address fields from Step 1 will also be auto-populated if available. These fields are locked to ensure consistency across all forms.
           </p>
         </div>
         
@@ -22,6 +22,8 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               First Name <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.firstName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.firstName"
@@ -30,21 +32,28 @@
               readonly
               class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
             />
-            <p class="mt-1 text-xs text-gray-500">Auto-populated from your profile</p>
+            <p class="mt-1 text-xs text-gray-500">Pre-filled from signup - cannot be changed</p>
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Middle Name
+              <span v-if="formData.middleName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
+            </label>
             <input
               v-model="formData.middleName"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+              :readonly="!!middleNameLocked"
+              :class="middleNameLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
             />
+            <p v-if="middleNameLocked" class="mt-1 text-xs text-gray-500">Pre-filled from Step 1</p>
           </div>
           
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Last Name <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.lastName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.lastName"
@@ -53,12 +62,14 @@
               readonly
               class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
             />
-            <p class="mt-1 text-xs text-gray-500">Auto-populated from your profile</p>
+            <p class="mt-1 text-xs text-gray-500">Pre-filled from signup - cannot be changed</p>
           </div>
           
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Date of Birth <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.dateOfBirth" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.dateOfBirth"
@@ -67,58 +78,75 @@
               readonly
               class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
             />
-            <p class="mt-1 text-xs text-gray-500">Auto-populated from your profile</p>
+            <p class="mt-1 text-xs text-gray-500">Pre-filled from Step 1 - cannot be changed</p>
           </div>
         </div>
         
         <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
+          <div class="md:col-span-2">
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Address <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.address" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.address"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+              :readonly="!!addressLocked"
+              :class="addressLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
             />
+            <p v-if="addressLocked" class="mt-1 text-xs text-gray-500">Pre-filled from Step 1</p>
           </div>
           
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               City <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.city" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.city"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+              :readonly="!!addressLocked"
+              :class="addressLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
             />
+            <p v-if="addressLocked" class="mt-1 text-xs text-gray-500">Pre-filled from Step 1</p>
           </div>
           
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               State <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.state" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.state"
               type="text"
               required
               maxlength="2"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary uppercase"
+              :readonly="!!addressLocked"
+              :class="addressLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed uppercase' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary uppercase'"
+              @input="formData.state = formData.state.toUpperCase()"
             />
+            <p v-if="addressLocked" class="mt-1 text-xs text-gray-500">Pre-filled from Step 1</p>
           </div>
           
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               ZIP Code <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.zipCode" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.zipCode"
               type="text"
               required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+              :readonly="!!addressLocked"
+              :class="addressLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
             />
+            <p v-if="addressLocked" class="mt-1 text-xs text-gray-500">Pre-filled from Step 1</p>
           </div>
         </div>
         
@@ -237,6 +265,8 @@ const formData = ref({
 })
 
 const loading = ref(false)
+const addressLocked = ref(false)
+const middleNameLocked = ref(false)
 
 // Load applicant data and auto-populate fields
 onMounted(async () => {
@@ -248,17 +278,49 @@ onMounted(async () => {
     formData.value.firstName = applicantData.value.firstName || applicantData.value.first_name || ''
     formData.value.lastName = applicantData.value.lastName || applicantData.value.last_name || ''
     formData.value.dateOfBirth = applicantData.value.dateOfBirth || applicantData.value.date_of_birth || ''
-    // Address fields are NOT auto-populated - user enters them in this step
   } else {
     try {
       const response = await api.get('/applicants/me')
       formData.value.firstName = response.data.firstName || response.data.first_name || ''
       formData.value.lastName = response.data.lastName || response.data.last_name || ''
       formData.value.dateOfBirth = response.data.dateOfBirth || response.data.date_of_birth || ''
-      // Address fields are NOT auto-populated - user enters them in this step
     } catch (error) {
       console.error('Error loading applicant data:', error)
     }
+  }
+  
+  // Load address fields from Step 1 draft
+  try {
+    const step1Draft = await api.get('/forms/draft/1')
+    if (step1Draft.data.success && step1Draft.data.formData) {
+      const step1Data = step1Draft.data.formData
+      
+      // Auto-populate address fields from Step 1
+      if (step1Data.address) {
+        formData.value.address = step1Data.address
+        addressLocked.value = true
+      }
+      if (step1Data.city) {
+        formData.value.city = step1Data.city
+        addressLocked.value = true
+      }
+      if (step1Data.state) {
+        formData.value.state = step1Data.state
+        addressLocked.value = true
+      }
+      if (step1Data.zipCode) {
+        formData.value.zipCode = step1Data.zipCode
+        addressLocked.value = true
+      }
+      
+      // Auto-populate middle name if available
+      if (step1Data.middleName) {
+        formData.value.middleName = step1Data.middleName
+        middleNameLocked.value = true
+      }
+    }
+  } catch (error) {
+    console.error('Error loading Step 1 draft:', error)
   }
 })
 
