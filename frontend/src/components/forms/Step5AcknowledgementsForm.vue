@@ -34,6 +34,7 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">
                 First Name <span class="text-red-500">*</span>
                 <span class="ml-1 text-xs text-red-600">(Required)</span>
+                <span v-if="formData.firstName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
               </label>
               <input
                 v-model="formData.firstName"
@@ -49,6 +50,7 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">
                 Last Name <span class="text-red-500">*</span>
                 <span class="ml-1 text-xs text-red-600">(Required)</span>
+                <span v-if="formData.lastName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
               </label>
               <input
                 v-model="formData.lastName"

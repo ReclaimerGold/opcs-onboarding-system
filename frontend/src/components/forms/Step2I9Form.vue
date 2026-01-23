@@ -36,6 +36,8 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               First Name <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.firstName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.firstName"
@@ -69,6 +71,8 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Last Name <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.lastName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
               v-model="formData.lastName"
@@ -291,17 +295,39 @@
             </div>
           </div>
           
-          <!-- Document Details Based on Selection -->
-          <div v-if="documentOption === 'listA'" class="space-y-4">
-            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h4 class="font-semibold text-gray-900 mb-3 flex items-center">
-                <div class="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold mr-2">A</div>
-                Select Your List A Document
-              </h4>
+          <!-- Document Details - Always Show Both Options -->
+          <div class="space-y-4">
+            <!-- List A Section -->
+            <div :class="[
+              'border rounded-lg p-4 transition-all',
+              documentOption === 'listA' 
+                ? 'bg-green-50 border-green-300 shadow-md' 
+                : documentOption === 'listBC'
+                  ? 'bg-gray-50 border-gray-300 opacity-75'
+                  : 'bg-green-50 border-green-200'
+            ]">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-semibold text-gray-900 flex items-center">
+                  <div class="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold mr-2">A</div>
+                  Select Your List A Document
+                </h4>
+                <span v-if="documentOption === 'listBC'" class="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
+                  (Not Required - List B+C Selected)
+                </span>
+                <span v-else-if="documentOption === 'listA'" class="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
+                  (Required)
+                </span>
+              </div>
               <select
                 v-model="formData.listADocument"
                 @change="handleListAChange"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-white"
+                :disabled="documentOption === 'listBC'"
+                :class="[
+                  'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-primary focus:border-primary',
+                  documentOption === 'listBC' 
+                    ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+                    : 'bg-white border-gray-300'
+                ]"
               >
                 <option value="">Choose your document...</option>
                 <option value="passport">US Passport or US Passport Card</option>
@@ -310,13 +336,14 @@
                 <option value="micronesia">Passport from Federated States of Micronesia</option>
                 <option value="nonimmigrant">Non-immigrant alien work authorization</option>
               </select>
-              <p class="mt-2 text-xs text-gray-600">
+              <p class="mt-2 text-xs" :class="documentOption === 'listBC' ? 'text-gray-500' : 'text-gray-600'">
                 <strong>Legal Notice:</strong> List A documents establish both identity and employment authorization. 
-                If you select a List A document, you do not need to provide List B or List C documents.
+                <span v-if="documentOption === 'listBC'">Not required if you're providing List B + C documents.</span>
+                <span v-else>If you select a List A document, you do not need to provide List B or List C documents.</span>
               </p>
               
               <!-- File Upload for List A -->
-              <div v-if="formData.listADocument" class="mt-4 bg-white p-4 rounded border border-green-300">
+              <div v-if="formData.listADocument && documentOption !== 'listBC'" class="mt-4 bg-white p-4 rounded border border-green-300">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Upload Your List A Document <span class="text-red-500">*</span>
                 </label>
@@ -346,23 +373,53 @@
                 <p v-if="uploadError.listA" class="mt-2 text-xs text-red-600">{{ uploadError.listA }}</p>
               </div>
             </div>
-          </div>
-          
-          <div v-if="documentOption === 'listBC'" class="space-y-4">
-            <!-- List B Section -->
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 class="font-semibold text-gray-900 mb-3 flex items-center">
-                <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold mr-2">B</div>
-                Step 1: Select Your Identity Document (List B)
-              </h4>
-              <p class="text-xs text-gray-600 mb-3">
-                This document proves your identity (who you are)
-              </p>
-              <select
-                v-model="formData.listBDocument"
-                @change="handleListBChange"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-white mb-3"
-              >
+            
+            <!-- List B + C Section -->
+            <div :class="[
+              'border rounded-lg p-4 transition-all',
+              documentOption === 'listBC' 
+                ? 'bg-blue-50 border-blue-300 shadow-md' 
+                : documentOption === 'listA'
+                  ? 'bg-gray-50 border-gray-300 opacity-75'
+                  : 'bg-blue-50 border-blue-200'
+            ]">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-semibold text-gray-900 flex items-center">
+                  <div class="flex items-center mr-2">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold mr-1">B</div>
+                    <span class="text-gray-400 mx-1">+</span>
+                    <div class="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold ml-1">C</div>
+                  </div>
+                  <span class="ml-2">List B + List C Documents</span>
+                </h4>
+                <span v-if="documentOption === 'listA'" class="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
+                  (Not Required - List A Selected)
+                </span>
+                <span v-else-if="documentOption === 'listBC'" class="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded">
+                  (Required)
+                </span>
+              </div>
+              
+              <!-- List B Section -->
+              <div class="mb-4">
+                <h5 class="font-semibold text-gray-900 mb-3 flex items-center">
+                  <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold mr-2">B</div>
+                  Step 1: Select Your Identity Document (List B)
+                </h5>
+                <p class="text-xs mb-3" :class="documentOption === 'listA' ? 'text-gray-500' : 'text-gray-600'">
+                  This document proves your identity (who you are)
+                </p>
+                <select
+                  v-model="formData.listBDocument"
+                  @change="handleListBChange"
+                  :disabled="documentOption === 'listA'"
+                  :class="[
+                    'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-primary focus:border-primary mb-3',
+                    documentOption === 'listA' 
+                      ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+                      : 'bg-white border-gray-300'
+                  ]"
+                >
                 <option value="">Choose your identity document...</option>
                 <option value="drivers-license">State Issued Driver's License</option>
                 <option value="state-id">State Issued ID Card</option>
@@ -374,7 +431,7 @@
                 <option value="canadian">Driver's License Issued by Canadian Government</option>
               </select>
               
-              <div v-if="formData.listBDocument" class="mt-4 space-y-3 bg-white p-3 rounded border border-blue-300">
+                <div v-if="formData.listBDocument && documentOption !== 'listA'" class="mt-4 space-y-3 bg-white p-3 rounded border border-blue-300">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">
                     Document Number <span class="text-red-500">*</span>
@@ -411,10 +468,10 @@
                   />
                   <p class="mt-1 text-xs text-gray-500">Leave blank if your document doesn't expire</p>
                 </div>
-              </div>
-              
-              <!-- File Upload for List B -->
-              <div v-if="formData.listBDocument" class="mt-4 bg-white p-4 rounded border border-blue-300">
+                </div>
+                
+                <!-- File Upload for List B -->
+                <div v-if="formData.listBDocument && documentOption !== 'listA'" class="mt-4 bg-white p-4 rounded border border-blue-300">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Upload Your List B Document <span class="text-red-500">*</span>
                 </label>
@@ -441,28 +498,33 @@
                     PDF, JPG, or PNG (max 10MB)
                   </span>
                 </div>
-                <p v-if="uploadError.listB" class="mt-2 text-xs text-red-600">{{ uploadError.listB }}</p>
+                  <p v-if="uploadError.listB" class="mt-2 text-xs text-red-600">{{ uploadError.listB }}</p>
+                </div>
               </div>
-            </div>
-            
-            <!-- List C Section -->
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <h4 class="font-semibold text-gray-900 mb-3 flex items-center">
-                <div class="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold mr-2">C</div>
-                Step 2: Select Your Work Authorization Document (List C)
-              </h4>
-              <p class="text-xs text-gray-600 mb-3">
-                This document proves you're authorized to work in the US
-              </p>
-              <select
-                v-model="formData.listCDocument"
-                @change="handleListCChange"
-                :required="!!formData.listBDocument"
-                :class="[
-                  'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-white mb-3',
-                  formData.listBDocument && !formData.listCDocument ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
-                ]"
-              >
+              
+              <!-- List C Section -->
+              <div>
+                <h5 class="font-semibold text-gray-900 mb-3 flex items-center">
+                  <div class="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold mr-2">C</div>
+                  Step 2: Select Your Work Authorization Document (List C)
+                </h5>
+                <p class="text-xs mb-3" :class="documentOption === 'listA' ? 'text-gray-500' : 'text-gray-600'">
+                  This document proves you're authorized to work in the US
+                </p>
+                <select
+                  v-model="formData.listCDocument"
+                  @change="handleListCChange"
+                  :disabled="documentOption === 'listA'"
+                  :required="!!formData.listBDocument && documentOption !== 'listA'"
+                  :class="[
+                    'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-primary focus:border-primary mb-3',
+                    documentOption === 'listA' 
+                      ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+                      : formData.listBDocument && !formData.listCDocument 
+                        ? 'border-yellow-400 bg-yellow-50' 
+                        : 'bg-white border-gray-300'
+                  ]"
+                >
                 <option value="">Choose your work authorization document...</option>
                 <option value="ssn-card">Social Security Card</option>
                 <option value="birth-certificate">Birth Certificate (State Certified)</option>
@@ -471,11 +533,11 @@
                 <option value="resident-id">Resident Citizen ID Card (Form I-179)</option>
                 <option value="ead">Employment Authorization Document (DHS)</option>
               </select>
-              <p v-if="formData.listBDocument && !formData.listCDocument" class="text-xs text-yellow-600 font-medium">
-                ⚠️ A List C document is required when you provide a List B document
-              </p>
-              
-              <div v-if="formData.listCDocument" class="mt-4 bg-white p-3 rounded border border-purple-300">
+                <p v-if="formData.listBDocument && !formData.listCDocument && documentOption !== 'listA'" class="text-xs text-yellow-600 font-medium">
+                  ⚠️ A List C document is required when you provide a List B document
+                </p>
+                
+                <div v-if="formData.listCDocument && documentOption !== 'listA'" class="mt-4 bg-white p-3 rounded border border-purple-300">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                   Document Number <span class="text-red-500">*</span>
                 </label>
@@ -489,10 +551,10 @@
                 <p v-if="formData.listCDocument === 'ssn-card'" class="mt-1 text-xs text-gray-500">
                   Issuing Authority: Social Security Administration
                 </p>
-              </div>
-              
-              <!-- File Upload for List C -->
-              <div v-if="formData.listCDocument" class="mt-4 bg-white p-4 rounded border border-purple-300">
+                </div>
+                
+                <!-- File Upload for List C -->
+                <div v-if="formData.listCDocument && documentOption !== 'listA'" class="mt-4 bg-white p-4 rounded border border-purple-300">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Upload Your List C Document <span class="text-red-500">*</span>
                 </label>
@@ -519,7 +581,8 @@
                     PDF, JPG, or PNG (max 10MB)
                   </span>
                 </div>
-                <p v-if="uploadError.listC" class="mt-2 text-xs text-red-600">{{ uploadError.listC }}</p>
+                  <p v-if="uploadError.listC" class="mt-2 text-xs text-red-600">{{ uploadError.listC }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -909,6 +972,7 @@ const validateDocuments = () => {
   }
   
   // If List A option is selected, must have a List A document and upload
+  // (List B/C are not required when List A is selected)
   if (documentOption.value === 'listA') {
     if (!formData.value.listADocument) {
       documentValidationError.value = 'Please select your List A document.'
@@ -922,6 +986,7 @@ const validateDocuments = () => {
   }
   
   // If List B+C option is selected, need both
+  // (List A is not required when List B+C is selected)
   if (documentOption.value === 'listBC') {
     if (!formData.value.listBDocument && !formData.value.listCDocument) {
       documentValidationError.value = 'Please select both a List B document (identity) and a List C document (work authorization).'

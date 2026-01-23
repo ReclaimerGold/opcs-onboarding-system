@@ -35,6 +35,8 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               First Name <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.firstName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
               <span class="ml-1 relative group">
                 <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -76,6 +78,8 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Last Name <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required)</span>
+              <span v-if="formData.lastName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
               <span class="ml-1 relative group">
                 <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
