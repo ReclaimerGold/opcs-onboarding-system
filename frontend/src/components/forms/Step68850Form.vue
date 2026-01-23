@@ -362,24 +362,35 @@ onMounted(async () => {
     }
   }
   
-  // Try to load middle name from Step 1 or Step 3 drafts
+  // Try to load middle name and phone from Step 1 or Step 3 drafts
   try {
     // Check Step 1 draft first
     const step1Draft = await api.get('/forms/draft/1')
-    if (step1Draft.data?.formData?.middleName) {
-      formData.value.middle = step1Draft.data.formData.middleName
-      middleNameLocked.value = true
+    if (step1Draft.data?.success && step1Draft.data?.formData) {
+      const step1Data = step1Draft.data.formData
+      
+      // Load middle name
+      if (step1Data.middleName) {
+        formData.value.middle = step1Data.middleName
+        middleNameLocked.value = true
+      }
+      
+      // Load phone if not already loaded from applicant record
+      if (!formData.value.phone && step1Data.phone) {
+        formData.value.phone = step1Data.phone
+        phoneLocked.value = true
+      }
     } else {
-      // Check Step 3 draft
+      // Check Step 3 draft for middle name
       const step3Draft = await api.get('/forms/draft/3')
-      if (step3Draft.data?.formData?.middleName) {
+      if (step3Draft.data?.success && step3Draft.data?.formData?.middleName) {
         formData.value.middle = step3Draft.data.formData.middleName
         middleNameLocked.value = true
       }
     }
   } catch (error) {
     // Drafts might not exist, that's okay
-    console.log('No drafts found for middle name')
+    console.log('No drafts found for additional fields')
   }
   
   // Load SSN from cookie if available (temporary storage, expires in 1 hour)

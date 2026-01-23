@@ -81,14 +81,15 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       )
     }
     
-    // Update applicant record with data from Step 1 (W-4) - date of birth
+    // Update applicant record with data from Step 1 (W-4) - date of birth and phone
     if (step === 1 && formData) {
       db.prepare(`
         UPDATE applicants 
-        SET date_of_birth = ?
+        SET date_of_birth = ?, phone = ?
         WHERE id = ?
       `).run(
         formData.dateOfBirth || null,
+        formData.phone || null,
         req.applicantId
       )
     }
