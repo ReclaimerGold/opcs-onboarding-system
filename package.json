@@ -1,0 +1,20 @@
+{
+  "name": "opcs-onboarding-system",
+  "version": "1.0.0",
+  "description": "HR Onboarding System for Optimal Prime Cleaning Services",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start"
+  },
+  "keywords": ["onboarding", "hr", "compliance"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

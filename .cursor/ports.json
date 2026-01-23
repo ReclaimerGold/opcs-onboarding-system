@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "ports": [
+    {
+      "name": "Frontend (Vue App)",
+      "port": 9999,
+      "protocol": "http",
+      "description": "Vue.js frontend development server - Main application interface"
+    },
+    {
+      "name": "Backend API",
+      "port": 3000,
+      "protocol": "http",
+      "description": "Node.js/Express backend API server - REST API endpoints"
+    }
+  ],
+  "forwarding": {
+    "frontend": {
+      "localPort": 9999,
+      "remotePort": 9999,
+      "protocol": "http"
+    },
+    "backend": {
+      "localPort": 3000,
+      "remotePort": 3000,
+      "protocol": "http"
+    }
+  }
+}
+

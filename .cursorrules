@@ -1,0 +1,301 @@
+# OPCS Onboarding System - Cursor Rules
+
+## Project Overview
+This is an HR onboarding application for Optimal Prime Cleaning Services with full US federal compliance. It uses Vue 3 frontend, Node.js/Express backend, and SQLite database.
+
+## Architecture Principles
+
+### Data Privacy & Security
+- **NEVER store SSNs in the database** - SSNs only go in PDFs, never persisted
+- Always encrypt sensitive documents and settings using AES-256-GCM
+- Use session-based authentication with HTTP-only cookies
+- All document access must be audit logged
+
+### Database Design
+- Use SQLite with `better-sqlite3`
+- Follow compliance-focused schema (see `backend/src/database/init.js`)
+- Never include SSN fields in database tables
+- Use proper foreign keys and indexes
+
+### Frontend Patterns
+- Use Vue 3 Composition API with `<script setup>`
+- Use Pinia for state management
+- Use composables for reusable logic (`useApplicantData`, `useFormDraft`)
+- Follow Tailwind CSS utility-first approach
+- Use the color scheme from `optimalprimeservices.com`
+
+### Backend Patterns
+- Use ES6 modules (import/export)
+- Separate concerns: routes, services, middleware
+- Always use `requireAuth` middleware for protected routes
+- Use `auditLog` for compliance tracking
+- Handle errors gracefully with proper HTTP status codes
+
+## Code Style
+
+### JavaScript/Vue
+- Use ES6+ features (async/await, destructuring, arrow functions)
+- Use camelCase for variables and functions
+- Use PascalCase for Vue components
+- Use descriptive variable names
+- Add JSDoc comments for complex functions
+
+### File Naming
+- Components: PascalCase (`Step1W4Form.vue`)
+- Utilities: camelCase (`validation.js`)
+- Services: camelCase (`pdfService.js`)
+- Routes: camelCase (`auth.js`)
+
+### Vue Component Structure
+```vue
+<template>
+  <!-- Template content -->
+</template>
+
+<script setup>
+// Imports
+// Props/Emits
+// Reactive state
+// Computed properties
+// Methods
+// Lifecycle hooks
+</script>
+```
+
+## Key Features to Maintain
+
+### Form Workflow
+- 6-step process: W-4, I-9, Background, Direct Deposit, Acknowledgements, 8850
+- Auto-save drafts every 2 seconds (debounced)
+- Manual save button on each form
+- Clickable breadcrumb navigation with validation
+- Step dependencies enforced (can't skip steps)
+
+### Field Auto-population
+- First name, last name, email from signup → locked after Step 1
+- Phone number from signup → locked if provided
+- Middle name → editable (optional)
+- All other fields → editable
+
+### Validation
+- US phone numbers only: (XXX) XXX-XXXX format
+- Email validation with format checking
+- Real-time validation with error messages
+- Field-level tooltips explaining requirements
+
+### Form Labeling Standards (REQUIRED)
+All form fields must follow the standardized labeling pattern established in Step 6 (8850 form):
+
+1. **Required Fields:**
+   - Use red asterisk: `<span class="text-red-500">*</span>`
+   - Add required indicator: `<span class="ml-1 text-xs text-red-600">(Required)</span>`
+   - Example: `First Name <span class="text-red-500">*</span> <span class="ml-1 text-xs text-red-600">(Required)</span>`
+
+2. **Auto-filled Fields:**
+   - Show green indicator when field has value: `<span v-if="formData.fieldName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>`
+   - Locked fields use: `readonly` attribute, `bg-gray-100 cursor-not-allowed` classes
+   - Add helper text: `<p class="mt-1 text-xs text-gray-500">Pre-filled from [source] - cannot be changed</p>`
+
+3. **Info Boxes:**
+   - Use blue info box for auto-population notices: `bg-blue-50 border-l-4 border-blue-400 rounded-md`
+   - Text color: `text-blue-800`
+   - Start with: `<strong>Auto-population:</strong>`
+
+4. **Field States:**
+   - Locked/readonly: Gray background (`bg-gray-100`), cursor-not-allowed
+   - Required but empty: Red border (`border-2 border-red-300`) with error message
+   - Auto-filled: Green indicator text, locked styling
+
+5. **Consistency:**
+   - All forms must use the same labeling pattern
+   - All info boxes must use the same blue styling
+   - All required field indicators must be consistent
+   - Reference: `frontend/src/components/forms/Step68850Form.vue` as the standard
+
+### Google Integration
+- Google Drive API for document storage
+- Google Maps Places API for address autocomplete
+- API keys stored encrypted in settings table
+- Public endpoint for Maps API key (authenticated users)
+
+## Important Files
+
+### Backend
+- `backend/src/database/init.js` - Database schema (DO NOT add SSN fields)
+- `backend/src/services/pdfService.js` - PDF generation (SSN included here only)
+- `backend/src/services/encryptionService.js` - AES-256-GCM encryption
+- `backend/src/middleware/auth.js` - Authentication helpers
+- `backend/src/routes/forms.js` - Form submission and draft management
+
+### Frontend
+- `frontend/src/views/FormWizardView.vue` - Main form wizard with breadcrumbs
+- `frontend/src/components/forms/Step1W4Form.vue` - W-4 form (reference implementation)
+- `frontend/src/composables/useFormDraft.js` - Draft auto-save logic
+- `frontend/src/composables/useApplicantData.js` - Applicant data loading
+- `frontend/src/utils/validation.js` - Phone/email validation
+
+## Documentation Requirements
+
+### ALWAYS Update Documentation
+- **README.md MUST be updated** whenever:
+  - Adding new features or functionality
+  - Changing API endpoints or routes
+  - Adding new dependencies
+  - Modifying database schema
+  - Changing authentication or security features
+  - Updating environment variables or configuration
+- **CONTRIBUTING.md MUST be updated** whenever:
+  - Adding new development workflows
+  - Changing code style or conventions
+  - Adding new testing requirements
+  - Modifying setup or installation procedures
+  - Updating contribution guidelines
+
+### Documentation Standards
+- Keep README.md current with all features and setup instructions
+- Keep CONTRIBUTING.md current with development practices
+- Include code examples where helpful
+- Document breaking changes clearly
+- Update API documentation sections when endpoints change
+
+## When Adding Features
+
+### New Form Fields
+1. Add to form component's `formData` ref
+2. Add validation if required
+3. Add tooltip if field needs explanation
+4. Update PDF generation service if needed
+5. **Never add SSN fields to database**
+6. **Update README.md** with field description if significant
+
+### New API Endpoints
+1. Add route in appropriate `routes/` file
+2. Use `requireAuth` middleware
+3. Add `auditLog` for sensitive operations
+4. Handle errors with proper status codes
+5. **Update API documentation in README.md** - REQUIRED
+6. **Update CONTRIBUTING.md** if endpoint affects development workflow
+
+### New Dependencies
+1. Install in appropriate directory (backend/ or frontend/)
+2. Update package.json
+3. **Document in README.md** - REQUIRED if significant
+4. Consider security implications
+5. **Update CONTRIBUTING.md** if installation/setup changes
+
+## Compliance Requirements
+
+**IMPORTANT**: See `COMPLIANCE.md` for complete compliance documentation, including federal regulations and South Dakota state-specific requirements.
+
+### Document Retention
+- I-9: 3 years after hire or 1 year after termination (whichever is later)
+- W-4: 4 years after last payment
+- Background checks: Per FCRA requirements (5 years recommended)
+- All retention dates calculated in `retentionService.js`
+- **Reference**: `COMPLIANCE.md` for complete retention schedule
+
+### Audit Logging
+- All document access must be logged
+- All form submissions must be logged
+- Include: user ID, action, resource type, IP address, user agent, timestamp
+- **Reference**: `COMPLIANCE.md` for complete audit logging requirements
+
+### Privacy
+- SSN collection requires explicit consent (PrivacyNotice component)
+- SSNs never stored in database
+- SSNs temporarily stored in browser cookie (1 hour expiration) for user convenience
+  - Cookie name: `temp_ssn`
+  - Expires after 1 hour
+  - Auto-populates SSN fields in Step 1 (W-4) and Step 6 (8850)
+  - Uses secure cookie settings (SameSite=Strict, Secure in production)
+  - See `frontend/src/utils/cookies.js` for implementation
+- All sensitive data encrypted at rest
+- Session data secured with HTTP-only cookies
+- **Reference**: `COMPLIANCE.md` for complete privacy requirements
+
+### Compliance Checklists
+- **ALWAYS** review `COMPLIANCE.md` before making changes that affect:
+  - Document retention
+  - Data storage
+  - Privacy features
+  - Audit logging
+  - Form requirements
+- Use compliance checklists in `COMPLIANCE.md` for:
+  - Pre-deployment reviews
+  - Monthly compliance checks
+  - Quarterly compliance reviews
+  - Annual compliance audits
+
+## Testing Considerations
+
+### Before Deploying
+- Verify SSNs are not in database queries
+- Test form validation (phone, email)
+- Test draft saving/loading
+- Test step navigation with dependencies
+- Verify PDF generation includes SSN correctly
+- Test Google Drive upload
+- Verify encryption is working
+
+## Common Pitfalls to Avoid
+
+1. **Don't add SSN fields to database schema**
+2. **Don't skip step validation** - always check prerequisites
+3. **Don't forget audit logging** for sensitive operations
+4. **Don't hardcode API keys** - use settings table
+5. **Don't bypass authentication** - use middleware
+6. **Don't store unencrypted sensitive data**
+
+## Color Scheme
+
+Use Tailwind config colors from `frontend/tailwind.config.js`:
+- Primary: Blue (#1e40af)
+- Primary Light: Lighter blue for hover states
+- Secondary: Gray tones
+- Success: Green
+- Warning: Yellow
+- Error: Red
+
+## Port Configuration
+
+- Backend: 3000 (configurable via `PORT` env var)
+- Frontend: 8080 (configurable in `vite.config.js`)
+- Check for port conflicts before starting
+
+## Git Workflow
+
+- Don't commit `.env` files
+- Don't commit `node_modules/`
+- Don't commit database files (`*.db`)
+- Don't commit `dist/` or build artifacts
+- Do commit all source code changes
+- **ALWAYS update README.md** when making changes that affect setup, features, or API
+- **ALWAYS update CONTRIBUTING.md** when making changes that affect development workflow
+
+## Documentation Maintenance
+
+### Mandatory Documentation Updates
+- **README.md MUST be updated** when:
+  - Adding new features or functionality
+  - Changing API endpoints or routes
+  - Adding new dependencies
+  - Modifying database schema
+  - Changing authentication or security features
+  - Updating environment variables or configuration
+  - Changing setup or installation procedures
+  
+- **CONTRIBUTING.md MUST be updated** when:
+  - Adding new development workflows
+  - Changing code style or conventions
+  - Adding new testing requirements
+  - Modifying setup or installation procedures
+  - Updating contribution guidelines
+  - Changing development dependencies
+
+### Documentation Checklist
+Before completing any feature or change:
+- [ ] README.md updated with new features/changes
+- [ ] CONTRIBUTING.md updated if workflow changed
+- [ ] API documentation updated if endpoints changed
+- [ ] Setup instructions updated if dependencies changed
+

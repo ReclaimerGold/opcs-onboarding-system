@@ -1,0 +1,105 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import LoginView from '../views/LoginView.vue'
+import DashboardView from '../views/DashboardView.vue'
+import FormWizardView from '../views/FormWizardView.vue'
+import SettingsView from '../views/SettingsView.vue'
+import AdminDashboardView from '../views/AdminDashboardView.vue'
+
+const routes = [
+  {
+    path: '/',
+    redirect: '/login'
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: LoginView
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: DashboardView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/forms',
+    name: 'Forms',
+    component: FormWizardView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: SettingsView,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: AdminDashboardView,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+// Auth guard
+router.beforeEach(async (to, from, next) => {
+  const isAuthenticated = localStorage.getItem('authToken')
+  
+  // Import auth store
+  const { useAuthStore } = await import('../stores/auth.js')
+  const authStore = useAuthStore()
+  
+  // Fetch user info if authenticated but not loaded
+  if (isAuthenticated && !authStore.user) {
+    try {
+      await authStore.fetchUser()
+    } catch (error) {
+      // If fetch fails, clear auth and redirect to login
+      console.error('Failed to fetch user:', error)
+      authStore.logout()
+      if (to.path !== '/login') {
+        next('/login')
+        return
+      }
+    }
+  }
+  
+  // Check authentication
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next('/login')
+    return
+  }
+  
+  // Check admin access
+  if (to.meta.requiresAdmin) {
+    if (!isAuthenticated) {
+      next('/login')
+      return
+    }
+    if (!authStore.isAdmin) {
+      // Non-admin trying to access admin route
+      next('/dashboard')
+      return
+    }
+  }
+  
+  // Redirect authenticated users away from login
+  if (to.path === '/login' && isAuthenticated) {
+    if (authStore.isAdmin) {
+      next('/admin')
+    } else {
+      next('/dashboard')
+    }
+    return
+  }
+  
+  next()
+})
+
+export default router
+

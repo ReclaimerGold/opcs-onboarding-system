@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.db
+*.db-journal
+uploads/
+.DS_Store
+*.log
+
+# Local storage for encrypted documents (when Google Drive not configured)
+backend/storage/encrypted-pdfs/
+backend/storage/encrypted-i9-docs/
+

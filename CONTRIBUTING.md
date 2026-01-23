@@ -1,0 +1,200 @@
+# Contributing to OPCS Onboarding System
+
+Thank you for your interest in contributing to the OPCS Onboarding System! This document provides guidelines and instructions for contributing to the project.
+
+## Development Setup
+
+### Prerequisites
+- Node.js (v18 or higher)
+- npm or yarn
+- Git
+
+### Initial Setup
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd opcs-onboarding-system
+```
+
+2. Install dependencies:
+```bash
+# Install root dependencies
+npm install
+
+# Install backend dependencies
+cd backend
+npm install
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+```
+
+3. Set up environment variables:
+   - Create `.env` file in the `backend/` directory
+   - Add required environment variables (see README.md for details)
+
+4. Initialize the database:
+   - The database will be created automatically on first run
+   - Located at `backend/database/onboarding.db`
+
+5. Start development servers:
+```bash
+# From root directory
+npm run dev
+```
+
+This will start:
+- Backend server on `http://localhost:3000`
+- Frontend dev server on `http://localhost:8080`
+
+## Code Style
+
+### General Guidelines
+- Follow the existing code style in the project
+- Use ES6+ features (async/await, destructuring, arrow functions)
+- Write clear, descriptive variable and function names
+- Add comments for complex logic
+- Keep functions focused and single-purpose
+
+### JavaScript/Vue
+- Use camelCase for variables and functions
+- Use PascalCase for Vue components
+- Use `<script setup>` syntax for Vue components
+- Use Composition API with reactive refs
+
+### File Naming
+- Components: PascalCase (`Step1W4Form.vue`)
+- Utilities: camelCase (`validation.js`)
+- Services: camelCase (`pdfService.js`)
+- Routes: camelCase (`auth.js`)
+
+### Vue Component Structure
+```vue
+<template>
+  <!-- Template content -->
+</template>
+
+<script setup>
+// Imports
+// Props/Emits
+// Reactive state
+// Computed properties
+// Methods
+// Lifecycle hooks
+</script>
+```
+
+## Security & Compliance
+
+### Critical Rules
+1. **NEVER store SSNs in the database** - SSNs only go in PDFs, never persisted
+2. Always encrypt sensitive documents using AES-256-GCM
+3. Use `requireAuth` middleware for all protected routes
+4. Add `auditLog` for all sensitive operations
+5. Never hardcode API keys - use settings table
+
+### Data Privacy
+- SSNs are collected but never stored in database
+- All sensitive data must be encrypted at rest
+- Document access must be audit logged
+- Follow US federal compliance requirements
+
+## Testing
+
+### Before Submitting
+- Test form validation (phone, email)
+- Test draft saving/loading
+- Test step navigation with dependencies
+- Verify PDF generation works correctly
+- Test Google Drive upload (if applicable)
+- Verify encryption is working
+- Check that SSNs are not in database queries
+
+### Manual Testing Checklist
+- [ ] All forms submit correctly
+- [ ] Auto-population works for locked fields
+- [ ] Step dependencies are enforced
+- [ ] Draft saving works
+- [ ] PDFs generate correctly
+- [ ] Document uploads work
+- [ ] Authentication works
+- [ ] Admin features work (if applicable)
+
+## Git Workflow
+
+### Branch Naming
+- Use descriptive branch names: `feature/add-new-form-field`, `fix/validation-bug`
+- Prefix with `feature/`, `fix/`, `docs/`, or `refactor/`
+
+### Commit Messages
+- Use clear, descriptive commit messages
+- Start with a verb: "Add", "Fix", "Update", "Remove"
+- Include context when helpful
+
+### Before Committing
+- Don't commit `.env` files
+- Don't commit `node_modules/`
+- Don't commit database files (`*.db`)
+- Don't commit `dist/` or build artifacts
+- Do commit all source code changes
+- Ensure README.md is updated if needed
+- Ensure CONTRIBUTING.md is updated if needed
+
+## Adding New Features
+
+### Form Fields
+1. Add to form component's `formData` ref
+2. Add validation if required
+3. Add tooltip if field needs explanation
+4. Update PDF generation service if needed
+5. **Never add SSN fields to database**
+6. **Update README.md** with field description
+
+### API Endpoints
+1. Add route in appropriate `routes/` file
+2. Use `requireAuth` middleware
+3. Add `auditLog` for sensitive operations
+4. Handle errors with proper status codes
+5. **Update API documentation in README.md**
+6. **Update CONTRIBUTING.md** if workflow changes
+
+### Dependencies
+1. Install in appropriate directory (backend/ or frontend/)
+2. Update package.json
+3. **Document in README.md** if significant
+4. Consider security implications
+5. **Update CONTRIBUTING.md** if setup changes
+
+## Documentation
+
+### Required Updates
+- **README.md**: Must be updated for new features, API changes, dependencies
+- **CONTRIBUTING.md**: Must be updated for workflow changes, setup changes
+
+### Documentation Standards
+- Keep documentation current with code
+- Include code examples where helpful
+- Document breaking changes clearly
+- Update API documentation when endpoints change
+
+## Code Review Process
+
+1. Ensure all tests pass
+2. Verify code follows style guidelines
+3. Check that security rules are followed
+4. Confirm documentation is updated
+5. Review for potential bugs or edge cases
+
+## Questions?
+
+If you have questions about contributing, please:
+- Check the README.md for project overview
+- Review existing code for patterns
+- Ask for clarification if needed
+
+## License
+
+[Add license information here]
+
