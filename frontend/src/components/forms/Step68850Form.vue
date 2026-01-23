@@ -8,7 +8,7 @@
         
         <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
           <p class="text-sm text-blue-800">
-            <strong>Auto-population:</strong> This form automatically fills in information from your previous steps. 
+            <strong>Auto-population:</strong> This form automatically fills in information from your previous steps, including your name, email, phone number, address, and date of birth. 
             Please review and complete any remaining required fields.
           </p>
         </div>
@@ -148,10 +148,18 @@
               v-model="formData.phone"
               type="tel"
               placeholder="(000) 000-0000"
-              :readonly="!!phoneLocked"
-              :class="phoneLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
+              :readonly="phoneLocked"
+              :class="[
+                'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-primary focus:border-primary',
+                phoneLocked ? 'bg-gray-100 cursor-not-allowed' : '',
+                phoneError ? 'border-red-500' : 'border-gray-300'
+              ]"
+              @input="formatPhone"
+              @blur="validatePhone"
             />
-            <p v-if="phoneLocked" class="mt-1 text-xs text-gray-500">Pre-filled from signup</p>
+            <p v-if="phoneLocked" class="mt-1 text-xs text-gray-500">Pre-filled from signup - cannot be changed</p>
+            <p v-else class="mt-1 text-xs text-gray-500">US phone number only (10 digits)</p>
+            <p v-if="phoneError" class="mt-1 text-xs text-red-600">{{ phoneError }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -256,6 +264,7 @@ import PrivacyNotice from '../PrivacyNotice.vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
+import { formatPhoneNumber, validatePhoneNumber } from '../../utils/validation.js'
 
 const emit = defineEmits(['submitted'])
 
@@ -282,6 +291,7 @@ const formData = ref({
 
 const ssnConsented = ref(false)
 const loading = ref(false)
+const phoneError = ref('')
 
 // Track which fields are locked (auto-populated)
 const phoneLocked = ref(false)
@@ -385,8 +395,31 @@ const missingRequiredFields = computed(() => {
   if (!formData.value.ssn) missing.push('Social Security Number')
   if (!formData.value.email) missing.push('Email')
   if (!formData.value.county) missing.push('County')
+  // Check phone validation if phone is provided but not locked
+  if (formData.value.phone && !phoneLocked.value && phoneError.value) {
+    missing.push('Valid Phone Number')
+  }
   return missing
 })
+
+const formatPhone = (e) => {
+  const formatted = formatPhoneNumber(e.target.value)
+  formData.value.phone = formatted
+  phoneError.value = ''
+}
+
+const validatePhone = () => {
+  if (!formData.value.phone) {
+    phoneError.value = ''
+    return
+  }
+  const validation = validatePhoneNumber(formData.value.phone)
+  if (!validation.valid) {
+    phoneError.value = validation.message
+  } else {
+    phoneError.value = ''
+  }
+}
 
 const formatSSN = (e) => {
   let value = e.target.value.replace(/\D/g, '')
@@ -406,6 +439,22 @@ const formatSSN = (e) => {
 const handleSubmit = async () => {
   if (!ssnConsented.value) {
     alert('Please consent to SSN collection to continue')
+    return
+  }
+  
+  // Validate phone if provided and not locked
+  if (formData.value.phone && !phoneLocked.value) {
+    const phoneValidation = validatePhoneNumber(formData.value.phone)
+    if (!phoneValidation.valid) {
+      phoneError.value = phoneValidation.message
+      alert('Please fix the phone number error before submitting.')
+      return
+    }
+  }
+  
+  // Check for missing required fields
+  if (missingRequiredFields.value.length > 0) {
+    alert('Please complete all required fields before submitting.')
     return
   }
   
