@@ -2,12 +2,16 @@
   "name": "opcs-onboarding-backend",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
+    "dev": "bun --watch src/index.js",
+    "start": "bun src/index.js",
+    "lint": "echo 'TODO: Add eslint'",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -23,7 +27,8 @@
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
-    "jest": "^30.2.0",
-    "supertest": "^7.2.2"
+    "@vitest/coverage-v8": "^2.1.0",
+    "supertest": "^7.2.2",
+    "vitest": "^2.1.0"
   }
 }
