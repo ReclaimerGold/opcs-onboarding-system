@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+frontend/dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Storage
+backend/storage/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# Tests (not needed in production)
+**/__tests__/
+**/*.test.js
+**/*.spec.js
+coverage/
+.nyc_output/
+
+# Development files
+Dockerfile.dev
+docker-compose.yml
+.github/
+.husky/
+.nvmrc
+.cursorrules
+.cursor/
