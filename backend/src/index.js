@@ -48,15 +48,19 @@ app.use(session({
 // Rate limiting - more lenient for auth endpoints
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 200 // limit each IP to 200 requests per windowMs
 })
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // limit each IP to 20 auth requests per windowMs (signup/login attempts)
+  max: 50, // limit each IP to 50 auth requests per windowMs (signup/login attempts)
   message: 'Too many authentication attempts. Please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/health'
+  }
 })
 
 // Apply rate limiting

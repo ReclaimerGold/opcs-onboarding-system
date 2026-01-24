@@ -458,6 +458,13 @@ const handleSubmit = async () => {
     const errorCode = errorData.code
     const statusCode = err.response?.status
     
+    // Handle rate limiting errors (429)
+    if (statusCode === 429 || err.isRateLimit) {
+      error.value = err.userMessage || errorData.message || 'Too many requests. Please wait a few minutes before trying again.'
+      loading.value = false
+      return
+    }
+    
     // Use specific error message from backend if available
     if (errorData.error) {
       error.value = errorData.error

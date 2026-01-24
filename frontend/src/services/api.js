@@ -26,6 +26,17 @@ api.interceptors.response.use(
       localStorage.removeItem('authToken')
       window.location.href = '/login'
     }
+    // Handle rate limiting errors (429)
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after']
+      const message = retryAfter 
+        ? `Too many requests. Please wait ${Math.ceil(retryAfter)} seconds before trying again.`
+        : 'Too many requests. Please wait a few minutes before trying again.'
+      
+      // Enhance error object with user-friendly message
+      error.userMessage = message
+      error.isRateLimit = true
+    }
     return Promise.reject(error)
   }
 )
