@@ -1,8 +1,8 @@
 <template>
   <div class="min-h-screen flex flex-col bg-gray-50">
     <!-- Main Content -->
-    <div class="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div class="max-w-4xl w-full space-y-8">
+    <div class="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 md:px-8 lg:px-10">
+      <div class="max-w-6xl w-full space-y-8">
         <!-- Header -->
         <div class="text-center">
           <div class="flex justify-center mb-6">
@@ -218,8 +218,8 @@
     </div>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-6 px-4">
-      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+    <footer class="bg-white border-t border-gray-200 py-6 px-4 sm:px-6 md:px-8 lg:px-10">
+      <div class="max-w-full mx-auto flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
         <div class="text-sm text-gray-600">
           © {{ currentYear }} Optimal Prime Services. All rights reserved.
         </div>

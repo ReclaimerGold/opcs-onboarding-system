@@ -52,36 +52,37 @@ export const W4_FIELD_MAPPING = {
  */
 export const I9_FIELD_MAPPING = {
   // Section 1: Employee Information
-  lastName: ['Last Name (Family Name)', 'form1[0].#subform[0].LastFamilyName[0]', 'LastFamilyName[0]'],
-  firstName: ['First Name (Given Name)', 'form1[0].#subform[0].FirstGivenName[0]', 'FirstGivenName[0]'],
-  middleInitial: ['Middle Initial', 'form1[0].#subform[0].MiddleInitial[0]', 'MiddleInitial[0]'],
-  otherLastNames: ['Other Last Names Used', 'form1[0].#subform[0].OtherNames[0]', 'OtherNames[0]'],
+  lastName: ['Last Name (Family Name)', 'Last Name Family Name from Section 1', 'form1[0].#subform[0].LastFamilyName[0]', 'LastFamilyName[0]'],
+  firstName: ['First Name Given Name', 'First Name Given Name from Section 1', 'First Name (Given Name)', 'form1[0].#subform[0].FirstGivenName[0]', 'FirstGivenName[0]'],
+  middleInitial: ['Employee Middle Initial (if any)', 'Middle initial if any from Section 1', 'Middle Initial', 'form1[0].#subform[0].MiddleInitial[0]', 'MiddleInitial[0]'],
+  otherLastNames: ['Employee Other Last Names Used (if any)', 'Other Last Names Used', 'form1[0].#subform[0].OtherNames[0]', 'OtherNames[0]'],
   
   // Address
-  address: ['Address (Street Number and Name)', 'form1[0].#subform[0].Address[0]', 'Address[0]'],
+  address: ['Address Street Number and Name', 'Address (Street Number and Name)', 'form1[0].#subform[0].Address[0]', 'Address[0]'],
   aptNumber: ['Apt. Number', 'form1[0].#subform[0].AptNumber[0]', 'AptNumber[0]'],
   city: ['City or Town', 'form1[0].#subform[0].City[0]', 'City[0]'],
-  state: ['State', 'form1[0].#subform[0].State[0]', 'State[0]'],
+  state: ['State'], // PDFDropdown - handled separately
   zipCode: ['ZIP Code', 'form1[0].#subform[0].ZipCode[0]', 'ZipCode[0]'],
   
   // Date of Birth and SSN
-  dateOfBirth: ['Date of Birth', 'form1[0].#subform[0].DateofBirth[0]', 'DateofBirth[0]'],
-  ssn1: ['SSN1', 'form1[0].#subform[0].SSN1[0]', 'SSN1[0]'],
-  ssn2: ['SSN2', 'form1[0].#subform[0].SSN2[0]', 'SSN2[0]'],
-  ssn3: ['SSN3', 'form1[0].#subform[0].SSN3[0]', 'SSN3[0]'],
+  dateOfBirth: ['Date of Birth mmddyyyy', 'Date of Birth', 'form1[0].#subform[0].DateofBirth[0]', 'DateofBirth[0]'],
+  ssn: ['US Social Security Number'], // Single field, not split
+  ssn1: ['SSN1', 'form1[0].#subform[0].SSN1[0]', 'SSN1[0]'], // Keep for backward compatibility
+  ssn2: ['SSN2', 'form1[0].#subform[0].SSN2[0]', 'SSN2[0]'], // Keep for backward compatibility
+  ssn3: ['SSN3', 'form1[0].#subform[0].SSN3[0]', 'SSN3[0]'], // Keep for backward compatibility
   
   // Contact
-  email: ['E-mail Address', 'form1[0].#subform[0].Email[0]', 'Email[0]'],
+  email: ['Employees E-mail Address', 'E-mail Address', 'form1[0].#subform[0].Email[0]', 'Email[0]'],
   phone: ['Telephone Number', 'form1[0].#subform[0].TelephoneNumber[0]', 'TelephoneNumber[0]'],
   
-  // Citizenship Status checkboxes
-  citizenCheckbox: ['Citizen', 'form1[0].#subform[0].Citizen[0]', 'Citizen[0]'],
-  nationalCheckbox: ['National', 'form1[0].#subform[0].National[0]', 'National[0]'],
-  permanentResidentCheckbox: ['Permanent Resident', 'form1[0].#subform[0].LawfulPermanentResident[0]', 'LawfulPermanentResident[0]'],
-  alienAuthorizedCheckbox: ['Alien Authorized', 'form1[0].#subform[0].AlienAuthorized[0]', 'AlienAuthorized[0]'],
+  // Citizenship Status checkboxes (actual field names in PDF)
+  citizenCheckbox: ['CB_1', 'Citizen', 'form1[0].#subform[0].Citizen[0]', 'Citizen[0]'],
+  nationalCheckbox: ['CB_2', 'National', 'form1[0].#subform[0].National[0]', 'National[0]'],
+  permanentResidentCheckbox: ['CB_3', 'Permanent Resident', 'LawfulPermanentResident', 'form1[0].#subform[0].LawfulPermanentResident[0]', 'LawfulPermanentResident[0]'],
+  alienAuthorizedCheckbox: ['CB_4', 'Alien Authorized', 'form1[0].#subform[0].AlienAuthorized[0]', 'AlienAuthorized[0]'],
   
   // Alien/USCIS Number fields
-  alienNumber: ['A-Number', 'form1[0].#subform[0].AlienNumber[0]', 'AlienNumber[0]'],
+  alienNumber: ['3 A lawful permanent resident Enter USCIS or ANumber', 'A-Number', 'form1[0].#subform[0].AlienNumber[0]', 'AlienNumber[0]'],
   uscisNumber: ['USCIS Number', 'form1[0].#subform[0].USCISNumber[0]', 'USCISNumber[0]'],
   i94AdmissionNumber: ['I-94 Admission Number', 'form1[0].#subform[0].I94[0]', 'I94[0]'],
   foreignPassportNumber: ['Foreign Passport Number', 'form1[0].#subform[0].ForeignPassportNumber[0]', 'ForeignPassportNumber[0]'],
@@ -90,15 +91,15 @@ export const I9_FIELD_MAPPING = {
   
   // Signature
   signatureEmployee: ['Signature of Employee', 'form1[0].#subform[0].SignatureEmployee[0]', 'SignatureEmployee[0]'],
-  signatureDateEmployee: ['Date', 'form1[0].#subform[0].DateEmployee[0]', 'DateEmployee[0]'],
+  signatureDateEmployee: ["Today's Date mmddyyy", 'Date', 'form1[0].#subform[0].DateEmployee[0]', 'DateEmployee[0]'],
   
   // Preparer/Translator section (if applicable)
-  preparerLastName: ['Preparer Last Name', 'form1[0].#subform[1].PreparerLastName[0]', 'PreparerLastName[0]'],
-  preparerFirstName: ['Preparer First Name', 'form1[0].#subform[1].PreparerFirstName[0]', 'PreparerFirstName[0]'],
-  preparerAddress: ['Preparer Address', 'form1[0].#subform[1].PreparerAddress[0]', 'PreparerAddress[0]'],
-  preparerCity: ['Preparer City', 'form1[0].#subform[1].PreparerCity[0]', 'PreparerCity[0]'],
-  preparerState: ['Preparer State', 'form1[0].#subform[1].PreparerState[0]', 'PreparerState[0]'],
-  preparerZip: ['Preparer ZIP', 'form1[0].#subform[1].PreparerZip[0]', 'PreparerZip[0]']
+  preparerLastName: ['Preparer or Translator Last Name (Family Name) 0', 'Preparer Last Name', 'form1[0].#subform[1].PreparerLastName[0]', 'PreparerLastName[0]'],
+  preparerFirstName: ['Preparer or Translator First Name (Given Name) 0', 'Preparer First Name', 'form1[0].#subform[1].PreparerFirstName[0]', 'PreparerFirstName[0]'],
+  preparerAddress: ['Preparer or Translator Address (Street Number and Name) 0', 'Preparer Address', 'form1[0].#subform[1].PreparerAddress[0]', 'PreparerAddress[0]'],
+  preparerCity: ['Preparer or Translator City or Town 0', 'Preparer City', 'form1[0].#subform[1].PreparerCity[0]', 'PreparerCity[0]'],
+  preparerState: ['Preparer State 0', 'Preparer State', 'form1[0].#subform[1].PreparerState[0]', 'PreparerState[0]'],
+  preparerZip: ['Zip Code 0', 'Preparer ZIP', 'form1[0].#subform[1].PreparerZip[0]', 'PreparerZip[0]']
 }
 
 /**
@@ -308,6 +309,43 @@ export function trySetRadioGroup(form, groupName, optionValue) {
 }
 
 /**
+ * Try to set a dropdown field value by attempting multiple field name variations
+ * @param {PDFForm} form - PDF form object
+ * @param {string[]} fieldNames - Array of possible field names to try
+ * @param {string} value - Value to select
+ * @returns {boolean} True if field was found and set
+ */
+export function trySetDropdown(form, fieldNames, value) {
+  if (!value && value !== 0) return false
+  
+  for (const fieldName of fieldNames) {
+    try {
+      const field = form.getDropdown(fieldName)
+      // Try to select by value (state code like "SD")
+      try {
+        field.select(value)
+        return true
+      } catch (e) {
+        // If direct selection fails, try to find matching option
+        const options = field.getOptions()
+        const matchingOption = options.find(opt => 
+          opt === value || opt.toUpperCase() === value.toUpperCase()
+        )
+        if (matchingOption) {
+          field.select(matchingOption)
+          return true
+        }
+      }
+    } catch (error) {
+      // Field not found with this name, try next
+      continue
+    }
+  }
+  
+  return false
+}
+
+/**
  * Get all field names from a PDF form (for debugging/mapping discovery)
  * @param {PDFForm} form - PDF form object
  * @returns {Object[]} Array of field info objects
@@ -381,6 +419,8 @@ export function mapI9FormData(formData) {
     zipCode: formData.zipCode || '',
     
     dateOfBirth: formatDateForPDF(formData.dateOfBirth),
+    // I-9 SSN field requires 9 digits without dashes (maxLength=9)
+    ssn: formData.ssn ? formData.ssn.replace(/-/g, '') : '',
     ssn1: ssnParts.ssn1,
     ssn2: ssnParts.ssn2,
     ssn3: ssnParts.ssn3,
@@ -460,6 +500,7 @@ export default {
   trySetTextField,
   trySetCheckbox,
   trySetRadioGroup,
+  trySetDropdown,
   getFormFieldInfo,
   mapW4FormData,
   mapI9FormData,

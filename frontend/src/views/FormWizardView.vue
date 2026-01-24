@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <nav class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
         <div class="flex justify-between h-16">
           <div class="flex items-center space-x-3">
             <img 
@@ -19,7 +19,7 @@
       </div>
     </nav>
     
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
       <!-- Auto-Fill Disclaimer -->
       <div class="mb-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
         <div class="flex items-start">
@@ -261,9 +261,9 @@
       </div>
 
       <!-- Form Content - Full Width Layout with PDF Preview -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Form Section (2 columns on large screens) -->
-        <div class="lg:col-span-2">
+      <div :class="hasPDFPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'flex justify-center'">
+        <!-- Form Section (50% on large screens when PDF preview exists, centered when no preview) -->
+        <div :class="hasPDFPreview ? 'lg:col-span-1' : 'w-full max-w-3xl'">
           <Step1W4Form 
             v-if="currentStep === 1" 
             @submitted="handleStepComplete"
@@ -296,7 +296,7 @@
           />
         </div>
 
-        <!-- PDF Preview Section (1 column on large screens, hidden on smaller screens for non-PDF forms) -->
+        <!-- PDF Preview Section (50% on large screens, hidden on smaller screens for non-PDF forms) -->
         <div 
           v-if="hasPDFPreview" 
           class="lg:col-span-1 hidden lg:block"

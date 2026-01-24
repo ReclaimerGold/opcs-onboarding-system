@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <nav class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
         <div class="flex justify-between h-16">
           <div class="flex items-center space-x-3">
             <img 
@@ -20,7 +20,7 @@
       </div>
     </nav>
     
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
       <!-- Action Buttons -->
       <div class="mb-6 flex justify-end">
         <button

@@ -108,6 +108,9 @@ async function fillPDFTemplate(pdfDoc, fieldMapping, mappedData) {
     console.log(`PDF has ${fieldInfo.length} form fields`)
   }
   
+  // Import dropdown function
+  const { trySetDropdown } = await import('./pdfFieldMapping.js')
+  
   for (const [dataKey, value] of Object.entries(mappedData)) {
     if (value === undefined || value === null || value === '') continue
     
@@ -125,8 +128,15 @@ async function fillPDFTemplate(pdfDoc, fieldMapping, mappedData) {
         failedFields.push(dataKey)
       }
     } else {
-      // Text fields
-      if (trySetTextField(form, fieldNames, String(value))) {
+      // Try text field first
+      let success = trySetTextField(form, fieldNames, String(value))
+      
+      // If text field fails and this is a known dropdown field (like State), try dropdown
+      if (!success && (dataKey === 'state' || fieldNames.length === 1 && fieldNames[0] === 'State')) {
+        success = trySetDropdown(form, fieldNames, String(value))
+      }
+      
+      if (success) {
         filledCount++
       } else {
         failedFields.push(dataKey)
