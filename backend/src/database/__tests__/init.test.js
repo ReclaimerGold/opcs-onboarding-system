@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from '@jest/globals'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { initializeDatabase, getDatabase } from '../init.js'
 
 describe('Database Initialization', () => {
