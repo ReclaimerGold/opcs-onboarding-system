@@ -12,6 +12,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Manual save**: Save draft button available on each form
 - **Resume anytime**: Pick up where you left off with saved drafts
 - **Field Auto-population**: Name, email, and phone auto-populate from signup and are locked after first entry
+- **Loading Banners**: Clear indicators show when pre-fill data or settings are still loading
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 

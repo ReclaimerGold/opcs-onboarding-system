@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 
 const props = defineProps({
   label: String,
@@ -68,18 +68,27 @@ const handleInput = (e) => {
   statusType.value = ''
 }
 
+const getCurrentAddressValue = () => {
+  return (addressInput.value?.value || props.modelValue || '').trim()
+}
+
 const handleBlur = async () => {
+  const currentValue = getCurrentAddressValue()
   // Only auto-validate if API is configured and address is long enough
-  if (props.apiKey && props.modelValue && props.modelValue.length >= 10) {
-    await validateAddress()
-  } else if (props.modelValue && props.modelValue.length >= 5) {
+  if (props.apiKey && currentValue.length >= 10) {
+    await validateAddress(currentValue)
+  } else if (currentValue.length >= 5) {
     // Try to parse the address manually
-    parseAndEmitAddress(props.modelValue)
+    parseAndEmitAddress(currentValue)
   }
 }
 
-const validateAddress = async () => {
-  if (!props.apiKey || !props.modelValue) return
+let lastValidationRequestId = 0
+
+const validateAddress = async (addressValue = '') => {
+  const currentValue = (addressValue || getCurrentAddressValue()).trim()
+  if (!props.apiKey || !currentValue) return
+  const requestId = ++lastValidationRequestId
   
   validating.value = true
   statusMessage.value = 'Checking address...'
@@ -90,7 +99,7 @@ const validateAddress = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ address: props.modelValue })
+      body: JSON.stringify({ address: currentValue })
     })
     
     if (!response.ok) {
@@ -98,6 +107,9 @@ const validateAddress = async () => {
     }
     
     const result = await response.json()
+    if (requestId !== lastValidationRequestId) {
+      return
+    }
     
     if (result.success && result.address) {
       // Update address field if corrected
@@ -107,7 +119,7 @@ const validateAddress = async () => {
       
       // Emit parsed address to parent
       emit('address-selected', {
-        street: result.address.street || props.modelValue,
+        street: result.address.street || currentValue,
         city: result.address.city || '',
         state: result.address.state || '',
         zip: result.address.zip || ''
@@ -117,14 +129,14 @@ const validateAddress = async () => {
       statusType.value = 'success'
     } else {
       // Fall back to manual parsing
-      parseAndEmitAddress(props.modelValue)
+      parseAndEmitAddress(currentValue)
       statusMessage.value = 'Please check your address and fill in city, state, and zip below'
       statusType.value = 'info'
     }
   } catch (error) {
     console.error('Address validation error:', error)
     // Fall back to manual parsing
-    parseAndEmitAddress(props.modelValue)
+    parseAndEmitAddress(currentValue)
     statusMessage.value = 'Please fill in city, state, and zip below'
     statusType.value = 'info'
   } finally {
@@ -160,4 +172,17 @@ const parseAndEmitAddress = (addressString) => {
   
   emit('address-selected', parsed)
 }
+
+watch(
+  () => props.apiKey,
+  async (newKey, oldKey) => {
+    if (newKey && !oldKey) {
+      await nextTick()
+      const currentValue = getCurrentAddressValue()
+      if (currentValue.length >= 10) {
+        validateAddress(currentValue)
+      }
+    }
+  }
+)
 </script>

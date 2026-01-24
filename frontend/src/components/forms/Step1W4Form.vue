@@ -212,11 +212,9 @@
             <div class="space-y-4">
               <!-- Street Address -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Street Address <span class="text-red-500">*</span>
-                </label>
                 <AddressSearch
                   v-model="formData.address"
+                  label="Street Address"
                   :required="true"
                   placeholder="Example: 123 Main Street, Apt 4B"
                   :api-key="addressValidationApiKey"
