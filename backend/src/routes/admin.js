@@ -107,14 +107,74 @@ router.get('/dashboard', async (req, res) => {
 
 /**
  * GET /api/admin/login-attempts
- * Get all login attempts with filtering
+ * Get all login attempts with filtering, search, and pagination
+ * Query params: search, success, startDate, endDate, page, limit, sortKey, sortDir
  */
 router.get('/login-attempts', async (req, res) => {
   try {
     const db = getDatabase()
-    const { limit = 100, success, startDate, endDate } = req.query
+    const { 
+      search, 
+      success, 
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 25,
+      sortKey = 'created_at',
+      sortDir = 'desc'
+    } = req.query
     
-    let query = `
+    const offset = (parseInt(page) - 1) * parseInt(limit)
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    // Search filter (searches name, email, IP)
+    if (search) {
+      whereClause += ` AND (
+        la.first_name LIKE ? OR 
+        la.last_name LIKE ? OR 
+        la.email LIKE ? OR 
+        a.first_name LIKE ? OR 
+        a.last_name LIKE ? OR 
+        a.email LIKE ? OR
+        la.ip_address LIKE ?
+      )`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (success !== undefined && success !== '') {
+      whereClause += ' AND la.success = ?'
+      params.push(success === 'true' ? 1 : 0)
+    }
+    
+    if (startDate) {
+      whereClause += ' AND la.created_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND la.created_at <= ?'
+      params.push(endDate)
+    }
+    
+    // Validate sort column to prevent SQL injection
+    const validSortColumns = ['created_at', 'first_name', 'email', 'success', 'ip_address']
+    const sortColumn = validSortColumns.includes(sortKey) ? `la.${sortKey}` : 'la.created_at'
+    const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
+    
+    // Count total matching records
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM login_attempts la
+      LEFT JOIN applicants a ON la.applicant_id = a.id
+      ${whereClause}
+    `
+    const total = db.prepare(countQuery).get(...params).total
+    
+    // Get paginated results
+    const dataQuery = `
       SELECT 
         la.*,
         a.first_name as applicant_first_name,
@@ -122,29 +182,11 @@ router.get('/login-attempts', async (req, res) => {
         a.email as applicant_email
       FROM login_attempts la
       LEFT JOIN applicants a ON la.applicant_id = a.id
-      WHERE 1=1
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT ? OFFSET ?
     `
-    const params = []
-    
-    if (success !== undefined) {
-      query += ' AND la.success = ?'
-      params.push(success === 'true' ? 1 : 0)
-    }
-    
-    if (startDate) {
-      query += ' AND la.created_at >= ?'
-      params.push(startDate)
-    }
-    
-    if (endDate) {
-      query += ' AND la.created_at <= ?'
-      params.push(endDate)
-    }
-    
-    query += ' ORDER BY la.created_at DESC LIMIT ?'
-    params.push(parseInt(limit))
-    
-    const attempts = db.prepare(query).all(...params)
+    const attempts = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
     
     await auditLog({
       userId: req.applicantId,
@@ -156,7 +198,15 @@ router.get('/login-attempts', async (req, res) => {
       details: { endpoint: 'login-attempts', filters: req.query }
     })
     
-    res.json({ attempts })
+    res.json({ 
+      attempts,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    })
   } catch (error) {
     console.error('Login attempts error:', error)
     res.status(500).json({ error: 'Failed to retrieve login attempts' })
@@ -165,13 +215,28 @@ router.get('/login-attempts', async (req, res) => {
 
 /**
  * GET /api/admin/onboarding-status
- * Get onboarding completion status for all applicants
+ * Get onboarding completion status for all applicants with filtering, search, and pagination
+ * Query params: search, status, isAdmin, startDate, endDate, page, limit, sortKey, sortDir
  */
 router.get('/onboarding-status', async (req, res) => {
   try {
     const db = getDatabase()
+    const { 
+      search, 
+      status,
+      isAdmin,
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 25,
+      sortKey = 'created_at',
+      sortDir = 'desc'
+    } = req.query
     
-    const applicants = db.prepare(`
+    const offset = (parseInt(page) - 1) * parseInt(limit)
+    
+    // First, get all applicants with their submission counts (we need to filter after aggregation for status)
+    let baseQuery = `
       SELECT 
         a.id,
         a.first_name,
@@ -183,11 +248,47 @@ router.get('/onboarding-status', async (req, res) => {
         MAX(fs.submitted_at) as last_submission
       FROM applicants a
       LEFT JOIN form_submissions fs ON a.id = fs.applicant_id
-      GROUP BY a.id
-      ORDER BY a.created_at DESC
-    `).all()
+    `
     
-    const status = applicants.map(app => ({
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    // Search filter
+    if (search) {
+      whereClause += ` AND (
+        a.first_name LIKE ? OR 
+        a.last_name LIKE ? OR 
+        a.email LIKE ?
+      )`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern)
+    }
+    
+    // Admin filter
+    if (isAdmin !== undefined && isAdmin !== '') {
+      whereClause += ' AND a.is_admin = ?'
+      params.push(isAdmin === 'true' ? 1 : 0)
+    }
+    
+    // Date filters
+    if (startDate) {
+      whereClause += ' AND a.created_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND a.created_at <= ?'
+      params.push(endDate)
+    }
+    
+    // Build full query with grouping
+    const fullQuery = `${baseQuery} ${whereClause} GROUP BY a.id`
+    
+    // Get all matching records for filtering by status
+    const allApplicants = db.prepare(fullQuery).all(...params)
+    
+    // Transform and filter by status
+    let transformedApplicants = allApplicants.map(app => ({
       id: app.id,
       firstName: app.first_name,
       lastName: app.last_name,
@@ -201,6 +302,35 @@ router.get('/onboarding-status', async (req, res) => {
       lastSubmission: app.last_submission
     }))
     
+    // Filter by status if specified
+    if (status && status !== '') {
+      transformedApplicants = transformedApplicants.filter(app => app.status === status)
+    }
+    
+    // Sort
+    const validSortKeys = ['firstName', 'lastName', 'email', 'createdAt', 'progress', 'completedSteps', 'status']
+    const actualSortKey = validSortKeys.includes(sortKey) ? sortKey : 'createdAt'
+    transformedApplicants.sort((a, b) => {
+      let aVal = a[actualSortKey]
+      let bVal = b[actualSortKey]
+      
+      // Handle string comparison
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = bVal?.toLowerCase() || ''
+      }
+      
+      if (sortDir === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0
+      }
+    })
+    
+    // Paginate
+    const total = transformedApplicants.length
+    const paginatedApplicants = transformedApplicants.slice(offset, offset + parseInt(limit))
+    
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -208,10 +338,18 @@ router.get('/onboarding-status', async (req, res) => {
       resourceId: null,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      details: { endpoint: 'onboarding-status' }
+      details: { endpoint: 'onboarding-status', filters: req.query }
     })
     
-    res.json({ applicants: status })
+    res.json({ 
+      applicants: paginatedApplicants,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    })
   } catch (error) {
     console.error('Onboarding status error:', error)
     res.status(500).json({ error: 'Failed to retrieve onboarding status' })
@@ -220,14 +358,86 @@ router.get('/onboarding-status', async (req, res) => {
 
 /**
  * GET /api/admin/audit-logs
- * Get filtered audit logs
+ * Get filtered audit logs with search and pagination
+ * Query params: search, action, resourceType, userId, startDate, endDate, page, limit, sortKey, sortDir
  */
 router.get('/audit-logs', async (req, res) => {
   try {
     const db = getDatabase()
-    const { limit = 100, action, resourceType, userId, startDate, endDate } = req.query
+    const { 
+      search,
+      action, 
+      resourceType, 
+      userId, 
+      startDate, 
+      endDate,
+      page = 1,
+      limit = 25,
+      sortKey = 'created_at',
+      sortDir = 'desc'
+    } = req.query
     
-    let query = `
+    const offset = (parseInt(page) - 1) * parseInt(limit)
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    // Search filter
+    if (search) {
+      whereClause += ` AND (
+        al.action LIKE ? OR 
+        al.resource_type LIKE ? OR 
+        al.details LIKE ? OR
+        a.first_name LIKE ? OR 
+        a.last_name LIKE ? OR 
+        a.email LIKE ? OR
+        al.ip_address LIKE ?
+      )`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (action && action !== '') {
+      whereClause += ' AND al.action = ?'
+      params.push(action)
+    }
+    
+    if (resourceType && resourceType !== '') {
+      whereClause += ' AND al.resource_type = ?'
+      params.push(resourceType)
+    }
+    
+    if (userId && userId !== '') {
+      whereClause += ' AND al.user_id = ?'
+      params.push(parseInt(userId))
+    }
+    
+    if (startDate) {
+      whereClause += ' AND al.created_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND al.created_at <= ?'
+      params.push(endDate)
+    }
+    
+    // Validate sort column
+    const validSortColumns = ['created_at', 'action', 'resource_type', 'ip_address']
+    const sortColumn = validSortColumns.includes(sortKey) ? `al.${sortKey}` : 'al.created_at'
+    const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
+    
+    // Count total
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM audit_log al
+      LEFT JOIN applicants a ON al.user_id = a.id
+      ${whereClause}
+    `
+    const total = db.prepare(countQuery).get(...params).total
+    
+    // Get paginated results
+    const dataQuery = `
       SELECT 
         al.*,
         a.first_name,
@@ -235,39 +445,15 @@ router.get('/audit-logs', async (req, res) => {
         a.email
       FROM audit_log al
       LEFT JOIN applicants a ON al.user_id = a.id
-      WHERE 1=1
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT ? OFFSET ?
     `
-    const params = []
+    const logs = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
     
-    if (action) {
-      query += ' AND al.action = ?'
-      params.push(action)
-    }
-    
-    if (resourceType) {
-      query += ' AND al.resource_type = ?'
-      params.push(resourceType)
-    }
-    
-    if (userId) {
-      query += ' AND al.user_id = ?'
-      params.push(parseInt(userId))
-    }
-    
-    if (startDate) {
-      query += ' AND al.created_at >= ?'
-      params.push(startDate)
-    }
-    
-    if (endDate) {
-      query += ' AND al.created_at <= ?'
-      params.push(endDate)
-    }
-    
-    query += ' ORDER BY al.created_at DESC LIMIT ?'
-    params.push(parseInt(limit))
-    
-    const logs = db.prepare(query).all(...params)
+    // Get distinct actions and resource types for filter dropdowns
+    const actions = db.prepare('SELECT DISTINCT action FROM audit_log ORDER BY action').all().map(r => r.action)
+    const resourceTypes = db.prepare('SELECT DISTINCT resource_type FROM audit_log ORDER BY resource_type').all().map(r => r.resource_type)
     
     await auditLog({
       userId: req.applicantId,
@@ -279,7 +465,19 @@ router.get('/audit-logs', async (req, res) => {
       details: { endpoint: 'audit-logs', filters: req.query }
     })
     
-    res.json({ logs })
+    res.json({ 
+      logs,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      },
+      filterOptions: {
+        actions,
+        resourceTypes
+      }
+    })
   } catch (error) {
     console.error('Audit logs error:', error)
     res.status(500).json({ error: 'Failed to retrieve audit logs' })
@@ -432,12 +630,86 @@ router.put('/users/:id/admin', async (req, res) => {
 
 /**
  * GET /api/admin/submissions
- * Get all form submissions for all applicants
+ * Get all form submissions for all applicants with filtering, search, and pagination
+ * Query params: search, formType, applicantId, startDate, endDate, page, limit, sortKey, sortDir
  */
 router.get('/submissions', async (req, res) => {
   try {
     const db = getDatabase()
-    const submissions = db.prepare(`
+    const { 
+      search, 
+      formType,
+      stepNumber,
+      applicantId,
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 25,
+      sortKey = 'submitted_at',
+      sortDir = 'desc'
+    } = req.query
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit)
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    // Search filter
+    if (search) {
+      whereClause += ` AND (
+        a.first_name LIKE ? OR 
+        a.last_name LIKE ? OR 
+        a.email LIKE ? OR
+        fs.form_type LIKE ? OR
+        fs.pdf_filename LIKE ?
+      )`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (formType && formType !== '') {
+      whereClause += ' AND fs.form_type = ?'
+      params.push(formType)
+    }
+    
+    if (stepNumber && stepNumber !== '') {
+      whereClause += ' AND fs.step_number = ?'
+      params.push(parseInt(stepNumber))
+    }
+    
+    if (applicantId && applicantId !== '') {
+      whereClause += ' AND fs.applicant_id = ?'
+      params.push(parseInt(applicantId))
+    }
+    
+    if (startDate) {
+      whereClause += ' AND fs.submitted_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND fs.submitted_at <= ?'
+      params.push(endDate)
+    }
+    
+    // Validate sort column
+    const validSortColumns = ['submitted_at', 'step_number', 'form_type', 'first_name', 'email', 'retention_until']
+    const sortColumn = validSortColumns.includes(sortKey) 
+      ? (sortKey === 'first_name' || sortKey === 'email' ? `a.${sortKey}` : `fs.${sortKey}`)
+      : 'fs.submitted_at'
+    const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
+    
+    // Count total
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM form_submissions fs
+      JOIN applicants a ON fs.applicant_id = a.id
+      ${whereClause}
+    `
+    const total = db.prepare(countQuery).get(...params).total
+    
+    // Get paginated results
+    const dataQuery = `
       SELECT 
         fs.id,
         fs.step_number,
@@ -451,8 +723,14 @@ router.get('/submissions', async (req, res) => {
         a.email
       FROM form_submissions fs
       JOIN applicants a ON fs.applicant_id = a.id
-      ORDER BY fs.submitted_at DESC
-    `).all()
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT ? OFFSET ?
+    `
+    const submissions = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
+    
+    // Get distinct form types for filter dropdown
+    const formTypes = db.prepare('SELECT DISTINCT form_type FROM form_submissions ORDER BY form_type').all().map(r => r.form_type)
     
     await auditLog({
       userId: req.applicantId,
@@ -461,10 +739,22 @@ router.get('/submissions', async (req, res) => {
       resourceId: null,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      details: { endpoint: 'submissions' }
+      details: { endpoint: 'submissions', filters: req.query }
     })
     
-    res.json({ submissions })
+    res.json({ 
+      submissions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      },
+      filterOptions: {
+        formTypes,
+        stepNumbers: [1, 2, 3, 4, 5, 6]
+      }
+    })
   } catch (error) {
     console.error('Get all submissions error:', error)
     res.status(500).json({ error: 'Failed to retrieve submissions' })
@@ -473,12 +763,87 @@ router.get('/submissions', async (req, res) => {
 
 /**
  * GET /api/admin/i9-documents
- * Get all I-9 documents for all applicants
+ * Get all I-9 documents for all applicants with filtering, search, and pagination
+ * Query params: search, documentType, documentCategory, applicantId, startDate, endDate, page, limit, sortKey, sortDir
  */
 router.get('/i9-documents', async (req, res) => {
   try {
     const db = getDatabase()
-    const documents = db.prepare(`
+    const { 
+      search, 
+      documentType,
+      documentCategory,
+      applicantId,
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 25,
+      sortKey = 'uploaded_at',
+      sortDir = 'desc'
+    } = req.query
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit)
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    // Search filter
+    if (search) {
+      whereClause += ` AND (
+        a.first_name LIKE ? OR 
+        a.last_name LIKE ? OR 
+        a.email LIKE ? OR
+        d.document_type LIKE ? OR
+        d.document_name LIKE ? OR
+        d.file_name LIKE ?
+      )`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (documentType && documentType !== '') {
+      whereClause += ' AND d.document_type = ?'
+      params.push(documentType)
+    }
+    
+    if (documentCategory && documentCategory !== '') {
+      whereClause += ' AND d.document_category = ?'
+      params.push(documentCategory)
+    }
+    
+    if (applicantId && applicantId !== '') {
+      whereClause += ' AND d.applicant_id = ?'
+      params.push(parseInt(applicantId))
+    }
+    
+    if (startDate) {
+      whereClause += ' AND d.uploaded_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND d.uploaded_at <= ?'
+      params.push(endDate)
+    }
+    
+    // Validate sort column
+    const validSortColumns = ['uploaded_at', 'document_type', 'document_category', 'file_name', 'file_size', 'first_name', 'email']
+    const sortColumn = validSortColumns.includes(sortKey) 
+      ? (sortKey === 'first_name' || sortKey === 'email' ? `a.${sortKey}` : `d.${sortKey}`)
+      : 'd.uploaded_at'
+    const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
+    
+    // Count total
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM i9_documents d
+      JOIN applicants a ON d.applicant_id = a.id
+      ${whereClause}
+    `
+    const total = db.prepare(countQuery).get(...params).total
+    
+    // Get paginated results
+    const dataQuery = `
       SELECT 
         d.id,
         d.document_type,
@@ -493,8 +858,15 @@ router.get('/i9-documents', async (req, res) => {
         a.email
       FROM i9_documents d
       JOIN applicants a ON d.applicant_id = a.id
-      ORDER BY d.uploaded_at DESC
-    `).all()
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortDirection}
+      LIMIT ? OFFSET ?
+    `
+    const documents = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
+    
+    // Get distinct values for filter dropdowns
+    const documentTypes = db.prepare('SELECT DISTINCT document_type FROM i9_documents WHERE document_type IS NOT NULL ORDER BY document_type').all().map(r => r.document_type)
+    const documentCategories = db.prepare('SELECT DISTINCT document_category FROM i9_documents WHERE document_category IS NOT NULL ORDER BY document_category').all().map(r => r.document_category)
     
     await auditLog({
       userId: req.applicantId,
@@ -503,10 +875,22 @@ router.get('/i9-documents', async (req, res) => {
       resourceId: null,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      details: { endpoint: 'i9-documents' }
+      details: { endpoint: 'i9-documents', filters: req.query }
     })
     
-    res.json({ documents })
+    res.json({ 
+      documents,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      },
+      filterOptions: {
+        documentTypes,
+        documentCategories
+      }
+    })
   } catch (error) {
     console.error('Get all I-9 documents error:', error)
     res.status(500).json({ error: 'Failed to retrieve I-9 documents' })
@@ -1116,6 +1500,502 @@ router.get('/compliance-check', async (req, res) => {
       error: 'Failed to run compliance check',
       message: error.message
     })
+  }
+})
+
+// ============================================
+// EXPORT ENDPOINTS
+// ============================================
+
+/**
+ * Helper function to convert data to CSV
+ */
+function toCSV(data, columns) {
+  if (!data || data.length === 0) return ''
+  
+  const escapeValue = (val) => {
+    if (val === null || val === undefined) return ''
+    const str = String(val)
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+  }
+  
+  const headers = columns.map(col => escapeValue(col.label))
+  const rows = data.map(row => 
+    columns.map(col => escapeValue(row[col.key])).join(',')
+  )
+  
+  return [headers.join(','), ...rows].join('\n')
+}
+
+/**
+ * GET /api/admin/onboarding-status/export
+ * Export onboarding status data as CSV
+ */
+router.get('/onboarding-status/export', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const { search, status, isAdmin, startDate, endDate } = req.query
+    
+    let baseQuery = `
+      SELECT 
+        a.id,
+        a.first_name,
+        a.last_name,
+        a.email,
+        a.is_admin,
+        a.created_at,
+        COUNT(fs.id) as completed_steps,
+        MAX(fs.submitted_at) as last_submission
+      FROM applicants a
+      LEFT JOIN form_submissions fs ON a.id = fs.applicant_id
+    `
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    if (search) {
+      whereClause += ` AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ?)`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (isAdmin !== undefined && isAdmin !== '') {
+      whereClause += ' AND a.is_admin = ?'
+      params.push(isAdmin === 'true' ? 1 : 0)
+    }
+    
+    if (startDate) {
+      whereClause += ' AND a.created_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND a.created_at <= ?'
+      params.push(endDate)
+    }
+    
+    const fullQuery = `${baseQuery} ${whereClause} GROUP BY a.id ORDER BY a.created_at DESC`
+    const applicants = db.prepare(fullQuery).all(...params)
+    
+    let data = applicants.map(app => ({
+      id: app.id,
+      firstName: app.first_name,
+      lastName: app.last_name,
+      email: app.email,
+      isAdmin: app.is_admin === 1 ? 'Yes' : 'No',
+      completedSteps: app.completed_steps || 0,
+      progress: Math.round(((app.completed_steps || 0) / 6) * 100) + '%',
+      status: app.completed_steps >= 6 ? 'Completed' : app.completed_steps > 0 ? 'In Progress' : 'Not Started',
+      createdAt: app.created_at,
+      lastSubmission: app.last_submission || 'N/A'
+    }))
+    
+    if (status && status !== '') {
+      const statusMap = { completed: 'Completed', in_progress: 'In Progress', not_started: 'Not Started' }
+      data = data.filter(app => app.status === statusMap[status])
+    }
+    
+    const columns = [
+      { key: 'id', label: 'ID' },
+      { key: 'firstName', label: 'First Name' },
+      { key: 'lastName', label: 'Last Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'isAdmin', label: 'Admin' },
+      { key: 'completedSteps', label: 'Steps Completed' },
+      { key: 'progress', label: 'Progress' },
+      { key: 'status', label: 'Status' },
+      { key: 'createdAt', label: 'Created At' },
+      { key: 'lastSubmission', label: 'Last Submission' }
+    ]
+    
+    const csv = toCSV(data, columns)
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'EXPORT',
+      resourceType: 'ONBOARDING_STATUS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { filters: req.query, recordCount: data.length }
+    })
+    
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="onboarding-status-${new Date().toISOString().split('T')[0]}.csv"`)
+    res.send(csv)
+  } catch (error) {
+    console.error('Export onboarding status error:', error)
+    res.status(500).json({ error: 'Failed to export data' })
+  }
+})
+
+/**
+ * GET /api/admin/submissions/export
+ * Export form submissions data as CSV
+ */
+router.get('/submissions/export', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const { search, formType, stepNumber, applicantId, startDate, endDate } = req.query
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    if (search) {
+      whereClause += ` AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR fs.form_type LIKE ? OR fs.pdf_filename LIKE ?)`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (formType && formType !== '') {
+      whereClause += ' AND fs.form_type = ?'
+      params.push(formType)
+    }
+    
+    if (stepNumber && stepNumber !== '') {
+      whereClause += ' AND fs.step_number = ?'
+      params.push(parseInt(stepNumber))
+    }
+    
+    if (applicantId && applicantId !== '') {
+      whereClause += ' AND fs.applicant_id = ?'
+      params.push(parseInt(applicantId))
+    }
+    
+    if (startDate) {
+      whereClause += ' AND fs.submitted_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND fs.submitted_at <= ?'
+      params.push(endDate)
+    }
+    
+    const query = `
+      SELECT 
+        fs.id,
+        fs.step_number as stepNumber,
+        fs.form_type as formType,
+        fs.pdf_filename as pdfFilename,
+        fs.submitted_at as submittedAt,
+        fs.retention_until as retentionUntil,
+        a.first_name as firstName,
+        a.last_name as lastName,
+        a.email
+      FROM form_submissions fs
+      JOIN applicants a ON fs.applicant_id = a.id
+      ${whereClause}
+      ORDER BY fs.submitted_at DESC
+    `
+    const submissions = db.prepare(query).all(...params)
+    
+    const columns = [
+      { key: 'id', label: 'ID' },
+      { key: 'firstName', label: 'First Name' },
+      { key: 'lastName', label: 'Last Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'stepNumber', label: 'Step' },
+      { key: 'formType', label: 'Form Type' },
+      { key: 'pdfFilename', label: 'Filename' },
+      { key: 'submittedAt', label: 'Submitted At' },
+      { key: 'retentionUntil', label: 'Retention Until' }
+    ]
+    
+    const csv = toCSV(submissions, columns)
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'EXPORT',
+      resourceType: 'FORM_SUBMISSIONS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { filters: req.query, recordCount: submissions.length }
+    })
+    
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="submissions-${new Date().toISOString().split('T')[0]}.csv"`)
+    res.send(csv)
+  } catch (error) {
+    console.error('Export submissions error:', error)
+    res.status(500).json({ error: 'Failed to export data' })
+  }
+})
+
+/**
+ * GET /api/admin/i9-documents/export
+ * Export I-9 documents data as CSV
+ */
+router.get('/i9-documents/export', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const { search, documentType, documentCategory, applicantId, startDate, endDate } = req.query
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    if (search) {
+      whereClause += ` AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR d.document_type LIKE ? OR d.document_name LIKE ? OR d.file_name LIKE ?)`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (documentType && documentType !== '') {
+      whereClause += ' AND d.document_type = ?'
+      params.push(documentType)
+    }
+    
+    if (documentCategory && documentCategory !== '') {
+      whereClause += ' AND d.document_category = ?'
+      params.push(documentCategory)
+    }
+    
+    if (applicantId && applicantId !== '') {
+      whereClause += ' AND d.applicant_id = ?'
+      params.push(parseInt(applicantId))
+    }
+    
+    if (startDate) {
+      whereClause += ' AND d.uploaded_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND d.uploaded_at <= ?'
+      params.push(endDate)
+    }
+    
+    const query = `
+      SELECT 
+        d.id,
+        d.document_type as documentType,
+        d.document_category as documentCategory,
+        d.document_name as documentName,
+        d.file_name as fileName,
+        d.file_size as fileSize,
+        d.uploaded_at as uploadedAt,
+        a.first_name as firstName,
+        a.last_name as lastName,
+        a.email
+      FROM i9_documents d
+      JOIN applicants a ON d.applicant_id = a.id
+      ${whereClause}
+      ORDER BY d.uploaded_at DESC
+    `
+    const documents = db.prepare(query).all(...params)
+    
+    const columns = [
+      { key: 'id', label: 'ID' },
+      { key: 'firstName', label: 'First Name' },
+      { key: 'lastName', label: 'Last Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'documentType', label: 'Document Type' },
+      { key: 'documentCategory', label: 'Category' },
+      { key: 'documentName', label: 'Document Name' },
+      { key: 'fileName', label: 'File Name' },
+      { key: 'fileSize', label: 'File Size' },
+      { key: 'uploadedAt', label: 'Uploaded At' }
+    ]
+    
+    const csv = toCSV(documents, columns)
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'EXPORT',
+      resourceType: 'I9_DOCUMENTS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { filters: req.query, recordCount: documents.length }
+    })
+    
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="i9-documents-${new Date().toISOString().split('T')[0]}.csv"`)
+    res.send(csv)
+  } catch (error) {
+    console.error('Export I-9 documents error:', error)
+    res.status(500).json({ error: 'Failed to export data' })
+  }
+})
+
+/**
+ * GET /api/admin/audit-logs/export
+ * Export audit logs data as CSV
+ */
+router.get('/audit-logs/export', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const { search, action, resourceType, userId, startDate, endDate } = req.query
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    if (search) {
+      whereClause += ` AND (al.action LIKE ? OR al.resource_type LIKE ? OR al.details LIKE ? OR a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR al.ip_address LIKE ?)`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (action && action !== '') {
+      whereClause += ' AND al.action = ?'
+      params.push(action)
+    }
+    
+    if (resourceType && resourceType !== '') {
+      whereClause += ' AND al.resource_type = ?'
+      params.push(resourceType)
+    }
+    
+    if (userId && userId !== '') {
+      whereClause += ' AND al.user_id = ?'
+      params.push(parseInt(userId))
+    }
+    
+    if (startDate) {
+      whereClause += ' AND al.created_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND al.created_at <= ?'
+      params.push(endDate)
+    }
+    
+    const query = `
+      SELECT 
+        al.id,
+        al.action,
+        al.resource_type as resourceType,
+        al.resource_id as resourceId,
+        al.ip_address as ipAddress,
+        al.user_agent as userAgent,
+        al.details,
+        al.created_at as createdAt,
+        COALESCE(a.first_name || ' ' || a.last_name, 'System') as userName,
+        a.email as userEmail
+      FROM audit_log al
+      LEFT JOIN applicants a ON al.user_id = a.id
+      ${whereClause}
+      ORDER BY al.created_at DESC
+    `
+    const logs = db.prepare(query).all(...params)
+    
+    const columns = [
+      { key: 'id', label: 'ID' },
+      { key: 'createdAt', label: 'Timestamp' },
+      { key: 'action', label: 'Action' },
+      { key: 'resourceType', label: 'Resource Type' },
+      { key: 'resourceId', label: 'Resource ID' },
+      { key: 'userName', label: 'User' },
+      { key: 'userEmail', label: 'User Email' },
+      { key: 'ipAddress', label: 'IP Address' },
+      { key: 'details', label: 'Details' }
+    ]
+    
+    const csv = toCSV(logs, columns)
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'EXPORT',
+      resourceType: 'AUDIT_LOGS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { filters: req.query, recordCount: logs.length }
+    })
+    
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().split('T')[0]}.csv"`)
+    res.send(csv)
+  } catch (error) {
+    console.error('Export audit logs error:', error)
+    res.status(500).json({ error: 'Failed to export data' })
+  }
+})
+
+/**
+ * GET /api/admin/login-attempts/export
+ * Export login attempts data as CSV
+ */
+router.get('/login-attempts/export', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const { search, success, startDate, endDate } = req.query
+    
+    let whereClause = 'WHERE 1=1'
+    const params = []
+    
+    if (search) {
+      whereClause += ` AND (la.first_name LIKE ? OR la.last_name LIKE ? OR la.email LIKE ? OR a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR la.ip_address LIKE ?)`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    if (success !== undefined && success !== '') {
+      whereClause += ' AND la.success = ?'
+      params.push(success === 'true' ? 1 : 0)
+    }
+    
+    if (startDate) {
+      whereClause += ' AND la.created_at >= ?'
+      params.push(startDate)
+    }
+    
+    if (endDate) {
+      whereClause += ' AND la.created_at <= ?'
+      params.push(endDate)
+    }
+    
+    const query = `
+      SELECT 
+        la.id,
+        la.created_at as createdAt,
+        COALESCE(a.first_name, la.first_name) as firstName,
+        COALESCE(a.last_name, la.last_name) as lastName,
+        COALESCE(a.email, la.email) as email,
+        CASE WHEN la.success = 1 THEN 'Success' ELSE 'Failed' END as status,
+        la.ip_address as ipAddress,
+        la.error_message as errorMessage
+      FROM login_attempts la
+      LEFT JOIN applicants a ON la.applicant_id = a.id
+      ${whereClause}
+      ORDER BY la.created_at DESC
+    `
+    const attempts = db.prepare(query).all(...params)
+    
+    const columns = [
+      { key: 'id', label: 'ID' },
+      { key: 'createdAt', label: 'Timestamp' },
+      { key: 'firstName', label: 'First Name' },
+      { key: 'lastName', label: 'Last Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'status', label: 'Status' },
+      { key: 'ipAddress', label: 'IP Address' },
+      { key: 'errorMessage', label: 'Error Message' }
+    ]
+    
+    const csv = toCSV(attempts, columns)
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'EXPORT',
+      resourceType: 'LOGIN_ATTEMPTS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { filters: req.query, recordCount: attempts.length }
+    })
+    
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="login-attempts-${new Date().toISOString().split('T')[0]}.csv"`)
+    res.send(csv)
+  } catch (error) {
+    console.error('Export login attempts error:', error)
+    res.status(500).json({ error: 'Failed to export data' })
   }
 })
 

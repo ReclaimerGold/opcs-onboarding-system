@@ -191,10 +191,18 @@ export function initializeDatabase() {
   // Create indexes for performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_applicants_email ON applicants(email);
+    CREATE INDEX IF NOT EXISTS idx_applicants_created_at ON applicants(created_at);
+    CREATE INDEX IF NOT EXISTS idx_applicants_name ON applicants(first_name, last_name);
     CREATE INDEX IF NOT EXISTS idx_form_submissions_applicant ON form_submissions(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_form_submissions_retention ON form_submissions(retention_until);
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_submitted_at ON form_submissions(submitted_at);
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_step ON form_submissions(step_number);
+    CREATE INDEX IF NOT EXISTS idx_form_submissions_form_type ON form_submissions(form_type);
     CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_resource ON audit_log(resource_type, resource_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_resource_type ON audit_log(resource_type);
     CREATE INDEX IF NOT EXISTS idx_privacy_consents_applicant ON privacy_consents(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_form_drafts_applicant ON form_drafts(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_form_drafts_step ON form_drafts(applicant_id, step_number);
@@ -202,8 +210,11 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_login_attempts_applicant ON login_attempts(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_created ON login_attempts(created_at);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_success ON login_attempts(success);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
     CREATE INDEX IF NOT EXISTS idx_i9_documents_applicant ON i9_documents(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_i9_documents_type ON i9_documents(document_type, document_category);
+    CREATE INDEX IF NOT EXISTS idx_i9_documents_uploaded_at ON i9_documents(uploaded_at);
+    CREATE INDEX IF NOT EXISTS idx_i9_documents_category ON i9_documents(document_category);
   `)
 
   console.log('Database initialized successfully')

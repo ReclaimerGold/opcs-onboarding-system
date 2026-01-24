@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-50">
+    <!-- Navigation -->
     <nav class="bg-white shadow">
       <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
         <div class="flex justify-between h-16">
@@ -22,7 +23,17 @@
     
     <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
       <!-- Action Buttons -->
-      <div class="mb-6 flex justify-end">
+      <div class="mb-6 flex justify-end space-x-3">
+        <button
+          @click="refreshAll"
+          :disabled="isLoading"
+          class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 flex items-center"
+        >
+          <svg :class="['w-5 h-5 mr-2', isLoading && 'animate-spin']" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh
+        </button>
         <button
           @click="exportDiagnostics"
           :disabled="exporting"
@@ -32,12 +43,17 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           <span v-if="exporting">Exporting...</span>
-          <span v-else>Export Diagnostics for Cursor</span>
+          <span v-else>Export Diagnostics</span>
         </button>
       </div>
 
+      <!-- Alerts Panel (Priority Section) -->
+      <AlertsPanel 
+        :alerts="dashboard.alerts.value" 
+        @navigate="handleAlertNavigation"
+      />
 
-      <!-- Dashboard Stats -->
+      <!-- Quick Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-white shadow rounded-lg p-6">
           <div class="flex items-center">
@@ -50,7 +66,7 @@
             </div>
             <div class="ml-4">
               <p class="text-sm font-medium text-gray-500">Total Applicants</p>
-              <p class="text-2xl font-semibold text-gray-900">{{ dashboardStats.applicants?.total || 0 }}</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ dashboard.quickStats.value.totalApplicants }}</p>
             </div>
           </div>
         </div>
@@ -66,7 +82,7 @@
             </div>
             <div class="ml-4">
               <p class="text-sm font-medium text-gray-500">Completed Onboarding</p>
-              <p class="text-2xl font-semibold text-gray-900">{{ dashboardStats.onboarding?.completed || 0 }}</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ dashboard.quickStats.value.completedOnboarding }}</p>
             </div>
           </div>
         </div>
@@ -82,7 +98,7 @@
             </div>
             <div class="ml-4">
               <p class="text-sm font-medium text-gray-500">In Progress</p>
-              <p class="text-2xl font-semibold text-gray-900">{{ dashboardStats.onboarding?.inProgress || 0 }}</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ dashboard.quickStats.value.inProgressOnboarding }}</p>
             </div>
           </div>
         </div>
@@ -98,101 +114,52 @@
             </div>
             <div class="ml-4">
               <p class="text-sm font-medium text-gray-500">Failed Logins (24h)</p>
-              <p class="text-2xl font-semibold text-gray-900">{{ dashboardStats.activity?.failedLogins || 0 }}</p>
+              <p class="text-2xl font-semibold text-gray-900">{{ dashboard.quickStats.value.failedLogins }}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Tabs -->
+      <!-- Main Tab Navigation -->
       <div class="bg-white shadow rounded-lg">
         <div class="border-b border-gray-200">
-          <nav class="flex -mb-px">
+          <nav class="flex -mb-px overflow-x-auto">
             <button
-              @click="activeTab = 'login-attempts'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'login-attempts'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
+              @click="activeTab = 'overview'"
+              :class="tabClass('overview')"
             >
-              Login Attempts
+              Overview
             </button>
             <button
-              @click="activeTab = 'onboarding'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'onboarding'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
+              @click="activeTab = 'active-onboarding'"
+              :class="tabClass('active-onboarding')"
             >
-              Onboarding Status
+              Active Onboarding
+              <span v-if="dashboard.quickStats.value.inProgressOnboarding > 0" class="ml-1.5 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">
+                {{ dashboard.quickStats.value.inProgressOnboarding }}
+              </span>
             </button>
             <button
-              @click="activeTab = 'audit-logs'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'audit-logs'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
+              @click="activeTab = 'completed'"
+              :class="tabClass('completed')"
             >
-              Audit Logs
-            </button>
-            <button
-              @click="activeTab = 'system-health'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'system-health'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
-            >
-              System Health
-            </button>
-            <button
-              @click="activeTab = 'tests'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'tests'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
-            >
-              Tests
+              Completed
             </button>
             <button
               @click="activeTab = 'documents'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'documents'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
+              :class="tabClass('documents')"
             >
               Documents
             </button>
             <button
-              @click="activeTab = 'pdf-templates'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'pdf-templates'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
+              @click="activeTab = 'activity'"
+              :class="tabClass('activity')"
             >
-              PDF Templates
+              Activity
             </button>
             <button
               @click="activeTab = 'compliance'"
-              :class="[
-                'px-6 py-3 text-sm font-medium border-b-2',
-                activeTab === 'compliance'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              ]"
+              :class="tabClass('compliance')"
             >
               <span class="flex items-center">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,167 +168,218 @@
                 Compliance
               </span>
             </button>
+            <button
+              @click="activeTab = 'system'"
+              :class="tabClass('system')"
+            >
+              System
+            </button>
           </nav>
         </div>
 
         <div class="p-6">
-          <!-- Login Attempts Tab -->
-          <div v-if="activeTab === 'login-attempts'">
-            <div class="mb-4 flex justify-between items-center">
-              <h3 class="text-lg font-semibold text-gray-900">Login Attempts</h3>
-              <div class="flex space-x-2">
-                <select v-model="loginFilter" @change="loadLoginAttempts" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
-                  <option value="">All</option>
-                  <option value="true">Success Only</option>
-                  <option value="false">Failed Only</option>
-                </select>
+          <!-- Overview Tab -->
+          <div v-if="activeTab === 'overview'">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Dashboard Overview</h3>
+            
+            <!-- Workflow Summary -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200">
+                <h4 class="text-sm font-semibold text-yellow-800 mb-2">Active Onboarding</h4>
+                <p class="text-3xl font-bold text-yellow-900">{{ dashboard.workflowGroups.value.active?.length || 0 }}</p>
+                <p class="text-sm text-yellow-700 mt-1">applicants in progress</p>
+                <button 
+                  @click="activeTab = 'active-onboarding'"
+                  class="mt-3 text-sm text-yellow-800 hover:text-yellow-900 flex items-center"
+                >
+                  View all
+                  <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+                <h4 class="text-sm font-semibold text-green-800 mb-2">Completed</h4>
+                <p class="text-3xl font-bold text-green-900">{{ dashboard.workflowGroups.value.completed?.length || 0 }}</p>
+                <p class="text-sm text-green-700 mt-1">onboarding completed</p>
+                <button 
+                  @click="activeTab = 'completed'"
+                  class="mt-3 text-sm text-green-800 hover:text-green-900 flex items-center"
+                >
+                  View all
+                  <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
+                <h4 class="text-sm font-semibold text-gray-700 mb-2">Not Started</h4>
+                <p class="text-3xl font-bold text-gray-900">{{ dashboard.workflowGroups.value.notStarted?.length || 0 }}</p>
+                <p class="text-sm text-gray-600 mt-1">awaiting onboarding</p>
               </div>
             </div>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                  <tr v-for="attempt in loginAttempts" :key="attempt.id">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatDate(attempt.created_at) }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {{ attempt.applicant_first_name && attempt.applicant_last_name 
-                        ? `${attempt.applicant_first_name} ${attempt.applicant_last_name}`
-                        : `${attempt.first_name} ${attempt.last_name}` }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ attempt.applicant_email || attempt.email }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <span :class="[
-                        'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
-                        attempt.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      ]">
-                        {{ attempt.success ? 'Success' : 'Failed' }}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ attempt.ip_address || 'N/A' }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500">{{ attempt.error_message || '-' }}</td>
-                  </tr>
-                  <tr v-if="loginAttempts.length === 0">
-                    <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No login attempts found</td>
-                  </tr>
-                </tbody>
-              </table>
+
+            <!-- Recent Activity Summary -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="bg-white border rounded-lg p-4">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Recent Login Activity (24h)</h4>
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Total Logins</span>
+                    <span class="font-semibold">{{ dashboard.quickStats.value.recentLogins }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Failed Attempts</span>
+                    <span :class="dashboard.quickStats.value.failedLogins > 0 ? 'font-semibold text-red-600' : 'font-semibold'">
+                      {{ dashboard.quickStats.value.failedLogins }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Audit Events</span>
+                    <span class="font-semibold">{{ dashboard.quickStats.value.recentAuditLogs }}</span>
+                  </div>
+                </div>
+                <button 
+                  @click="activeTab = 'activity'"
+                  class="mt-4 text-sm text-primary hover:text-primary-light flex items-center"
+                >
+                  View activity logs
+                  <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="bg-white border rounded-lg p-4">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Document Summary</h4>
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Form Submissions</span>
+                    <span class="font-semibold">{{ dashboard.quickStats.value.totalSubmissions }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">I-9 Documents</span>
+                    <span class="font-semibold">{{ dashboard.allI9Documents.value?.length || 0 }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Admin Users</span>
+                    <span class="font-semibold">{{ dashboard.quickStats.value.totalAdmins }}</span>
+                  </div>
+                </div>
+                <button 
+                  @click="activeTab = 'documents'"
+                  class="mt-4 text-sm text-primary hover:text-primary-light flex items-center"
+                >
+                  View documents
+                  <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- Onboarding Status Tab -->
-          <div v-if="activeTab === 'onboarding'">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Onboarding Status</h3>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Steps</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                  <tr v-for="app in onboardingStatus" :key="app.id">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ app.firstName }} {{ app.lastName }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ app.email }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="flex items-center space-x-2">
-                        <span v-if="app.isAdmin" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>
-                        <span v-else class="text-sm text-gray-400">User</span>
-                        <button
-                          v-if="app.id !== currentUserId"
-                          @click="toggleAdminStatus(app)"
-                          :disabled="updatingAdmin === app.id"
-                          class="text-xs px-2 py-1 rounded border transition-colors"
-                          :class="app.isAdmin 
-                            ? 'border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50' 
-                            : 'border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50'"
-                        >
-                          <span v-if="updatingAdmin === app.id">...</span>
-                          <span v-else>{{ app.isAdmin ? 'Remove Admin' : 'Make Admin' }}</span>
-                        </button>
-                      </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ app.completedSteps }}/{{ app.totalSteps }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-primary h-2 rounded-full" :style="{ width: `${app.progress}%` }"></div>
-                      </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <span :class="[
-                        'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
-                        app.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        app.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      ]">
-                        {{ app.status === 'completed' ? 'Completed' : app.status === 'in_progress' ? 'In Progress' : 'Not Started' }}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDate(app.createdAt) }}</td>
-                  </tr>
-                  <tr v-if="onboardingStatus.length === 0">
-                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">No applicants found</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <!-- Active Onboarding Tab -->
+          <div v-if="activeTab === 'active-onboarding'">
+            <DataTable
+              title="Active Onboarding"
+              :columns="onboardingColumns"
+              :data="onboardingData"
+              :loading="dashboard.loading.value.onboarding"
+              :pagination="onboardingPagination"
+              :filters="onboardingFilters"
+              :sort="onboardingSort"
+              :quick-filters="onboardingQuickFilters"
+              search-placeholder="Search by name or email..."
+              @search="handleOnboardingSearch"
+              @filter-change="handleOnboardingFilterChange"
+              @page-change="handleOnboardingPageChange"
+              @limit-change="handleOnboardingLimitChange"
+              @sort-change="handleOnboardingSort"
+              @export="handleOnboardingExport"
+              @refresh="loadOnboardingData"
+            >
+              <template #cell-progress="{ row }">
+                <div class="flex items-center space-x-2">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                    <div
+                      class="bg-primary h-2 rounded-full"
+                      :style="{ width: `${row.progress}%` }"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-gray-500">{{ row.completedSteps }}/6</span>
+                </div>
+              </template>
+              <template #cell-status="{ row }">
+                <span :class="getStatusBadgeClass(row.status)">
+                  {{ formatStatus(row.status) }}
+                </span>
+              </template>
+              <template #cell-isAdmin="{ row }">
+                <div class="flex items-center space-x-2">
+                  <span v-if="row.isAdmin" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>
+                  <span v-else class="text-sm text-gray-400">User</span>
+                  <button
+                    v-if="row.id !== currentUserId"
+                    @click="toggleAdminStatus(row)"
+                    :disabled="updatingAdmin === row.id"
+                    class="text-xs px-2 py-1 rounded border transition-colors"
+                    :class="row.isAdmin 
+                      ? 'border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50' 
+                      : 'border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50'"
+                  >
+                    <span v-if="updatingAdmin === row.id">...</span>
+                    <span v-else>{{ row.isAdmin ? 'Remove' : 'Make Admin' }}</span>
+                  </button>
+                </div>
+              </template>
+            </DataTable>
           </div>
 
-          <!-- Audit Logs Tab -->
-          <div v-if="activeTab === 'audit-logs'">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Audit Logs</h3>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resource</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                  <tr v-for="log in auditLogs" :key="log.id">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatDate(log.created_at) }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ log.action }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ log.resource_type }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {{ log.first_name && log.last_name ? `${log.first_name} ${log.last_name}` : log.user_id ? `User ${log.user_id}` : 'System' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ log.ip_address || 'N/A' }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500">{{ formatDetails(log.details) }}</td>
-                  </tr>
-                  <tr v-if="auditLogs.length === 0">
-                    <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No audit logs found</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <!-- Completed Tab -->
+          <div v-if="activeTab === 'completed'">
+            <DataTable
+              title="Completed Onboarding"
+              :columns="onboardingColumns"
+              :data="completedData"
+              :loading="dashboard.loading.value.onboarding"
+              :pagination="completedPagination"
+              :filters="completedFilters"
+              :sort="completedSort"
+              search-placeholder="Search by name or email..."
+              @search="handleCompletedSearch"
+              @filter-change="handleCompletedFilterChange"
+              @page-change="handleCompletedPageChange"
+              @limit-change="handleCompletedLimitChange"
+              @sort-change="handleCompletedSort"
+              @export="handleCompletedExport"
+              @refresh="loadOnboardingData"
+            >
+              <template #cell-progress="{ row }">
+                <div class="flex items-center space-x-2">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                    <div
+                      class="bg-green-500 h-2 rounded-full"
+                      :style="{ width: `${row.progress}%` }"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-green-600 font-medium">Complete</span>
+                </div>
+              </template>
+              <template #cell-status="{ row }">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                  Completed
+                </span>
+              </template>
+            </DataTable>
           </div>
 
           <!-- Documents Tab -->
           <div v-if="activeTab === 'documents'">
-            <div class="mb-6">
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">All Documents</h3>
-              
-              <!-- Tabs for Documents -->
-              <div class="border-b border-gray-200 mb-4">
+            <div class="mb-4">
+              <div class="border-b border-gray-200">
                 <nav class="flex -mb-px">
                   <button
                     @click="documentTab = 'submissions'"
@@ -372,7 +390,7 @@
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     ]"
                   >
-                    Form Submissions ({{ allSubmissions.length }})
+                    Form Submissions
                   </button>
                   <button
                     @click="documentTab = 'i9'"
@@ -383,608 +401,279 @@
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     ]"
                   >
-                    I-9 Documents ({{ allI9Documents.length }})
+                    I-9 Documents
                   </button>
                 </nav>
               </div>
             </div>
 
             <!-- Form Submissions -->
-            <div v-if="documentTab === 'submissions'">
-              <div v-if="allSubmissions.length === 0" class="text-center py-8 text-gray-500">
-                <p>No form submissions found.</p>
-              </div>
-              <div v-else class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Retention Until</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-for="submission in allSubmissions" :key="submission.id">
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-gray-900">{{ submission.first_name }} {{ submission.last_name }}</div>
-                        <div class="text-sm text-gray-500">{{ submission.email }}</div>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {{ getStepName(submission.step_number) }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ submission.pdf_filename }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ formatDate(submission.submitted_at) }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ formatDate(submission.retention_until) }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <a
-                          :href="`/api/forms/submissions/${submission.id}/view`"
-                          target="_blank"
-                          class="text-primary hover:text-primary-light hover:underline"
-                        >
-                          View PDF
-                        </a>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              v-if="documentTab === 'submissions'"
+              title="Form Submissions"
+              :columns="submissionColumns"
+              :data="submissionsData"
+              :loading="dashboard.loading.value.submissions"
+              :pagination="submissionsPagination"
+              :filters="submissionsFilters"
+              :sort="submissionsSort"
+              search-placeholder="Search submissions..."
+              @search="handleSubmissionsSearch"
+              @filter-change="handleSubmissionsFilterChange"
+              @page-change="handleSubmissionsPageChange"
+              @limit-change="handleSubmissionsLimitChange"
+              @sort-change="handleSubmissionsSort"
+              @export="handleSubmissionsExport"
+              @refresh="loadSubmissions"
+            >
+              <template #actions="{ row }">
+                <a
+                  :href="`/api/forms/submissions/${row.id}/view`"
+                  target="_blank"
+                  class="text-primary hover:text-primary-light hover:underline text-sm"
+                >
+                  View PDF
+                </a>
+              </template>
+            </DataTable>
 
             <!-- I-9 Documents -->
-            <div v-if="documentTab === 'i9'">
-              <div v-if="allI9Documents.length === 0" class="text-center py-8 text-gray-500">
-                <p>No I-9 documents found.</p>
-              </div>
-              <div v-else class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document Type</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded</th>
-                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-for="doc in allI9Documents" :key="doc.id">
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-gray-900">{{ doc.first_name }} {{ doc.last_name }}</div>
-                        <div class="text-sm text-gray-500">{{ doc.email }}</div>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ doc.document_type || 'N/A' }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <span :class="[
-                          'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
-                          doc.document_category === 'listA' ? 'bg-green-100 text-green-800' :
-                          doc.document_category === 'listB' ? 'bg-blue-100 text-blue-800' :
-                          'bg-purple-100 text-purple-800'
-                        ]">
-                          {{ doc.document_category === 'listA' ? 'List A' : doc.document_category === 'listB' ? 'List B' : 'List C' }}
-                        </span>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ doc.file_name }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ formatDate(doc.uploaded_at) }}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          @click="viewI9Document(doc.id)"
-                          class="text-primary hover:text-primary-light hover:underline"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tests Tab -->
-          <div v-if="activeTab === 'tests'">
-            <div class="mb-6 flex justify-between items-center">
-              <h3 class="text-lg font-semibold text-gray-900">Unit Tests</h3>
-              <button
-                @click="runTests"
-                :disabled="runningTests"
-                class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 flex items-center"
-              >
-                <svg v-if="!runningTests" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span v-if="runningTests">Running Tests...</span>
-                <span v-else>Run All Tests</span>
-              </button>
-            </div>
-
-            <div v-if="!testResults && !runningTests" class="text-center py-12 text-gray-500">
-              <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p class="text-lg font-medium">No test results yet</p>
-              <p class="text-sm mt-2">Click "Run All Tests" to execute backend and frontend unit tests</p>
-            </div>
-
-            <div v-if="testResults" class="space-y-6">
-              <div class="text-sm text-gray-500 mb-4">
-                Last run: {{ formatDate(testResults.timestamp) }}
-              </div>
-
-              <!-- Backend Tests -->
-              <div class="border rounded-lg p-6" :class="testResults.backend?.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
-                <div class="flex items-center justify-between mb-4">
-                  <h4 class="text-lg font-semibold text-gray-900">Backend Tests</h4>
-                  <span :class="testResults.backend?.success ? 'text-green-700 font-bold' : 'text-red-700 font-bold'">
-                    {{ testResults.backend?.success ? '✅ Passed' : '❌ Failed' }}
-                  </span>
-                </div>
-
-                <!-- Test Summary -->
-                <div v-if="testResults.backend?.output" class="mb-4 p-4 bg-white rounded border">
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span class="text-gray-600">Total Tests:</span>
-                      <span class="ml-2 font-semibold">{{ testResults.backend.output.numTotalTests || 'N/A' }}</span>
-                    </div>
-                    <div>
-                      <span class="text-gray-600">Passed:</span>
-                      <span class="ml-2 font-semibold text-green-700">{{ testResults.backend.output.numPassedTests || 0 }}</span>
-                    </div>
-                    <div>
-                      <span class="text-gray-600">Failed:</span>
-                      <span class="ml-2 font-semibold text-red-700">{{ testResults.backend.output.numFailedTests || 0 }}</span>
-                    </div>
-                    <div>
-                      <span class="text-gray-600">Suites:</span>
-                      <span class="ml-2 font-semibold">{{ testResults.backend.output.numTotalTestSuites || 'N/A' }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Error Message -->
-                <div v-if="testResults.backend?.error" class="mb-4 p-4 bg-red-100 border border-red-300 rounded">
-                  <div class="flex items-start">
-                    <svg class="h-5 w-5 text-red-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                    </svg>
-                    <div class="flex-1">
-                      <p class="font-semibold text-red-900">Error:</p>
-                      <p class="text-red-800 text-sm mt-1">{{ testResults.backend.error }}</p>
-                      <p v-if="testResults.backend.code" class="text-red-700 text-xs mt-1">Exit Code: {{ testResults.backend.code }}</p>
-                      <p v-if="testResults.backend.signal" class="text-red-700 text-xs mt-1">Signal: {{ testResults.backend.signal }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Command Used -->
-                <div v-if="testResults.backend?.command" class="mb-4 text-xs text-gray-600">
-                  <strong>Command:</strong> <code class="bg-gray-100 px-2 py-1 rounded">{{ testResults.backend.command }}</code>
-                </div>
-
-                <!-- Verbose Output -->
-                <div class="mb-4">
-                  <button
-                    @click="showBackendOutput = !showBackendOutput"
-                    class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 mb-2"
-                  >
-                    <svg class="w-4 h-4 mr-1" :class="showBackendOutput ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                    {{ showBackendOutput ? 'Hide' : 'Show' }} Verbose Output
-                  </button>
-                  <div v-if="showBackendOutput" class="bg-gray-900 text-green-400 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
-                    <pre class="whitespace-pre-wrap">{{ testResults.backend.rawOutput || 'No output available' }}</pre>
-                  </div>
-                </div>
-
-                <!-- Stderr Output -->
-                <div v-if="testResults.backend?.stderr" class="mb-4">
-                  <button
-                    @click="showBackendStderr = !showBackendStderr"
-                    class="flex items-center text-sm font-medium text-red-700 hover:text-red-900 mb-2"
-                  >
-                    <svg class="w-4 h-4 mr-1" :class="showBackendStderr ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                    {{ showBackendStderr ? 'Hide' : 'Show' }} Error Output (stderr)
-                  </button>
-                  <div v-if="showBackendStderr" class="bg-red-900 text-red-100 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
-                    <pre class="whitespace-pre-wrap">{{ testResults.backend.stderr }}</pre>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Frontend Tests -->
-              <div class="border rounded-lg p-6" :class="testResults.frontend?.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
-                <div class="flex items-center justify-between mb-4">
-                  <h4 class="text-lg font-semibold text-gray-900">Frontend Tests</h4>
-                  <span :class="testResults.frontend?.success ? 'text-green-700 font-bold' : 'text-red-700 font-bold'">
-                    {{ testResults.frontend?.success ? '✅ Passed' : '❌ Failed' }}
-                  </span>
-                </div>
-
-                <!-- Test Summary -->
-                <div v-if="testResults.frontend?.output" class="mb-4 p-4 bg-white rounded border">
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span class="text-gray-600">Total Suites:</span>
-                      <span class="ml-2 font-semibold">{{ testResults.frontend.output.numTotalTestSuites || 'N/A' }}</span>
-                    </div>
-                    <div>
-                      <span class="text-gray-600">Total Tests:</span>
-                      <span class="ml-2 font-semibold">{{ testResults.frontend.output.numTotalTests || 'N/A' }}</span>
-                    </div>
-                    <div>
-                      <span class="text-gray-600">Passed:</span>
-                      <span class="ml-2 font-semibold text-green-700">{{ testResults.frontend.output.numPassedTests || 0 }}</span>
-                    </div>
-                    <div>
-                      <span class="text-gray-600">Failed:</span>
-                      <span class="ml-2 font-semibold text-red-700">{{ testResults.frontend.output.numFailedTests || 0 }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Error Message -->
-                <div v-if="testResults.frontend?.error" class="mb-4 p-4 bg-red-100 border border-red-300 rounded">
-                  <div class="flex items-start">
-                    <svg class="h-5 w-5 text-red-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                    </svg>
-                    <div class="flex-1">
-                      <p class="font-semibold text-red-900">Error:</p>
-                      <p class="text-red-800 text-sm mt-1">{{ testResults.frontend.error }}</p>
-                      <p v-if="testResults.frontend.code" class="text-red-700 text-xs mt-1">Exit Code: {{ testResults.frontend.code }}</p>
-                      <p v-if="testResults.frontend.signal" class="text-red-700 text-xs mt-1">Signal: {{ testResults.frontend.signal }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Command Used -->
-                <div v-if="testResults.frontend?.command" class="mb-4 text-xs text-gray-600">
-                  <strong>Command:</strong> <code class="bg-gray-100 px-2 py-1 rounded">{{ testResults.frontend.command }}</code>
-                </div>
-
-                <!-- Verbose Output -->
-                <div class="mb-4">
-                  <button
-                    @click="showFrontendOutput = !showFrontendOutput"
-                    class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 mb-2"
-                  >
-                    <svg class="w-4 h-4 mr-1" :class="showFrontendOutput ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                    {{ showFrontendOutput ? 'Hide' : 'Show' }} Verbose Output
-                  </button>
-                  <div v-if="showFrontendOutput" class="bg-gray-900 text-green-400 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
-                    <pre class="whitespace-pre-wrap">{{ testResults.frontend.rawOutput || 'No output available' }}</pre>
-                  </div>
-                </div>
-
-                <!-- Stderr Output -->
-                <div v-if="testResults.frontend?.stderr" class="mb-4">
-                  <button
-                    @click="showFrontendStderr = !showFrontendStderr"
-                    class="flex items-center text-sm font-medium text-red-700 hover:text-red-900 mb-2"
-                  >
-                    <svg class="w-4 h-4 mr-1" :class="showFrontendStderr ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                    {{ showFrontendStderr ? 'Hide' : 'Show' }} Error Output (stderr)
-                  </button>
-                  <div v-if="showFrontendStderr" class="bg-red-900 text-red-100 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
-                    <pre class="whitespace-pre-wrap">{{ testResults.frontend.stderr }}</pre>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- System Health Tab -->
-          <div v-if="activeTab === 'system-health'">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div class="bg-gray-50 rounded-lg p-4">
-                <h4 class="font-semibold text-gray-900 mb-2">Database</h4>
-                <p class="text-sm text-gray-600">Status: <span class="font-medium text-green-600">{{ systemHealth.database?.status || 'Unknown' }}</span></p>
-                <p class="text-sm text-gray-600">Size: {{ systemHealth.database?.sizeMB || '0' }} MB</p>
-                <div class="mt-4">
-                  <h5 class="text-sm font-medium text-gray-700 mb-2">Table Counts:</h5>
-                  <ul class="text-sm text-gray-600 space-y-1">
-                    <li v-for="(count, table) in systemHealth.database?.tables" :key="table">
-                      {{ table }}: {{ count }}
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="bg-gray-50 rounded-lg p-4">
-                <h4 class="font-semibold text-gray-900 mb-2">Server</h4>
-                <p class="text-sm text-gray-600">Status: <span class="font-medium text-green-600">{{ systemHealth.server?.status || 'Unknown' }}</span></p>
-                <p class="text-sm text-gray-600">Node Version: {{ systemHealth.server?.nodeVersion || 'Unknown' }}</p>
-                <p class="text-sm text-gray-600">Start Time: {{ formatDate(systemHealth.server?.startTime) }}</p>
-              </div>
-            </div>
-            <div v-if="systemHealth.recentErrors && systemHealth.recentErrors.length > 0" class="mt-6">
-              <h4 class="font-semibold text-gray-900 mb-2">Recent Errors</h4>
-              <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                <ul class="space-y-2">
-                  <li v-for="error in systemHealth.recentErrors" :key="error.id" class="text-sm text-red-800">
-                    <strong>{{ formatDate(error.createdAt) }}:</strong> {{ error.action }} - {{ error.resourceType }}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- PDF Templates Tab -->
-          <div v-if="activeTab === 'pdf-templates'">
-            <div class="mb-6 flex justify-between items-center">
-              <h3 class="text-lg font-semibold text-gray-900">PDF Form Templates</h3>
-              <div class="flex space-x-2">
+            <DataTable
+              v-if="documentTab === 'i9'"
+              title="I-9 Documents"
+              :columns="i9Columns"
+              :data="i9Data"
+              :loading="dashboard.loading.value.documents"
+              :pagination="i9Pagination"
+              :filters="i9Filters"
+              :sort="i9Sort"
+              search-placeholder="Search I-9 documents..."
+              @search="handleI9Search"
+              @filter-change="handleI9FilterChange"
+              @page-change="handleI9PageChange"
+              @limit-change="handleI9LimitChange"
+              @sort-change="handleI9Sort"
+              @export="handleI9Export"
+              @refresh="loadI9Documents"
+            >
+              <template #cell-document_category="{ row }">
+                <span :class="getCategoryBadgeClass(row.document_category)">
+                  {{ formatCategory(row.document_category) }}
+                </span>
+              </template>
+              <template #actions="{ row }">
                 <button
-                  @click="refreshTemplateStatus"
-                  :disabled="loadingTemplates"
-                  class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 flex items-center"
+                  @click="viewI9Document(row.id)"
+                  class="text-primary hover:text-primary-light hover:underline text-sm"
                 >
-                  <svg v-if="!loadingTemplates" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Refresh Status
+                  View
                 </button>
-                <button
-                  @click="updateAllTemplates"
-                  :disabled="updatingTemplates"
-                  class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 flex items-center"
-                >
-                  <svg v-if="!updatingTemplates" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {{ updatingTemplates ? 'Updating...' : 'Check for Updates' }}
-                </button>
-              </div>
-            </div>
+              </template>
+            </DataTable>
+          </div>
 
-            <!-- Info Box -->
-            <div class="mb-6 bg-blue-50 border-l-4 border-blue-400 rounded-md p-4">
-              <div class="flex">
-                <svg class="h-5 w-5 text-blue-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                </svg>
-                <div class="text-sm text-blue-800">
-                  <strong>About PDF Templates:</strong> These are official fillable PDF forms downloaded from IRS and USCIS. 
-                  The system automatically checks for updates every 24 hours. When a new version is detected (indicated by different revision or checksum), 
-                  the previous version is archived for reference.
-                </div>
-              </div>
-            </div>
-
-            <!-- Template Cards -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div 
-                v-for="(template, formType) in pdfTemplates" 
-                :key="formType"
-                class="bg-white border rounded-lg shadow-sm overflow-hidden"
-              >
-                <!-- Card Header -->
-                <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
-                  <div>
-                    <h4 class="font-semibold text-gray-900">{{ template.name }}</h4>
-                    <p class="text-xs text-gray-500">{{ template.agency }}</p>
-                  </div>
-                  <span 
+          <!-- Activity Tab -->
+          <div v-if="activeTab === 'activity'">
+            <div class="mb-4">
+              <div class="border-b border-gray-200">
+                <nav class="flex -mb-px">
+                  <button
+                    @click="activityTab = 'logins'"
                     :class="[
-                      'px-2 py-1 text-xs rounded-full font-medium',
-                      template.exists ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      activityTab === 'logins'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     ]"
                   >
-                    {{ template.exists ? 'Cached' : 'Not Downloaded' }}
-                  </span>
-                </div>
-
-                <!-- Card Body -->
-                <div class="p-4 space-y-3">
-                  <!-- Revision Info -->
-                  <div v-if="template.metadata?.pdfInfo?.revision" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    <span class="text-gray-600">Revision:</span>
-                    <span class="ml-2 font-medium text-gray-900">{{ template.metadata.pdfInfo.revision }}</span>
-                  </div>
-
-                  <!-- Page Count -->
-                  <div v-if="template.metadata?.pdfInfo?.pageCount" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span class="text-gray-600">Pages:</span>
-                    <span class="ml-2 font-medium text-gray-900">{{ template.metadata.pdfInfo.pageCount }}</span>
-                  </div>
-
-                  <!-- Form Fields -->
-                  <div v-if="template.metadata?.pdfInfo?.formFieldCount" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                    <span class="text-gray-600">Fillable Fields:</span>
-                    <span class="ml-2 font-medium text-gray-900">{{ template.metadata.pdfInfo.formFieldCount }}</span>
-                  </div>
-
-                  <!-- File Size -->
-                  <div v-if="template.metadata?.fileSize" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                    </svg>
-                    <span class="text-gray-600">Size:</span>
-                    <span class="ml-2 font-medium text-gray-900">{{ formatFileSize(template.metadata.fileSize) }}</span>
-                  </div>
-
-                  <!-- Downloaded -->
-                  <div v-if="template.metadata?.downloadedAt" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span class="text-gray-600">Downloaded:</span>
-                    <span class="ml-2 text-gray-900">{{ formatDate(template.metadata.downloadedAt) }}</span>
-                  </div>
-
-                  <!-- Last Checked -->
-                  <div v-if="template.metadata?.lastCheckedAt" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
-                    <span class="text-gray-600">Last Checked:</span>
-                    <span class="ml-2 text-gray-900">{{ formatDate(template.metadata.lastCheckedAt) }}</span>
-                  </div>
-
-                  <!-- Checksum (truncated) -->
-                  <div v-if="template.metadata?.checksum" class="flex items-center text-sm">
-                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                    <span class="text-gray-600">Checksum:</span>
-                    <span class="ml-2 font-mono text-xs text-gray-900">{{ template.metadata.checksum.substring(0, 16) }}...</span>
-                  </div>
-
-                  <!-- Status Badges -->
-                  <div class="flex flex-wrap gap-2 mt-3">
-                    <span v-if="template.needsUpdate" class="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800">
-                      Update Check Due
-                    </span>
-                    <span v-if="template.isStale" class="px-2 py-1 text-xs rounded bg-orange-100 text-orange-800">
-                      Stale (30+ days old)
-                    </span>
-                    <span v-if="template.metadata?.lastError" class="px-2 py-1 text-xs rounded bg-red-100 text-red-800">
-                      Last Error: {{ template.metadata.lastError.substring(0, 30) }}...
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Card Footer - Actions -->
-                <div class="px-4 py-3 bg-gray-50 border-t flex justify-between items-center">
-                  <div class="flex space-x-2">
-                    <button
-                      v-if="template.exists"
-                      @click="previewTemplate(formType)"
-                      class="px-3 py-1.5 text-sm bg-primary text-white rounded hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      Preview PDF
-                    </button>
-                    <button
-                      @click="updateSingleTemplate(formType)"
-                      :disabled="updatingTemplates"
-                      class="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-100 focus:outline-none"
-                    >
-                      Update
-                    </button>
-                  </div>
-                  <span v-if="template.versionCount > 1" class="text-xs text-gray-500">
-                    {{ template.versionCount - 1 }} archived
-                  </span>
-                </div>
-
-                <!-- Archived Versions Expandable -->
-                <div v-if="template.archivedVersions && template.archivedVersions.length > 0">
-                  <button
-                    @click="toggleArchive(formType)"
-                    class="w-full px-4 py-2 text-sm text-left text-gray-600 hover:bg-gray-50 flex items-center justify-between border-t"
-                  >
-                    <span>View Archived Versions ({{ template.archivedVersions.length }})</span>
-                    <svg 
-                      class="w-4 h-4 transition-transform"
-                      :class="{ 'rotate-180': expandedArchives[formType] }"
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                    >
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
+                    Login Attempts
                   </button>
-                  <div v-if="expandedArchives[formType]" class="px-4 pb-4 bg-gray-50 border-t">
-                    <div class="space-y-2 mt-2">
-                      <div 
-                        v-for="version in template.archivedVersions" 
-                        :key="version.filename"
-                        class="flex items-center justify-between py-2 px-3 bg-white rounded border text-sm"
-                      >
-                        <div>
-                          <div class="font-medium text-gray-900">{{ version.revision || 'Unknown Revision' }}</div>
-                          <div class="text-xs text-gray-500">
-                            {{ formatDate(version.archivedAt) }} • {{ formatFileSize(version.fileSize) }}
-                          </div>
-                        </div>
-                        <button
-                          @click="previewArchivedTemplate(formType, version.filename)"
-                          class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                        >
-                          Preview
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  <button
+                    @click="activityTab = 'audit'"
+                    :class="[
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      activityTab === 'audit'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ]"
+                  >
+                    Audit Logs
+                  </button>
+                </nav>
               </div>
             </div>
 
-            <!-- No templates state -->
-            <div v-if="Object.keys(pdfTemplates).length === 0 && !loadingTemplates" class="text-center py-12 text-gray-500">
-              <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p class="text-lg font-medium">No PDF templates loaded</p>
-              <p class="text-sm mt-2">Click "Check for Updates" to download the official IRS/USCIS forms</p>
-            </div>
+            <!-- Login Attempts -->
+            <DataTable
+              v-if="activityTab === 'logins'"
+              title="Login Attempts"
+              :columns="loginColumns"
+              :data="loginsData"
+              :loading="dashboard.loading.value.logins"
+              :pagination="loginsPagination"
+              :filters="loginsFilters"
+              :sort="loginsSort"
+              :quick-filters="loginQuickFilters"
+              search-placeholder="Search login attempts..."
+              @search="handleLoginsSearch"
+              @filter-change="handleLoginsFilterChange"
+              @page-change="handleLoginsPageChange"
+              @limit-change="handleLoginsLimitChange"
+              @sort-change="handleLoginsSort"
+              @export="handleLoginsExport"
+              @refresh="loadLoginAttempts"
+            >
+              <template #cell-success="{ row }">
+                <span :class="[
+                  'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
+                  row.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                ]">
+                  {{ row.success ? 'Success' : 'Failed' }}
+                </span>
+              </template>
+            </DataTable>
 
-            <!-- Update Results -->
-            <div v-if="templateUpdateResults" class="mt-6">
-              <div :class="[
-                'rounded-lg p-4 border',
-                templateUpdateResults.success ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
-              ]">
-                <h4 class="font-medium mb-2">{{ templateUpdateResults.message }}</h4>
-                <ul v-if="templateUpdateResults.updated && templateUpdateResults.updated.length > 0" class="text-sm space-y-1">
-                  <li v-for="type in templateUpdateResults.updated" :key="type" class="text-green-700">
-                    ✓ {{ type }} template updated
-                  </li>
-                </ul>
-                <ul v-if="templateUpdateResults.errors && templateUpdateResults.errors.length > 0" class="text-sm space-y-1 mt-2">
-                  <li v-for="err in templateUpdateResults.errors" :key="err.type" class="text-red-700">
-                    ✗ {{ err.type }}: {{ err.error }}
-                  </li>
-                </ul>
-              </div>
-            </div>
+            <!-- Audit Logs -->
+            <DataTable
+              v-if="activityTab === 'audit'"
+              title="Audit Logs"
+              :columns="auditColumns"
+              :data="auditData"
+              :loading="dashboard.loading.value.audits"
+              :pagination="auditPagination"
+              :filters="auditFilters"
+              :sort="auditSort"
+              search-placeholder="Search audit logs..."
+              @search="handleAuditSearch"
+              @filter-change="handleAuditFilterChange"
+              @page-change="handleAuditPageChange"
+              @limit-change="handleAuditLimitChange"
+              @sort-change="handleAuditSort"
+              @export="handleAuditExport"
+              @refresh="loadAuditLogs"
+            />
           </div>
 
           <!-- Compliance Tab -->
           <div v-if="activeTab === 'compliance'">
             <ComplianceChecker />
+          </div>
+
+          <!-- System Tab -->
+          <div v-if="activeTab === 'system'">
+            <div class="mb-4">
+              <div class="border-b border-gray-200">
+                <nav class="flex -mb-px">
+                  <button
+                    @click="systemTab = 'health'"
+                    :class="[
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      systemTab === 'health'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ]"
+                  >
+                    System Health
+                  </button>
+                  <button
+                    @click="systemTab = 'tests'"
+                    :class="[
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      systemTab === 'tests'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ]"
+                  >
+                    Tests
+                  </button>
+                  <button
+                    @click="systemTab = 'templates'"
+                    :class="[
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      systemTab === 'templates'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ]"
+                  >
+                    PDF Templates
+                  </button>
+                </nav>
+              </div>
+            </div>
+
+            <!-- System Health -->
+            <div v-if="systemTab === 'health'">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <h4 class="font-semibold text-gray-900 mb-2">Database</h4>
+                  <p class="text-sm text-gray-600">Status: <span class="font-medium text-green-600">{{ dashboard.systemHealth.value.database?.status || 'Unknown' }}</span></p>
+                  <p class="text-sm text-gray-600">Size: {{ dashboard.systemHealth.value.database?.sizeMB || '0' }} MB</p>
+                  <div class="mt-4">
+                    <h5 class="text-sm font-medium text-gray-700 mb-2">Table Counts:</h5>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                      <li v-for="(count, table) in dashboard.systemHealth.value.database?.tables" :key="table">
+                        {{ table }}: {{ count }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <h4 class="font-semibold text-gray-900 mb-2">Server</h4>
+                  <p class="text-sm text-gray-600">Status: <span class="font-medium text-green-600">{{ dashboard.systemHealth.value.server?.status || 'Unknown' }}</span></p>
+                  <p class="text-sm text-gray-600">Node Version: {{ dashboard.systemHealth.value.server?.nodeVersion || 'Unknown' }}</p>
+                  <p class="text-sm text-gray-600">Start Time: {{ formatDate(dashboard.systemHealth.value.server?.startTime) }}</p>
+                </div>
+              </div>
+              <div v-if="dashboard.systemHealth.value.recentErrors && dashboard.systemHealth.value.recentErrors.length > 0" class="mt-6">
+                <h4 class="font-semibold text-gray-900 mb-2">Recent Errors</h4>
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <ul class="space-y-2">
+                    <li v-for="error in dashboard.systemHealth.value.recentErrors" :key="error.id" class="text-sm text-red-800">
+                      <strong>{{ formatDate(error.createdAt) }}:</strong> {{ error.action }} - {{ error.resourceType }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tests -->
+            <div v-if="systemTab === 'tests'">
+              <div class="mb-6 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Unit Tests</h3>
+                <button
+                  @click="runTests"
+                  :disabled="runningTests"
+                  class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 flex items-center"
+                >
+                  <svg v-if="!runningTests" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>{{ runningTests ? 'Running...' : 'Run All Tests' }}</span>
+                </button>
+              </div>
+
+              <div v-if="!testResults && !runningTests" class="text-center py-12 text-gray-500">
+                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p class="text-lg font-medium">No test results yet</p>
+                <p class="text-sm mt-2">Click "Run All Tests" to execute backend and frontend unit tests</p>
+              </div>
+
+              <div v-if="testResults" class="space-y-6">
+                <TestResultsPanel :results="testResults" />
+              </div>
+            </div>
+
+            <!-- PDF Templates -->
+            <div v-if="systemTab === 'templates'">
+              <PdfTemplatesPanel />
+            </div>
           </div>
         </div>
       </div>
@@ -993,319 +682,519 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { useAdminDashboard } from '../composables/useAdminDashboard.js'
+import { useTableFilters } from '../composables/useTableFilters.js'
 import api from '../services/api.js'
+import { exportToCSV } from '../utils/exportUtils.js'
+
+// Components
+import AlertsPanel from '../components/admin/AlertsPanel.vue'
+import DataTable from '../components/admin/DataTable.vue'
 import ComplianceChecker from '../components/admin/ComplianceChecker.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const dashboard = useAdminDashboard()
 
-const activeTab = ref('login-attempts')
+// Tab state
+const activeTab = ref('overview')
 const documentTab = ref('submissions')
-const dashboardStats = ref({})
-const loginAttempts = ref([])
-const onboardingStatus = ref([])
-const auditLogs = ref([])
-const systemHealth = ref({})
-const allSubmissions = ref([])
-const allI9Documents = ref([])
-const loginFilter = ref('')
+const activityTab = ref('logins')
+const systemTab = ref('health')
+
+// Loading states
 const exporting = ref(false)
 const runningTests = ref(false)
-const testResults = ref(null)
-const showBackendOutput = ref(false)
-const showBackendStderr = ref(false)
-const showFrontendOutput = ref(false)
-const showFrontendStderr = ref(false)
 const updatingAdmin = ref(null)
 const currentUserId = ref(null)
+const testResults = ref(null)
 
-// PDF Templates state
-const pdfTemplates = ref({})
-const loadingTemplates = ref(false)
-const updatingTemplates = ref(false)
-const templateUpdateResults = ref(null)
-const expandedArchives = ref({})
-
-const stepNames = {
-  1: 'W-4',
-  2: 'I-9',
-  3: 'Background',
-  4: 'Direct Deposit',
-  5: 'Acknowledgements',
-  6: 'Form 8850'
-}
-
-const getStepName = (step) => {
-  return stepNames[step] || `Step ${step}`
-}
-
-onMounted(async () => {
-  // Get current user ID
-  try {
-    const userResponse = await api.get('/auth/me')
-    currentUserId.value = userResponse.data.id
-  } catch (error) {
-    console.error('Error fetching current user:', error)
-  }
-  
-  await loadDashboardStats()
-  await loadLoginAttempts()
-  await loadOnboardingStatus()
-  await loadAuditLogs()
-  await loadSystemHealth()
-  await loadAllSubmissions()
-  await loadAllI9Documents()
-  await loadPdfTemplateStatus()
+// Computed loading state
+const isLoading = computed(() => {
+  return Object.values(dashboard.loading.value).some(v => v)
 })
 
-const loadDashboardStats = async () => {
-  try {
-    const response = await api.get('/admin/dashboard')
-    dashboardStats.value = response.data
-  } catch (error) {
-    console.error('Error loading dashboard stats:', error)
-  }
-}
+// Tab class helper
+const tabClass = (tab) => [
+  'px-6 py-3 text-sm font-medium border-b-2 whitespace-nowrap',
+  activeTab.value === tab
+    ? 'border-primary text-primary'
+    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+]
 
-const loadLoginAttempts = async () => {
-  try {
-    const params = loginFilter.value ? { success: loginFilter.value } : {}
-    const response = await api.get('/admin/login-attempts', { params })
-    loginAttempts.value = response.data.attempts || []
-  } catch (error) {
-    console.error('Error loading login attempts:', error)
-  }
-}
+// Column definitions
+const onboardingColumns = [
+  { key: 'firstName', label: 'First Name', sortable: true },
+  { key: 'lastName', label: 'Last Name', sortable: true },
+  { key: 'email', label: 'Email', sortable: true },
+  { key: 'isAdmin', label: 'Role', sortable: true },
+  { key: 'progress', label: 'Progress', sortable: true },
+  { key: 'status', label: 'Status', sortable: true, filterType: 'select', options: [
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'not_started', label: 'Not Started' },
+    { value: 'completed', label: 'Completed' }
+  ]},
+  { key: 'createdAt', label: 'Created', type: 'date', sortable: true }
+]
 
-const loadOnboardingStatus = async () => {
-  try {
-    const response = await api.get('/admin/onboarding-status')
-    onboardingStatus.value = response.data.applicants || []
-  } catch (error) {
-    console.error('Error loading onboarding status:', error)
-  }
-}
+const submissionColumns = [
+  { key: 'first_name', label: 'First Name', sortable: true, getValue: (row) => row.first_name },
+  { key: 'last_name', label: 'Last Name', sortable: true, getValue: (row) => row.last_name },
+  { key: 'email', label: 'Email', sortable: true },
+  { key: 'step_number', label: 'Step', sortable: true, filterType: 'select', options: [
+    { value: '1', label: 'W-4' },
+    { value: '2', label: 'I-9' },
+    { value: '3', label: 'Background' },
+    { value: '4', label: 'Direct Deposit' },
+    { value: '5', label: 'Acknowledgements' },
+    { value: '6', label: 'Form 8850' }
+  ]},
+  { key: 'form_type', label: 'Form Type', sortable: true },
+  { key: 'submitted_at', label: 'Submitted', type: 'date', sortable: true },
+  { key: 'retention_until', label: 'Retention Until', type: 'date', sortable: true }
+]
 
-const loadAuditLogs = async () => {
-  try {
-    const response = await api.get('/admin/audit-logs')
-    auditLogs.value = response.data.logs || []
-  } catch (error) {
-    console.error('Error loading audit logs:', error)
-  }
-}
+const i9Columns = [
+  { key: 'first_name', label: 'First Name', sortable: true },
+  { key: 'last_name', label: 'Last Name', sortable: true },
+  { key: 'email', label: 'Email', sortable: true },
+  { key: 'document_type', label: 'Document Type', sortable: true },
+  { key: 'document_category', label: 'Category', sortable: true, filterType: 'select', options: [
+    { value: 'listA', label: 'List A' },
+    { value: 'listB', label: 'List B' },
+    { value: 'listC', label: 'List C' }
+  ]},
+  { key: 'file_name', label: 'Filename', sortable: true },
+  { key: 'uploaded_at', label: 'Uploaded', type: 'date', sortable: true }
+]
 
-const loadSystemHealth = async () => {
-  try {
-    const response = await api.get('/admin/system-health')
-    systemHealth.value = response.data
-  } catch (error) {
-    console.error('Error loading system health:', error)
-  }
-}
+const loginColumns = [
+  { key: 'created_at', label: 'Time', type: 'date', sortable: true },
+  { key: 'name', label: 'Name', sortable: true, getValue: (row) => 
+    row.applicant_first_name && row.applicant_last_name 
+      ? `${row.applicant_first_name} ${row.applicant_last_name}` 
+      : `${row.first_name} ${row.last_name}` 
+  },
+  { key: 'email', label: 'Email', sortable: true, getValue: (row) => row.applicant_email || row.email },
+  { key: 'success', label: 'Status', sortable: true, filterType: 'select', options: [
+    { value: 'true', label: 'Success' },
+    { value: 'false', label: 'Failed' }
+  ]},
+  { key: 'ip_address', label: 'IP Address', sortable: true },
+  { key: 'error_message', label: 'Error', sortable: false }
+]
 
-const loadAllSubmissions = async () => {
-  try {
-    const response = await api.get('/admin/submissions')
-    allSubmissions.value = response.data.submissions || []
-  } catch (error) {
-    console.error('Error loading all submissions:', error)
-  }
-}
+const auditColumns = [
+  { key: 'created_at', label: 'Time', type: 'date', sortable: true },
+  { key: 'action', label: 'Action', sortable: true, filterType: 'select', options: [] },
+  { key: 'resource_type', label: 'Resource', sortable: true, filterType: 'select', options: [] },
+  { key: 'userName', label: 'User', sortable: true, getValue: (row) => 
+    row.first_name && row.last_name 
+      ? `${row.first_name} ${row.last_name}` 
+      : row.user_id ? `User ${row.user_id}` : 'System'
+  },
+  { key: 'ip_address', label: 'IP', sortable: true },
+  { key: 'details', label: 'Details', sortable: false, format: (val) => {
+    if (!val) return '-'
+    try {
+      const parsed = typeof val === 'string' ? JSON.parse(val) : val
+      return JSON.stringify(parsed).substring(0, 50) + '...'
+    } catch { return val?.substring?.(0, 50) || '-' }
+  }}
+]
 
-const loadAllI9Documents = async () => {
-  try {
-    const response = await api.get('/admin/i9-documents')
-    allI9Documents.value = response.data.documents || []
-  } catch (error) {
-    console.error('Error loading all I-9 documents:', error)
-  }
-}
+// Quick filters
+const onboardingQuickFilters = [
+  { label: 'In Progress', filters: { status: 'in_progress' } },
+  { label: 'Not Started', filters: { status: 'not_started' } },
+  { label: 'Admins Only', filters: { isAdmin: 'true' } }
+]
 
-const viewI9Document = (documentId) => {
-  window.open(`/api/forms/i9/documents/${documentId}/view`, '_blank')
-}
+const loginQuickFilters = [
+  { label: 'Failed Only', filters: { success: 'false' } },
+  { label: 'Success Only', filters: { success: 'true' } },
+  { label: 'Today', filters: { startDate: new Date().toISOString().split('T')[0] } }
+]
 
-// Watch for tab changes to load documents when needed
-watch(activeTab, (newTab) => {
-  if (newTab === 'documents') {
-    loadAllSubmissions()
-    loadAllI9Documents()
-  }
-  if (newTab === 'pdf-templates') {
-    loadPdfTemplateStatus()
-  }
-})
+// Filter state for each table
+const onboardingFilters = ref({ status: 'in_progress' })
+const onboardingPagination = ref({ page: 1, limit: 25, total: 0 })
+const onboardingSort = ref({ key: 'createdAt', direction: 'desc' })
+const onboardingSearch = ref('')
+const onboardingData = ref([])
 
-const runTests = async () => {
-  runningTests.value = true
-  testResults.value = null
-  showBackendOutput.value = false
-  showBackendStderr.value = false
-  showFrontendOutput.value = false
-  showFrontendStderr.value = false
-  
-  // Switch to tests tab if not already there
-  if (activeTab.value !== 'tests') {
-    activeTab.value = 'tests'
-  }
-  
-  try {
-    const response = await api.post('/admin/tests/run')
-    testResults.value = response.data.results
-    
-    // Auto-expand error outputs if tests failed
-    if (testResults.value.backend && !testResults.value.backend.success) {
-      showBackendOutput.value = true
-      if (testResults.value.backend.stderr) {
-        showBackendStderr.value = true
-      }
-    }
-    if (testResults.value.frontend && !testResults.value.frontend.success) {
-      showFrontendOutput.value = true
-      if (testResults.value.frontend.stderr) {
-        showFrontendStderr.value = true
-      }
-    }
-  } catch (error) {
-    console.error('Error running tests:', error)
-    testResults.value = {
-      timestamp: new Date().toISOString(),
-      backend: {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Unknown error',
-        rawOutput: error.response?.data?.message || 'Failed to execute test command'
-      },
-      frontend: null
-    }
-    showBackendOutput.value = true
-  } finally {
-    runningTests.value = false
-  }
-}
+const completedFilters = ref({ status: 'completed' })
+const completedPagination = ref({ page: 1, limit: 25, total: 0 })
+const completedSort = ref({ key: 'createdAt', direction: 'desc' })
+const completedSearch = ref('')
+const completedData = ref([])
 
-const exportDiagnostics = async () => {
-  exporting.value = true
-  try {
-    // Include test results if available
-    const params = {}
-    if (testResults.value) {
-      params.testResults = JSON.stringify(testResults.value)
-    }
-    const response = await api.get('/diagnostics/export', { params })
-    const markdown = response.data.markdown || response.data.data
-    
-    // Copy to clipboard
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(markdown)
-      alert('Diagnostics exported! Markdown copied to clipboard. You can paste it directly into Cursor.')
-    } else {
-      // Fallback: show in textarea
-      const textarea = document.createElement('textarea')
-      textarea.value = markdown
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-      alert('Diagnostics exported! Markdown copied to clipboard.')
-    }
-  } catch (error) {
-    console.error('Error exporting diagnostics:', error)
-    alert('Failed to export diagnostics. Please try again.')
-  } finally {
-    exporting.value = false
-  }
-}
+const submissionsFilters = ref({})
+const submissionsPagination = ref({ page: 1, limit: 25, total: 0 })
+const submissionsSort = ref({ key: 'submitted_at', direction: 'desc' })
+const submissionsSearch = ref('')
+const submissionsData = ref([])
 
+const i9Filters = ref({})
+const i9Pagination = ref({ page: 1, limit: 25, total: 0 })
+const i9Sort = ref({ key: 'uploaded_at', direction: 'desc' })
+const i9Search = ref('')
+const i9Data = ref([])
+
+const loginsFilters = ref({})
+const loginsPagination = ref({ page: 1, limit: 25, total: 0 })
+const loginsSort = ref({ key: 'created_at', direction: 'desc' })
+const loginsSearch = ref('')
+const loginsData = ref([])
+
+const auditFilters = ref({})
+const auditPagination = ref({ page: 1, limit: 25, total: 0 })
+const auditSort = ref({ key: 'created_at', direction: 'desc' })
+const auditSearch = ref('')
+const auditData = ref([])
+
+// Helper functions
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
   return date.toLocaleString()
 }
 
-const formatDetails = (details) => {
-  if (!details) return '-'
-  try {
-    const parsed = typeof details === 'string' ? JSON.parse(details) : details
-    return JSON.stringify(parsed).substring(0, 100)
-  } catch {
-    return details.substring(0, 100)
+const formatStatus = (status) => {
+  const map = { completed: 'Completed', in_progress: 'In Progress', not_started: 'Not Started' }
+  return map[status] || status
+}
+
+const formatCategory = (cat) => {
+  const map = { listA: 'List A', listB: 'List B', listC: 'List C' }
+  return map[cat] || cat
+}
+
+const getStatusBadgeClass = (status) => {
+  const base = 'px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center'
+  const colors = {
+    completed: 'bg-green-100 text-green-800',
+    in_progress: 'bg-yellow-100 text-yellow-800',
+    not_started: 'bg-gray-100 text-gray-800'
+  }
+  return `${base} ${colors[status] || 'bg-gray-100 text-gray-800'}`
+}
+
+const getCategoryBadgeClass = (category) => {
+  const base = 'px-2 py-1 text-xs font-semibold rounded-full'
+  const colors = {
+    listA: 'bg-green-100 text-green-800',
+    listB: 'bg-blue-100 text-blue-800',
+    listC: 'bg-purple-100 text-purple-800'
+  }
+  return `${base} ${colors[category] || 'bg-gray-100 text-gray-800'}`
+}
+
+// Data loading functions
+const loadOnboardingData = async () => {
+  const params = {
+    search: onboardingSearch.value,
+    status: onboardingFilters.value.status,
+    isAdmin: onboardingFilters.value.isAdmin,
+    page: onboardingPagination.value.page,
+    limit: onboardingPagination.value.limit,
+    sortKey: onboardingSort.value.key,
+    sortDir: onboardingSort.value.direction
+  }
+  const result = await dashboard.loadOnboardingStatus(params)
+  onboardingData.value = result.applicants || []
+  if (result.pagination) {
+    onboardingPagination.value.total = result.pagination.total
   }
 }
 
-const formatFileSize = (bytes) => {
-  if (!bytes) return 'N/A'
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-}
-
-// PDF Template functions
-const loadPdfTemplateStatus = async () => {
-  loadingTemplates.value = true
-  try {
-    const response = await api.get('/admin/pdf-templates/status')
-    pdfTemplates.value = response.data.templates || {}
-  } catch (error) {
-    console.error('Error loading PDF template status:', error)
-  } finally {
-    loadingTemplates.value = false
+const loadCompletedData = async () => {
+  const params = {
+    search: completedSearch.value,
+    status: 'completed',
+    page: completedPagination.value.page,
+    limit: completedPagination.value.limit,
+    sortKey: completedSort.value.key,
+    sortDir: completedSort.value.direction
+  }
+  const result = await dashboard.loadOnboardingStatus(params)
+  completedData.value = result.applicants || []
+  if (result.pagination) {
+    completedPagination.value.total = result.pagination.total
   }
 }
 
-const refreshTemplateStatus = async () => {
-  await loadPdfTemplateStatus()
+const loadSubmissions = async () => {
+  const params = {
+    search: submissionsSearch.value,
+    ...submissionsFilters.value,
+    page: submissionsPagination.value.page,
+    limit: submissionsPagination.value.limit,
+    sortKey: submissionsSort.value.key,
+    sortDir: submissionsSort.value.direction
+  }
+  const result = await dashboard.loadAllSubmissions(params)
+  submissionsData.value = result.submissions || []
+  if (result.pagination) {
+    submissionsPagination.value.total = result.pagination.total
+  }
 }
 
-const updateAllTemplates = async () => {
-  updatingTemplates.value = true
-  templateUpdateResults.value = null
-  try {
-    const response = await api.post('/admin/pdf-templates/update?force=true')
-    templateUpdateResults.value = response.data
-    await loadPdfTemplateStatus()
-  } catch (error) {
-    console.error('Error updating templates:', error)
-    templateUpdateResults.value = {
-      success: false,
-      message: error.response?.data?.error || 'Failed to update templates'
+const loadI9Documents = async () => {
+  const params = {
+    search: i9Search.value,
+    ...i9Filters.value,
+    page: i9Pagination.value.page,
+    limit: i9Pagination.value.limit,
+    sortKey: i9Sort.value.key,
+    sortDir: i9Sort.value.direction
+  }
+  const result = await dashboard.loadAllI9Documents(params)
+  i9Data.value = result.documents || []
+  if (result.pagination) {
+    i9Pagination.value.total = result.pagination.total
+  }
+}
+
+const loadLoginAttempts = async () => {
+  const params = {
+    search: loginsSearch.value,
+    ...loginsFilters.value,
+    page: loginsPagination.value.page,
+    limit: loginsPagination.value.limit,
+    sortKey: loginsSort.value.key,
+    sortDir: loginsSort.value.direction
+  }
+  const result = await dashboard.loadLoginAttempts(params)
+  loginsData.value = result.attempts || []
+  if (result.pagination) {
+    loginsPagination.value.total = result.pagination.total
+  }
+}
+
+const loadAuditLogs = async () => {
+  const params = {
+    search: auditSearch.value,
+    ...auditFilters.value,
+    page: auditPagination.value.page,
+    limit: auditPagination.value.limit,
+    sortKey: auditSort.value.key,
+    sortDir: auditSort.value.direction
+  }
+  const result = await dashboard.loadAuditLogs(params)
+  auditData.value = result.logs || []
+  if (result.pagination) {
+    auditPagination.value.total = result.pagination.total
+  }
+  // Update filter options from response
+  if (result.filterOptions) {
+    const actionCol = auditColumns.find(c => c.key === 'action')
+    if (actionCol) {
+      actionCol.options = result.filterOptions.actions?.map(a => ({ value: a, label: a })) || []
     }
-  } finally {
-    updatingTemplates.value = false
-  }
-}
-
-const updateSingleTemplate = async (formType) => {
-  updatingTemplates.value = true
-  templateUpdateResults.value = null
-  try {
-    const response = await api.post(`/admin/pdf-templates/update?formType=${formType}&force=true`)
-    templateUpdateResults.value = response.data
-    await loadPdfTemplateStatus()
-  } catch (error) {
-    console.error(`Error updating ${formType} template:`, error)
-    templateUpdateResults.value = {
-      success: false,
-      message: error.response?.data?.error || `Failed to update ${formType} template`
+    const resourceCol = auditColumns.find(c => c.key === 'resource_type')
+    if (resourceCol) {
+      resourceCol.options = result.filterOptions.resourceTypes?.map(r => ({ value: r, label: r })) || []
     }
-  } finally {
-    updatingTemplates.value = false
   }
 }
 
-const previewTemplate = (formType) => {
-  window.open(`/api/admin/pdf-templates/${formType}/preview`, '_blank')
+// Event handlers for onboarding table
+const handleOnboardingSearch = (search) => {
+  onboardingSearch.value = search
+  onboardingPagination.value.page = 1
+  loadOnboardingData()
+}
+const handleOnboardingFilterChange = (filters) => {
+  onboardingFilters.value = filters
+  onboardingPagination.value.page = 1
+  loadOnboardingData()
+}
+const handleOnboardingPageChange = (page) => {
+  onboardingPagination.value.page = page
+  loadOnboardingData()
+}
+const handleOnboardingLimitChange = (limit) => {
+  onboardingPagination.value.limit = limit
+  onboardingPagination.value.page = 1
+  loadOnboardingData()
+}
+const handleOnboardingSort = (sort) => {
+  onboardingSort.value = sort
+  loadOnboardingData()
+}
+const handleOnboardingExport = () => {
+  window.open(`/api/admin/onboarding-status/export?${new URLSearchParams({
+    search: onboardingSearch.value,
+    status: onboardingFilters.value.status || '',
+    isAdmin: onboardingFilters.value.isAdmin || ''
+  })}`, '_blank')
 }
 
-const previewArchivedTemplate = (formType, filename) => {
-  window.open(`/api/admin/pdf-templates/${formType}/archive/${encodeURIComponent(filename)}`, '_blank')
+// Event handlers for completed table
+const handleCompletedSearch = (search) => {
+  completedSearch.value = search
+  completedPagination.value.page = 1
+  loadCompletedData()
+}
+const handleCompletedFilterChange = (filters) => {
+  completedFilters.value = { ...filters, status: 'completed' }
+  completedPagination.value.page = 1
+  loadCompletedData()
+}
+const handleCompletedPageChange = (page) => {
+  completedPagination.value.page = page
+  loadCompletedData()
+}
+const handleCompletedLimitChange = (limit) => {
+  completedPagination.value.limit = limit
+  completedPagination.value.page = 1
+  loadCompletedData()
+}
+const handleCompletedSort = (sort) => {
+  completedSort.value = sort
+  loadCompletedData()
+}
+const handleCompletedExport = () => {
+  window.open(`/api/admin/onboarding-status/export?status=completed&search=${completedSearch.value}`, '_blank')
 }
 
-const toggleArchive = (formType) => {
-  expandedArchives.value[formType] = !expandedArchives.value[formType]
+// Event handlers for submissions table
+const handleSubmissionsSearch = (search) => {
+  submissionsSearch.value = search
+  submissionsPagination.value.page = 1
+  loadSubmissions()
+}
+const handleSubmissionsFilterChange = (filters) => {
+  submissionsFilters.value = filters
+  submissionsPagination.value.page = 1
+  loadSubmissions()
+}
+const handleSubmissionsPageChange = (page) => {
+  submissionsPagination.value.page = page
+  loadSubmissions()
+}
+const handleSubmissionsLimitChange = (limit) => {
+  submissionsPagination.value.limit = limit
+  submissionsPagination.value.page = 1
+  loadSubmissions()
+}
+const handleSubmissionsSort = (sort) => {
+  submissionsSort.value = sort
+  loadSubmissions()
+}
+const handleSubmissionsExport = () => {
+  const params = new URLSearchParams({ search: submissionsSearch.value, ...submissionsFilters.value })
+  window.open(`/api/admin/submissions/export?${params}`, '_blank')
+}
+
+// Event handlers for I-9 documents table
+const handleI9Search = (search) => {
+  i9Search.value = search
+  i9Pagination.value.page = 1
+  loadI9Documents()
+}
+const handleI9FilterChange = (filters) => {
+  i9Filters.value = filters
+  i9Pagination.value.page = 1
+  loadI9Documents()
+}
+const handleI9PageChange = (page) => {
+  i9Pagination.value.page = page
+  loadI9Documents()
+}
+const handleI9LimitChange = (limit) => {
+  i9Pagination.value.limit = limit
+  i9Pagination.value.page = 1
+  loadI9Documents()
+}
+const handleI9Sort = (sort) => {
+  i9Sort.value = sort
+  loadI9Documents()
+}
+const handleI9Export = () => {
+  const params = new URLSearchParams({ search: i9Search.value, ...i9Filters.value })
+  window.open(`/api/admin/i9-documents/export?${params}`, '_blank')
+}
+
+// Event handlers for login attempts table
+const handleLoginsSearch = (search) => {
+  loginsSearch.value = search
+  loginsPagination.value.page = 1
+  loadLoginAttempts()
+}
+const handleLoginsFilterChange = (filters) => {
+  loginsFilters.value = filters
+  loginsPagination.value.page = 1
+  loadLoginAttempts()
+}
+const handleLoginsPageChange = (page) => {
+  loginsPagination.value.page = page
+  loadLoginAttempts()
+}
+const handleLoginsLimitChange = (limit) => {
+  loginsPagination.value.limit = limit
+  loginsPagination.value.page = 1
+  loadLoginAttempts()
+}
+const handleLoginsSort = (sort) => {
+  loginsSort.value = sort
+  loadLoginAttempts()
+}
+const handleLoginsExport = () => {
+  const params = new URLSearchParams({ search: loginsSearch.value, ...loginsFilters.value })
+  window.open(`/api/admin/login-attempts/export?${params}`, '_blank')
+}
+
+// Event handlers for audit logs table
+const handleAuditSearch = (search) => {
+  auditSearch.value = search
+  auditPagination.value.page = 1
+  loadAuditLogs()
+}
+const handleAuditFilterChange = (filters) => {
+  auditFilters.value = filters
+  auditPagination.value.page = 1
+  loadAuditLogs()
+}
+const handleAuditPageChange = (page) => {
+  auditPagination.value.page = page
+  loadAuditLogs()
+}
+const handleAuditLimitChange = (limit) => {
+  auditPagination.value.limit = limit
+  auditPagination.value.page = 1
+  loadAuditLogs()
+}
+const handleAuditSort = (sort) => {
+  auditSort.value = sort
+  loadAuditLogs()
+}
+const handleAuditExport = () => {
+  const params = new URLSearchParams({ search: auditSearch.value, ...auditFilters.value })
+  window.open(`/api/admin/audit-logs/export?${params}`, '_blank')
+}
+
+// Other handlers
+const viewI9Document = (documentId) => {
+  window.open(`/api/forms/i9/documents/${documentId}/view`, '_blank')
+}
+
+const handleAlertNavigation = (tab, options = {}) => {
+  activeTab.value = tab
+  if (options.filter === 'failed-logins') {
+    activityTab.value = 'logins'
+    loginsFilters.value = { success: 'false' }
+    loadLoginAttempts()
+  }
+  if (options.filter === 'stale') {
+    // Filter for stale onboarding
+    onboardingFilters.value = { status: 'in_progress' }
+    loadOnboardingData()
+  }
 }
 
 const toggleAdminStatus = async (user) => {
@@ -1320,16 +1209,11 @@ const toggleAdminStatus = async (user) => {
     })
     
     if (response.data.success) {
-      // Update local state
-      const index = onboardingStatus.value.findIndex(u => u.id === user.id)
-      if (index !== -1) {
-        onboardingStatus.value[index].isAdmin = !user.isAdmin
-      }
+      // Reload data
+      loadOnboardingData()
+      loadCompletedData()
+      dashboard.loadDashboardStats()
       
-      // Reload dashboard stats to update admin count
-      await loadDashboardStats()
-      
-      // Check if password setup is required for newly promoted admin
       if (response.data.requiresPasswordSetup && !user.isAdmin) {
         alert(`${response.data.message}\n\nNote: This user will need to set a password before accessing admin features.`)
       } else {
@@ -1344,9 +1228,109 @@ const toggleAdminStatus = async (user) => {
   }
 }
 
+const refreshAll = async () => {
+  await dashboard.loadAllData()
+  loadOnboardingData()
+  loadCompletedData()
+  loadSubmissions()
+  loadI9Documents()
+  loadLoginAttempts()
+  loadAuditLogs()
+}
+
+const runTests = async () => {
+  runningTests.value = true
+  testResults.value = null
+  
+  try {
+    const response = await api.post('/admin/tests/run')
+    testResults.value = response.data.results
+  } catch (error) {
+    console.error('Error running tests:', error)
+    testResults.value = {
+      timestamp: new Date().toISOString(),
+      backend: { success: false, error: error.message },
+      frontend: null
+    }
+  } finally {
+    runningTests.value = false
+  }
+}
+
+const exportDiagnostics = async () => {
+  exporting.value = true
+  try {
+    const params = {}
+    if (testResults.value) {
+      params.testResults = JSON.stringify(testResults.value)
+    }
+    const response = await api.get('/diagnostics/export', { params })
+    const markdown = response.data.markdown || response.data.data
+    
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(markdown)
+      alert('Diagnostics exported! Markdown copied to clipboard.')
+    }
+  } catch (error) {
+    console.error('Error exporting diagnostics:', error)
+    alert('Failed to export diagnostics.')
+  } finally {
+    exporting.value = false
+  }
+}
+
 const handleLogout = async () => {
   await authStore.logout()
   router.push('/login')
 }
-</script>
 
+// Watch for tab changes
+watch(activeTab, (newTab) => {
+  if (newTab === 'active-onboarding') {
+    loadOnboardingData()
+  } else if (newTab === 'completed') {
+    loadCompletedData()
+  } else if (newTab === 'documents') {
+    if (documentTab.value === 'submissions') {
+      loadSubmissions()
+    } else {
+      loadI9Documents()
+    }
+  } else if (newTab === 'activity') {
+    if (activityTab.value === 'logins') {
+      loadLoginAttempts()
+    } else {
+      loadAuditLogs()
+    }
+  }
+})
+
+watch(documentTab, (newTab) => {
+  if (newTab === 'submissions') {
+    loadSubmissions()
+  } else {
+    loadI9Documents()
+  }
+})
+
+watch(activityTab, (newTab) => {
+  if (newTab === 'logins') {
+    loadLoginAttempts()
+  } else {
+    loadAuditLogs()
+  }
+})
+
+// Initialize
+onMounted(async () => {
+  try {
+    const userResponse = await api.get('/auth/me')
+    currentUserId.value = userResponse.data.id
+  } catch (error) {
+    console.error('Error fetching current user:', error)
+  }
+  
+  await dashboard.loadAllData()
+  loadOnboardingData()
+})
+</script>

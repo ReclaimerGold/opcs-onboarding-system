@@ -80,17 +80,28 @@ opcs-onboarding-system/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── forms/           # Form components for each step
+│   │   │   ├── admin/           # Admin dashboard components
+│   │   │   │   ├── AlertsPanel.vue
+│   │   │   │   ├── DataTable.vue
+│   │   │   │   ├── FilterPanel.vue
+│   │   │   │   ├── SearchBar.vue
+│   │   │   │   ├── TestResultsPanel.vue
+│   │   │   │   ├── PdfTemplatesPanel.vue
+│   │   │   │   └── ComplianceChecker.vue
 │   │   │   ├── ui/               # Reusable UI components
 │   │   │   └── PrivacyNotice.vue
 │   │   ├── composables/         # Vue composables
 │   │   │   ├── useApplicantData.js
-│   │   │   └── useFormDraft.js
+│   │   │   ├── useFormDraft.js
+│   │   │   ├── useAdminDashboard.js
+│   │   │   └── useTableFilters.js
 │   │   ├── services/
 │   │   │   └── api.js           # Axios API client
 │   │   ├── stores/
 │   │   │   └── auth.js          # Pinia auth store
 │   │   ├── utils/
-│   │   │   └── validation.js    # Phone/email validation
+│   │   │   ├── validation.js    # Phone/email validation
+│   │   │   └── exportUtils.js   # CSV/data export utilities
 │   │   ├── views/
 │   │   │   ├── LoginView.vue
 │   │   │   ├── FormWizardView.vue
@@ -168,10 +179,32 @@ This will start:
 3. **Configure Settings**: Go to Settings page to add:
    - Google Drive API credentials (required for document storage)
    - Google Maps API key (optional, for address autocomplete)
-4. **View Dashboard**: Monitor applicant progress and document submissions
-5. **Document Access**: View all form submissions and I-9 documents for all applicants
+4. **View Dashboard**: Monitor applicant progress and document submissions with priority-based alerts
+5. **Document Access**: View all form submissions and I-9 documents with advanced filtering
 6. **Admin Tools**: Use admin utilities to normalize data, fix admin assignments, and diagnose login issues
 7. **Compliance Checker**: Run comprehensive compliance checks to verify Federal and SD state requirements
+
+### Admin Dashboard Features
+
+The admin dashboard is organized into workflow-based sections for management teams:
+
+- **Overview Tab**: Priority alerts, workflow summary, and quick stats
+- **Active Onboarding Tab**: In-progress applicants with filtering and admin management
+- **Completed Tab**: Completed onboarding records
+- **Documents Tab**: Form submissions and I-9 documents with advanced search/filter
+- **Activity Tab**: Login attempts and audit logs with filtering
+- **Compliance Tab**: Compliance checker
+- **System Tab**: System health, test runner, and PDF template management
+
+#### Filtering and Search
+All admin tables support:
+- **Full-text search**: Search across all relevant columns
+- **Column filters**: Dropdown filters for status, type, category fields
+- **Date range filters**: Filter by date ranges
+- **Quick filters**: One-click presets (e.g., "Failed Only", "In Progress")
+- **Pagination**: Configurable page sizes (10, 25, 50, 100)
+- **Sorting**: Click column headers to sort ascending/descending
+- **CSV Export**: Export filtered results to CSV files
 
 ## Form Steps
 
@@ -228,11 +261,17 @@ This system is designed to comply with:
 
 ### Admin (Admin Only)
 - `GET /api/admin/dashboard` - Get dashboard statistics
-- `GET /api/admin/login-attempts` - Get login attempts with filtering
-- `GET /api/admin/onboarding-status` - Get onboarding status for all applicants
-- `GET /api/admin/audit-logs` - Get filtered audit logs
-- `GET /api/admin/submissions` - Get all form submissions for all applicants
-- `GET /api/admin/i9-documents` - Get all I-9 documents for all applicants
+- `GET /api/admin/login-attempts` - Get login attempts with filtering, search, and pagination
+  - Query params: `search`, `success`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
+- `GET /api/admin/onboarding-status` - Get onboarding status for all applicants with filtering
+  - Query params: `search`, `status`, `isAdmin`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
+- `GET /api/admin/audit-logs` - Get filtered audit logs with search and pagination
+  - Query params: `search`, `action`, `resourceType`, `userId`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
+- `GET /api/admin/submissions` - Get all form submissions with filtering and pagination
+  - Query params: `search`, `formType`, `stepNumber`, `applicantId`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
+- `GET /api/admin/i9-documents` - Get all I-9 documents with filtering and pagination
+  - Query params: `search`, `documentType`, `documentCategory`, `applicantId`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
+- `PUT /api/admin/users/:id/admin` - Update user admin status
 - `POST /api/admin/normalize-applicants` - Normalize existing applicant data (fixes login issues)
 - `POST /api/admin/fix-admin-assignments` - Fix incorrect admin assignments (ensures only first user is admin)
 - `GET /api/admin/diagnose-login` - Diagnostic endpoint for login issues (query params: firstName, lastName, email)
@@ -243,6 +282,13 @@ This system is designed to comply with:
 - `GET /api/admin/pdf-templates/:formType/archive` - List archived versions of a template
 - `GET /api/admin/pdf-templates/:formType/archive/:filename` - Preview/download an archived template version
 - `GET /api/admin/compliance-check` - Run comprehensive compliance check for Federal and SD state requirements
+
+### Admin Export Endpoints (CSV)
+- `GET /api/admin/onboarding-status/export` - Export onboarding status data as CSV
+- `GET /api/admin/submissions/export` - Export form submissions as CSV
+- `GET /api/admin/i9-documents/export` - Export I-9 documents as CSV
+- `GET /api/admin/audit-logs/export` - Export audit logs as CSV
+- `GET /api/admin/login-attempts/export` - Export login attempts as CSV
 
 ## Development
 
