@@ -1,3 +1,8 @@
+# Development Docker Compose for OPCS Onboarding System
+# Usage: docker-compose -f docker-compose.dev.yml up
+# Frontend: http://localhost:9999 (with hot reload)
+# Backend: http://localhost:3000
+
 services:
   frontend:
     build:
@@ -8,10 +13,13 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
+      - ./frontend/public:/app/public
     environment:
       - VITE_API_URL=http://localhost:3000
     depends_on:
       - backend
+    networks:
+      - opcs-dev-network
 
   backend:
     build:
@@ -22,12 +30,20 @@ services:
     volumes:
       - ./backend/src:/app/src
       - sqlite-data:/app/database
-      - storage-data:/app/storage
+      - ./backend/storage:/app/storage
+      - ./backend/uploads:/app/uploads
     environment:
       - NODE_ENV=development
       - PORT=3000
       - FRONTEND_URL=http://localhost:9999
+      - SESSION_SECRET=dev-secret-key-not-for-production
+    networks:
+      - opcs-dev-network
+
+networks:
+  opcs-dev-network:
+    driver: bridge
 
 volumes:
   sqlite-data:
-  storage-data:
+    name: opcs-dev-sqlite-data

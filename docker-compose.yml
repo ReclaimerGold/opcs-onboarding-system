@@ -1,3 +1,7 @@
+# Production Docker Compose for OPCS Onboarding System
+# Usage: docker-compose up -d
+# Access at: http://localhost (port 80)
+
 services:
   frontend:
     build:
@@ -9,6 +13,8 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - opcs-network
 
   backend:
     build:
@@ -26,15 +32,29 @@ services:
       - GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID:-}
     volumes:
       - sqlite-data:/app/database
-      - storage-data:/app/storage
+      - storage-data:/app/storage/encrypted-pdfs
+      - i9-docs-data:/app/storage/encrypted-i9-docs
+      - uploads-data:/app/uploads
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
-      timeout: 3s
+      timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    networks:
+      - opcs-network
+
+networks:
+  opcs-network:
+    driver: bridge
 
 volumes:
   sqlite-data:
+    name: opcs-sqlite-data
   storage-data:
+    name: opcs-encrypted-pdfs
+  i9-docs-data:
+    name: opcs-i9-docs
+  uploads-data:
+    name: opcs-uploads
