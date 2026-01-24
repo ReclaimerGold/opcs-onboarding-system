@@ -13,6 +13,7 @@
           </div>
           <div class="flex items-center space-x-4">
             <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-gray-900">Admin</router-link>
+            <router-link v-if="authStore.isAdmin" to="/settings" class="text-gray-600 hover:text-gray-900">Settings</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-gray-900">Forms</router-link>
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
           </div>
@@ -208,7 +209,7 @@
                 >
                   <span class="text-gray-700">{{ getStepName(submission.step_number) }}</span>
                   <a
-                    :href="`/api/forms/submissions/${submission.id}/view`"
+                    :href="getSubmissionLink(submission)"
                     target="_blank"
                     class="text-primary hover:text-primary-light hover:underline font-medium"
                   >
@@ -317,7 +318,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <a
-                    :href="`/api/forms/submissions/${submission.id}/view`"
+                    :href="getSubmissionLink(submission)"
                     target="_blank"
                     class="text-primary hover:text-primary-light hover:underline"
                   >
@@ -332,7 +333,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                   <a
-                    :href="`/api/forms/submissions/${submission.id}/view`"
+                    :href="getSubmissionLink(submission)"
                     target="_blank"
                     class="text-primary hover:text-primary-light"
                   >
@@ -724,13 +725,21 @@ const canAccessStep = (step) => {
   return true
 }
 
+// Get link for a submission - use web_view_link (Google Drive) if available, otherwise API endpoint
+const getSubmissionLink = (submission) => {
+  if (submission.web_view_link) {
+    return submission.web_view_link
+  }
+  return `/api/forms/submissions/${submission.id}/view`
+}
+
 // Get link for a step (PDF for completed, form for accessible incomplete, null for locked)
 const getStepLink = (step) => {
   if (isStepCompleted(step)) {
     // Find the submission for this step
     const submission = submissions.value.find(s => s.step_number === step)
     if (submission) {
-      return `/api/forms/submissions/${submission.id}/view`
+      return getSubmissionLink(submission)
     }
   } else if (canAccessStep(step)) {
     // Link to form with step parameter
@@ -997,7 +1006,13 @@ const handleFileUpload = async (documentCategory, event) => {
 }
 
 const viewDocument = (documentId) => {
-  window.open(`/api/forms/i9/documents/${documentId}/view`, '_blank')
+  // Find the document to check for web_view_link
+  const doc = i9Documents.value.find(d => d.id === documentId)
+  if (doc && doc.web_view_link) {
+    window.open(doc.web_view_link, '_blank')
+  } else {
+    window.open(`/api/forms/i9/documents/${documentId}/view`, '_blank')
+  }
 }
 
 const handleLogout = async () => {

@@ -15,6 +15,7 @@
           <div class="flex items-center space-x-4">
             <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900">User Dashboard</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-gray-900">Forms</router-link>
+            <router-link to="/settings" class="text-gray-600 hover:text-gray-900">Settings</router-link>
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
           </div>
         </div>
