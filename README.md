@@ -350,6 +350,116 @@ cd frontend && npm run build
 - Schema managed in `backend/src/database/init.js`
 - No migrations needed (uses CREATE IF NOT EXISTS)
 
+## Docker Deployment
+
+### Quick Start with Docker Compose
+
+The recommended way to deploy the application is using Docker Compose:
+
+```bash
+# Production deployment (combined image on port 80)
+docker-compose up -d
+
+# Development with hot reload
+docker-compose -f docker-compose.dev.yml up
+```
+
+### Docker Images
+
+Three Docker image options are available:
+
+| Image | Description | Use Case |
+|-------|-------------|----------|
+| Combined (`Dockerfile`) | Frontend (nginx) + Backend in single container | Simple deployments, testing |
+| Backend (`backend/Dockerfile`) | Backend API only | Microservices, scaling |
+| Frontend (`frontend/Dockerfile`) | Frontend + nginx proxy | Microservices, CDN |
+
+### Environment Variables
+
+Configure the application using environment variables in `docker-compose.yml` or via `-e` flags:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SESSION_SECRET` | **Yes** | `change-me-in-production` | Session encryption key (generate with `openssl rand -hex 32`) |
+| `ENCRYPTION_KEY` | No | Auto-generated | AES-256 key for data encryption |
+| `NODE_ENV` | No | `production` | Environment mode |
+| `PORT` | No | `3000` | Backend server port |
+| `FRONTEND_URL` | No | - | Frontend URL for CORS |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | No | - | Google Service Account email |
+| `GOOGLE_PRIVATE_KEY` | No | - | Google Service Account private key |
+| `GOOGLE_DRIVE_FOLDER_ID` | No | - | Google Drive folder for documents |
+
+### Production Deployment
+
+1. **Pull the image from GitHub Container Registry:**
+```bash
+docker pull ghcr.io/YOUR_ORG/opcs-onboarding-system:latest
+```
+
+2. **Run with environment variables:**
+```bash
+docker run -d \
+  -p 80:80 \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
+  -v opcs-data:/app/database \
+  -v opcs-storage:/app/storage \
+  ghcr.io/YOUR_ORG/opcs-onboarding-system:latest
+```
+
+3. **Or use docker-compose.yml:**
+```yaml
+services:
+  opcs:
+    image: ghcr.io/YOUR_ORG/opcs-onboarding-system:latest
+    ports:
+      - "80:80"
+    environment:
+      - SESSION_SECRET=your-secure-secret-here
+      - GOOGLE_SERVICE_ACCOUNT_EMAIL=${GOOGLE_SERVICE_ACCOUNT_EMAIL}
+      - GOOGLE_PRIVATE_KEY=${GOOGLE_PRIVATE_KEY}
+    volumes:
+      - sqlite-data:/app/database
+      - storage-data:/app/storage
+    restart: unless-stopped
+
+volumes:
+  sqlite-data:
+  storage-data:
+```
+
+### Docker Compose Services
+
+**Production** (`docker-compose.yml`):
+- `frontend`: nginx serving Vue app on port 80, proxies `/api` to backend
+- `backend`: Node.js Express API on port 3000
+
+**Development** (`docker-compose.dev.yml`):
+- `frontend`: Vite dev server on port 9999 with hot reload
+- `backend`: Bun with file watching on port 3000
+
+### Building Images Locally
+
+```bash
+# Build combined image
+docker build -t opcs-onboarding .
+
+# Build backend only
+docker build -t opcs-backend -f backend/Dockerfile backend/
+
+# Build frontend only
+docker build -t opcs-frontend -f frontend/Dockerfile frontend/
+```
+
+### Health Checks
+
+The backend includes a health check endpoint at `/api/health`. Docker will automatically restart unhealthy containers.
+
+### Data Persistence
+
+**Important:** Use Docker volumes to persist data across container restarts:
+- `/app/database` - SQLite databases (onboarding.db, sessions.db)
+- `/app/storage` - Encrypted PDFs and documents
+
 ## Troubleshooting
 
 ### Port Conflicts
