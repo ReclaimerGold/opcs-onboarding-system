@@ -336,7 +336,7 @@ const getScoreTextClass = () => {
 
 const getStatusBadgeClass = () => {
   if (!report.value) return 'text-gray-600'
-  const status = report.value.summary.status
+  const {status} = report.value.summary
   if (status === 'COMPLIANT') return 'text-green-600 font-medium'
   if (status === 'WARNING') return 'text-yellow-600 font-medium'
   return 'text-red-600 font-medium'

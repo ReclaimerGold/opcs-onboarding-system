@@ -57,7 +57,7 @@ const emit = defineEmits(['update:modelValue', 'search'])
 let debounceTimer = null
 
 const handleInput = (event) => {
-  const value = event.target.value
+  const {value} = event.target
   emit('update:modelValue', value)
   
   // Debounce the search event
