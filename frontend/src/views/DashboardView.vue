@@ -140,9 +140,9 @@
                   getStepStatus(step).status === 'completed'
                     ? 'bg-green-500 text-white shadow-md'
                     : getStepStatus(step).status === 'current' && completedStepsCount < 6
-                    ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30 animate-pulse'
+                    ? 'bg-primary text-white ring-4 ring-primary/30 animate-pulse'
                     : getStepStatus(step).status === 'current'
-                    ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
+                    ? 'bg-primary text-white ring-4 ring-primary/30'
                     : canAccessStep(step)
                     ? 'bg-gray-200 text-gray-600 group-hover:bg-gray-300'
                     : 'bg-gray-200 text-gray-600'

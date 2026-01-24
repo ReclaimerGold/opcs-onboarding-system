@@ -399,7 +399,7 @@
     </div>
 
     <!-- Folder Browser Modal -->
-    <div v-if="showFolderBrowser" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div v-if="showFolderBrowser" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
         <!-- Modal Header -->
         <div class="px-6 py-4 border-b border-gray-200">
@@ -488,7 +488,7 @@
               :class="[
                 'flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors',
                 selectedBrowserFolder?.id === folder.id 
-                  ? 'bg-primary bg-opacity-10 border border-primary' 
+                  ? 'bg-primary/10 border border-primary' 
                   : 'hover:bg-gray-100'
               ]"
             >

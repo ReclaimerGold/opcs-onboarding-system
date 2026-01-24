@@ -74,7 +74,7 @@
                     getStepStatus(1).status === 'completed' 
                       ? 'bg-primary text-white shadow-md' 
                       : getStepStatus(1).status === 'current'
-                      ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
+                      ? 'bg-primary text-white ring-4 ring-primary/30'
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
                     getStepStatus(1).hasWarning ? 'ring-2 ring-yellow-400' : ''
                   ]"
@@ -135,7 +135,7 @@
                       getStepStatus(step).status === 'completed' 
                         ? 'bg-primary text-white shadow-md' 
                         : getStepStatus(step).status === 'current'
-                        ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
+                        ? 'bg-primary text-white ring-4 ring-primary/30'
                         : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
                       getStepStatus(step).hasWarning ? 'ring-2 ring-yellow-400' : ''
                     ]"
@@ -194,7 +194,7 @@
                     getStepStatus(6).status === 'completed' 
                       ? 'bg-primary text-white shadow-md' 
                       : getStepStatus(6).status === 'current'
-                      ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
+                      ? 'bg-primary text-white ring-4 ring-primary/30'
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
                     getStepStatus(6).hasWarning ? 'ring-2 ring-yellow-400' : ''
                   ]"
