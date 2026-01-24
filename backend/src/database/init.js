@@ -86,6 +86,13 @@ export function initializeDatabase() {
     // Ignore if column doesn't exist yet
   }
 
+  // Add web_view_link column if it doesn't exist (migration for Google Drive direct links)
+  try {
+    db.exec(`ALTER TABLE form_submissions ADD COLUMN web_view_link TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
   // Audit log for compliance (required for I-9 electronic storage)
   db.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (
@@ -186,6 +193,13 @@ export function initializeDatabase() {
     db.exec(`UPDATE i9_documents SET google_drive_id = '' WHERE google_drive_id IS NULL`)
   } catch (error) {
     // Ignore if column doesn't exist yet
+  }
+
+  // Add web_view_link column if it doesn't exist (migration for Google Drive direct links)
+  try {
+    db.exec(`ALTER TABLE i9_documents ADD COLUMN web_view_link TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
   }
 
   // Create indexes for performance

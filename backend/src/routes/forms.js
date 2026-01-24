@@ -176,7 +176,7 @@ router.get('/submissions', async (req, res) => {
   try {
     const db = getDatabase()
     const submissions = db.prepare(`
-      SELECT id, step_number, form_type, pdf_filename, submitted_at, retention_until
+      SELECT id, step_number, form_type, pdf_filename, submitted_at, retention_until, google_drive_id, web_view_link
       FROM form_submissions
       WHERE applicant_id = ?
       ORDER BY step_number
@@ -282,7 +282,7 @@ router.get('/submissions/:id/view', async (req, res) => {
   try {
     const db = getDatabase()
     const submission = db.prepare(`
-      SELECT google_drive_id, pdf_filename, pdf_encrypted_path, applicant_id
+      SELECT google_drive_id, pdf_filename, pdf_encrypted_path, applicant_id, web_view_link
       FROM form_submissions
       WHERE id = ?
     `).get(parseInt(req.params.id))
@@ -493,17 +493,20 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     const encryptedBuffer = encryptBuffer(fileBuffer)
 
     let googleDriveId = null
+    let webViewLink = null
     let localFilePath = null
     
     // Check if Google Drive is configured
     if (isGoogleDriveConfigured()) {
       // Upload encrypted document directly to Google Drive
-      googleDriveId = await uploadToGoogleDrive(
+      const uploadResult = await uploadToGoogleDrive(
         encryptedBuffer,
         filename,
         applicant,
         req.file.mimetype || 'application/pdf'
       )
+      googleDriveId = uploadResult.fileId
+      webViewLink = uploadResult.webViewLink
       console.log(`I-9 document uploaded to Google Drive: ${googleDriveId}`)
     } else {
       // Fallback to local storage
@@ -542,7 +545,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       // Update record
       db.prepare(`
         UPDATE i9_documents 
-        SET document_name = ?, file_name = ?, file_size = ?, mime_type = ?, google_drive_id = ?, file_path = ?, uploaded_at = CURRENT_TIMESTAMP
+        SET document_name = ?, file_name = ?, file_size = ?, mime_type = ?, google_drive_id = ?, file_path = ?, web_view_link = ?, uploaded_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
         documentName || req.file.originalname,
@@ -551,14 +554,15 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         req.file.mimetype,
         googleDriveId || '',
         localFilePath,
+        webViewLink,
         existing.id
       )
     } else {
       // Insert new record
       db.prepare(`
         INSERT INTO i9_documents 
-        (applicant_id, document_type, document_category, document_name, file_name, file_size, mime_type, google_drive_id, file_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (applicant_id, document_type, document_category, document_name, file_name, file_size, mime_type, google_drive_id, file_path, web_view_link)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         req.applicantId,
         documentType,
@@ -568,7 +572,8 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         req.file.size,
         req.file.mimetype,
         googleDriveId || '',
-        localFilePath
+        localFilePath,
+        webViewLink
       )
     }
 
@@ -615,7 +620,7 @@ router.get('/i9/documents', async (req, res) => {
   try {
     const db = getDatabase()
     const documents = db.prepare(`
-      SELECT id, document_type, document_category, document_name, file_name, file_size, uploaded_at
+      SELECT id, document_type, document_category, document_name, file_name, file_size, uploaded_at, google_drive_id, web_view_link
       FROM i9_documents
       WHERE applicant_id = ?
       ORDER BY uploaded_at DESC
@@ -636,7 +641,7 @@ router.get('/i9/documents/:id/view', async (req, res) => {
   try {
     const db = getDatabase()
     const document = db.prepare(`
-      SELECT google_drive_id, file_path, file_name, mime_type, applicant_id
+      SELECT google_drive_id, file_path, file_name, mime_type, applicant_id, web_view_link
       FROM i9_documents
       WHERE id = ?
     `).get(parseInt(req.params.id))

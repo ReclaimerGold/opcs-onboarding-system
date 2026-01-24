@@ -761,17 +761,20 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
   )
   
   let googleDriveId = null
+  let webViewLink = null
   let localPath = null
   
   // Check if Google Drive is configured
   if (isGoogleDriveConfigured()) {
     // Upload encrypted PDF directly to Google Drive
-    googleDriveId = await uploadToGoogleDrive(
+    const uploadResult = await uploadToGoogleDrive(
       encryptedBuffer,
       filename,
       applicant,
       'application/pdf'
     )
+    googleDriveId = uploadResult.fileId
+    webViewLink = uploadResult.webViewLink
     console.log(`PDF uploaded to Google Drive: ${googleDriveId}`)
   } else {
     // Fallback to local storage
@@ -782,8 +785,8 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
   // Save form submission record
   const submissionId = db.prepare(`
     INSERT INTO form_submissions 
-    (applicant_id, step_number, form_type, form_data, pdf_filename, google_drive_id, pdf_encrypted_path, retention_until)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (applicant_id, step_number, form_type, form_data, pdf_filename, google_drive_id, pdf_encrypted_path, retention_until, web_view_link)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     applicantId,
     stepNumber,
@@ -792,12 +795,14 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     filename,
     googleDriveId || '',
     localPath,
-    retentionUntil
+    retentionUntil,
+    webViewLink
   ).lastInsertRowid
   
   return {
     filename,
     googleDriveId,
+    webViewLink,
     localPath,
     submissionId,
     retentionUntil,
