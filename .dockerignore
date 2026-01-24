@@ -15,8 +15,10 @@ frontend/dist/
 *.db-wal
 *.db-shm
 
-# Storage
-backend/storage/
+# Storage (exclude runtime data, keep templates)
+backend/storage/encrypted-pdfs/
+backend/storage/encrypted-i9-docs/
+backend/uploads/
 
 # Logs
 *.log
