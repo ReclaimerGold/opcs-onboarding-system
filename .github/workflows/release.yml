@@ -6,12 +6,40 @@ on:
       - "v*"
 
 env:
-  BUN_VERSION: 1.3.3
+  BUN_VERSION: "1.3.6"
+  NODE_VERSION: "22"
 
 jobs:
+  test:
+    name: Test Before Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: bun install --frozen-lockfile
+
+      - name: Test backend
+        working-directory: backend
+        run: bun run test:run
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Test frontend
+        working-directory: frontend
+        run: bun run test:run
+
   release:
     name: Release
     runs-on: ubuntu-latest
+    needs: [test]
     permissions:
       contents: write
       packages: write
@@ -33,10 +61,11 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Build and push
+      - name: Build and push combined image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
@@ -44,8 +73,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-backend:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-frontend:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           draft: false
+          body: |
+            ## Docker Images
+
+            Pull the combined image:
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ```
+
+            Or use docker-compose with separate services:
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}-backend:${{ steps.version.outputs.version }}
+            docker pull ghcr.io/${{ github.repository }}-frontend:${{ steps.version.outputs.version }}
+            ```
