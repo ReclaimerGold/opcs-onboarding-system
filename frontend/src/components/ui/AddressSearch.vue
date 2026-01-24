@@ -1,73 +1,38 @@
 <template>
-  <div>
-    <label class="block text-sm font-medium text-gray-700 mb-1">
-      {{ label }}
-      <span v-if="required" class="text-red-500">*</span>
-    </label>
-    <p v-if="description" class="text-xs text-gray-500 mb-1">{{ description }}</p>
-    
-    <!-- Google Places Autocomplete Input -->
-    <div class="relative">
+  <div class="space-y-4">
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">
+        {{ label || 'Street Address' }}
+        <span v-if="required" class="text-red-500">*</span>
+      </label>
+      <p v-if="description" class="text-xs text-gray-500 mb-2">{{ description }}</p>
+      
       <input
         ref="addressInput"
         type="text"
         :value="modelValue"
-        :placeholder="placeholder"
+        :placeholder="placeholder || 'Enter your street address (e.g., 123 Main Street)'"
         :required="required"
         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
         @input="handleInput"
+        @blur="handleBlur"
       />
-      <div v-if="suggestions.length > 0" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-        <div
-          v-for="(suggestion, index) in suggestions"
-          :key="index"
-          @click="selectAddress(suggestion)"
-          class="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-        >
-          {{ suggestion.description }}
-        </div>
+      
+      <!-- Simple status messages -->
+      <div v-if="statusMessage" class="mt-2 text-sm" :class="statusClass">
+        {{ statusMessage }}
       </div>
-    </div>
-    
-    <!-- Parsed Address Fields -->
-    <div v-if="parsedAddress" class="mt-2 space-y-2">
-      <input
-        v-model="parsedAddress.street"
-        type="text"
-        placeholder="Street Address"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md"
-        @input="updateAddress"
-      />
-      <div class="grid grid-cols-2 gap-2">
-        <input
-          v-model="parsedAddress.city"
-          type="text"
-          placeholder="City"
-          class="w-full px-3 py-2 border border-gray-300 rounded-md"
-          @input="updateAddress"
-        />
-        <input
-          v-model="parsedAddress.state"
-          type="text"
-          placeholder="State"
-          maxlength="2"
-          class="w-full px-3 py-2 border border-gray-300 rounded-md uppercase"
-          @input="updateAddress"
-        />
-      </div>
-      <input
-        v-model="parsedAddress.zip"
-        type="text"
-        placeholder="Zip Code"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md"
-        @input="updateAddress"
-      />
+      
+      <!-- Helper text for users -->
+      <p v-if="!statusMessage" class="mt-1 text-xs text-gray-400">
+        {{ apiKey ? 'We can verify your address after you enter it' : 'Enter your full street address' }}
+      </p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   label: String,
@@ -81,112 +46,118 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'address-selected'])
 
 const addressInput = ref(null)
-const suggestions = ref([])
-const parsedAddress = ref(null)
-let autocompleteService = null
-let placesService = null
+const validating = ref(false)
+const statusMessage = ref('')
+const statusType = ref('') // 'success', 'info', 'error'
 
-onMounted(() => {
-  if (props.apiKey && window.google) {
-    initGooglePlaces()
-  } else if (props.apiKey) {
-    loadGoogleMapsScript()
+const statusClass = computed(() => {
+  switch (statusType.value) {
+    case 'success': return 'text-green-600'
+    case 'info': return 'text-blue-600'
+    case 'error': return 'text-red-600'
+    default: return 'text-gray-500'
   }
 })
-
-const loadGoogleMapsScript = () => {
-  if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-    initGooglePlaces()
-    return
-  }
-  
-  const script = document.createElement('script')
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${props.apiKey}&libraries=places`
-  script.async = true
-  script.defer = true
-  script.onload = () => initGooglePlaces()
-  document.head.appendChild(script)
-}
-
-const initGooglePlaces = () => {
-  if (!window.google || !window.google.maps) return
-  
-  autocompleteService = new window.google.maps.places.AutocompleteService()
-  placesService = new window.google.maps.places.PlacesService(document.createElement('div'))
-}
 
 const handleInput = (e) => {
   const value = e.target.value
   emit('update:modelValue', value)
   
-  if (!autocompleteService || value.length < 3) {
-    suggestions.value = []
-    return
+  // Clear status when typing
+  statusMessage.value = ''
+  statusType.value = ''
+}
+
+const handleBlur = async () => {
+  // Only auto-validate if API is configured and address is long enough
+  if (props.apiKey && props.modelValue && props.modelValue.length >= 10) {
+    await validateAddress()
+  } else if (props.modelValue && props.modelValue.length >= 5) {
+    // Try to parse the address manually
+    parseAndEmitAddress(props.modelValue)
   }
-  
-  autocompleteService.getPlacePredictions(
-    {
-      input: value,
-      componentRestrictions: { country: 'us' }
-    },
-    (predictions, status) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-        suggestions.value = predictions || []
-      } else {
-        suggestions.value = []
-      }
-    }
-  )
 }
 
-const selectAddress = (place) => {
-  suggestions.value = []
-  emit('update:modelValue', place.description)
+const validateAddress = async () => {
+  if (!props.apiKey || !props.modelValue) return
   
-  // Get place details
-  placesService.getDetails(
-    { placeId: place.place_id },
-    (placeDetails, status) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-        parseAddressComponents(placeDetails)
-        emit('address-selected', parsedAddress.value)
-      }
+  validating.value = true
+  statusMessage.value = 'Checking address...'
+  statusType.value = 'info'
+  
+  try {
+    const response = await fetch('/api/address/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ address: props.modelValue })
+    })
+    
+    if (!response.ok) {
+      throw new Error('Validation failed')
     }
-  )
+    
+    const result = await response.json()
+    
+    if (result.success && result.address) {
+      // Update address field if corrected
+      if (result.formattedAddress && result.corrected) {
+        emit('update:modelValue', result.formattedAddress)
+      }
+      
+      // Emit parsed address to parent
+      emit('address-selected', {
+        street: result.address.street || props.modelValue,
+        city: result.address.city || '',
+        state: result.address.state || '',
+        zip: result.address.zip || ''
+      })
+      
+      statusMessage.value = '✓ Address verified'
+      statusType.value = 'success'
+    } else {
+      // Fall back to manual parsing
+      parseAndEmitAddress(props.modelValue)
+      statusMessage.value = 'Please check your address and fill in city, state, and zip below'
+      statusType.value = 'info'
+    }
+  } catch (error) {
+    console.error('Address validation error:', error)
+    // Fall back to manual parsing
+    parseAndEmitAddress(props.modelValue)
+    statusMessage.value = 'Please fill in city, state, and zip below'
+    statusType.value = 'info'
+  } finally {
+    validating.value = false
+  }
 }
 
-const parseAddressComponents = (place) => {
-  const address = {
-    street: '',
+// Simple address parsing
+const parseAndEmitAddress = (addressString) => {
+  if (!addressString) return
+  
+  const parts = addressString.split(',').map(p => p.trim())
+  
+  const parsed = {
+    street: parts[0] || addressString,
     city: '',
     state: '',
     zip: ''
   }
   
-  place.address_components.forEach(component => {
-    const types = component.types
-    
-    if (types.includes('street_number') || types.includes('route')) {
-      address.street = (address.street + ' ' + component.long_name).trim()
-    }
-    if (types.includes('locality')) {
-      address.city = component.long_name
-    }
-    if (types.includes('administrative_area_level_1')) {
-      address.state = component.short_name
-    }
-    if (types.includes('postal_code')) {
-      address.zip = component.long_name
-    }
-  })
-  
-  parsedAddress.value = address
-}
-
-const updateAddress = () => {
-  if (parsedAddress.value) {
-    emit('address-selected', parsedAddress.value)
+  if (parts.length >= 2) {
+    parsed.city = parts[1] || ''
   }
+  
+  if (parts.length >= 3) {
+    const lastPart = parts[2] || ''
+    const match = lastPart.match(/([A-Z]{2})\s*(\d{5})?/i)
+    if (match) {
+      parsed.state = (match[1] || '').toUpperCase()
+      parsed.zip = match[2] || ''
+    }
+  }
+  
+  emit('address-selected', parsed)
 }
 </script>
-
