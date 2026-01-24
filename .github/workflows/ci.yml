@@ -103,13 +103,24 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
-      - name: Build and push (docker-compose)
+      - name: Build and push backend
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: docker-compose.yml
+          context: ./backend
+          file: ./backend/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
