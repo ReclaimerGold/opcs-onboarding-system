@@ -1,6 +1,6 @@
 <template>
   <div>
-    <PrivacyNotice :show-consent="true" v-model:consented="ssnConsented" />
+    <SSNConsentModal :open="showConsentModal" v-model:consented="ssnConsented" />
     
     <form @submit.prevent="handleSubmit" class="space-y-6">
       <div class="bg-white shadow rounded-lg p-6">
@@ -260,7 +260,7 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import PrivacyNotice from '../PrivacyNotice.vue'
+import SSNConsentModal from '../SSNConsentModal.vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
@@ -292,6 +292,7 @@ const formData = ref({
 const ssnConsented = ref(false)
 const loading = ref(false)
 const phoneError = ref('')
+const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
 
 // Track which fields are locked (auto-populated)
 const phoneLocked = ref(false)
@@ -313,6 +314,11 @@ watch(formData, () => {
 
 // Load applicant data and previous form data to auto-populate all available fields
 onMounted(async () => {
+  const storedConsent = sessionStorage.getItem(CONSENT_STORAGE_KEY)
+  if (storedConsent === 'true') {
+    ssnConsented.value = true
+  }
+
   // Wait for applicant data to load
   if (loadingApplicant.value) {
     await new Promise(resolve => setTimeout(resolve, 500))
@@ -411,6 +417,14 @@ onMounted(async () => {
   }
 })
 
+watch(ssnConsented, (value) => {
+  if (value) {
+    sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
+  }
+})
+
+const showConsentModal = computed(() => !ssnConsented.value)
+
 // Computed property to check which required fields are missing
 const missingRequiredFields = computed(() => {
   const missing = []
@@ -484,7 +498,7 @@ const handleSubmit = async () => {
   try {
     await api.post('/forms/submit/6', {
       formData: formData.value,
-      ssnConsented: true
+      ssnConsented: ssnConsented.value
     })
     emit('submitted', 6)
   } catch (error) {

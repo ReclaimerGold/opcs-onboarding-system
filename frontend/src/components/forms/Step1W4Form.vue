@@ -1,5 +1,6 @@
 <template>
   <div>
+    <SSNConsentModal :open="showConsentModal" v-model:consented="ssnConsented" />
     <!-- W-4 Disclaimer -->
     <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
       <h3 class="text-sm font-semibold text-gray-900 mb-2">Federal W-4 - Employee's Withholding Certificate</h3>
@@ -17,8 +18,6 @@
         <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf" target="_blank" class="text-primary hover:underline">click here to go to the IRS Website</a>.
       </p>
     </div>
-    
-    <PrivacyNotice :show-consent="true" v-model:consented="ssnConsented" />
     
     <form @submit.prevent="handleSubmit" class="space-y-6">
       <div class="bg-white shadow rounded-lg p-6">
@@ -431,7 +430,7 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import PrivacyNotice from '../PrivacyNotice.vue'
+import SSNConsentModal from '../SSNConsentModal.vue'
 import AddressSearch from '../ui/AddressSearch.vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
@@ -466,6 +465,7 @@ const loading = ref(false)
 const phoneError = ref('')
 const emailError = ref('')
 const addressValidationApiKey = ref('')
+const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
 
 // Track if phone/email have been set (to lock them)
 const phoneLocked = ref(false)
@@ -487,6 +487,11 @@ watch(formData, () => {
 
 // Load applicant data and settings
 onMounted(async () => {
+  const storedConsent = sessionStorage.getItem(CONSENT_STORAGE_KEY)
+  if (storedConsent === 'true') {
+    ssnConsented.value = true
+  }
+
   // Wait for applicant data to load
   if (loadingApplicant.value) {
     // Wait a bit for data to load
@@ -543,6 +548,14 @@ onMounted(async () => {
     formData.value.ssn = savedSSN
   }
 })
+
+watch(ssnConsented, (value) => {
+  if (value) {
+    sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
+  }
+})
+
+const showConsentModal = computed(() => !ssnConsented.value)
 
 const formatTime = (dateString) => {
   if (!dateString) return ''
@@ -709,7 +722,7 @@ const handleSubmit = async () => {
   try {
     await api.post('/forms/submit/1', {
       formData: formData.value,
-      ssnConsented: true
+      ssnConsented: ssnConsented.value
     })
     emit('submitted', 1)
   } catch (error) {

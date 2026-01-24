@@ -16,6 +16,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 - **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
+- **SSN Consent Modal**: Non-dismissable SSN consent modal required before W-4 and 8850 forms (employment cannot continue without consent)
 
 ### Form Features
 - **6-step form workflow**: W-4, I-9, Background Check, Direct Deposit, Acknowledgements, Form 8850
