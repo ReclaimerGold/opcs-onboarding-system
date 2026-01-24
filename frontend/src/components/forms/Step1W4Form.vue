@@ -204,76 +204,72 @@
             />
           </div>
           
-          <div class="md:col-span-2">
-            <AddressSearch
-              v-if="googleMapsApiKey"
-              v-model="formData.address"
-              label="Address"
-              :required="true"
-              description="Start typing your address and select from suggestions. This will auto-fill city, state, and zip code."
-              placeholder="Start typing your address..."
-              :api-key="googleMapsApiKey"
-              @address-selected="handleAddressSelected"
-            />
-            <div v-else>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Address <span class="text-red-500">*</span>
-              </label>
-              <input
-                v-model="formData.address"
-                type="text"
-                required
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-              />
+          <!-- Address Section - Simplified for first-time applicants -->
+          <div class="md:col-span-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h4 class="text-sm font-medium text-gray-900 mb-3">Your Home Address</h4>
+            <p class="text-xs text-gray-500 mb-4">Enter your current home address where you receive mail.</p>
+            
+            <div class="space-y-4">
+              <!-- Street Address -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Street Address <span class="text-red-500">*</span>
+                </label>
+                <AddressSearch
+                  v-model="formData.address"
+                  :required="true"
+                  placeholder="Example: 123 Main Street, Apt 4B"
+                  :api-key="addressValidationApiKey"
+                  @address-selected="handleAddressSelected"
+                />
+              </div>
+              
+              <!-- City, State, Zip in a row -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    City <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="formData.city"
+                    type="text"
+                    required
+                    placeholder="Example: Sioux Falls"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    State <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="formData.state"
+                    type="text"
+                    maxlength="2"
+                    required
+                    placeholder="SD"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary uppercase"
+                    @input="formData.state = formData.state.toUpperCase()"
+                  />
+                  <p class="mt-1 text-xs text-gray-400">2 letters (SD, MN, etc.)</p>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Zip Code <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="formData.zipCode"
+                    type="text"
+                    maxlength="10"
+                    required
+                    placeholder="57101"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              City <span class="text-red-500">*</span>
-            </label>
-            <input
-              v-model="formData.city"
-              type="text"
-              required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-            />
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              State (2 letter) <span class="text-red-500">*</span>
-              <span class="ml-1 relative group">
-                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span class="absolute left-0 bottom-full mb-2 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                  Two-letter state abbreviation (e.g., CA, NY, TX). Use uppercase letters.
-                </span>
-              </span>
-            </label>
-            <input
-              v-model="formData.state"
-              type="text"
-              maxlength="2"
-              required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary uppercase"
-              @input="formData.state = formData.state.toUpperCase()"
-            />
-            <p class="mt-1 text-xs text-gray-500">Two-letter state code (e.g., CA, NY, TX)</p>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              Zip Code <span class="text-red-500">*</span>
-            </label>
-            <input
-              v-model="formData.zipCode"
-              type="text"
-              pattern="[0-9]{5}(-[0-9]{4})?"
-              required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-            />
           </div>
         </div>
         
@@ -471,7 +467,7 @@ const ssnConsented = ref(false)
 const loading = ref(false)
 const phoneError = ref('')
 const emailError = ref('')
-const googleMapsApiKey = ref('')
+const addressValidationApiKey = ref('')
 
 // Track if phone/email have been set (to lock them)
 const phoneLocked = ref(false)
@@ -529,17 +525,17 @@ onMounted(async () => {
     }
   }
   
-  // Load Google Maps API key
+  // Load Google Address Validation API key
   try {
-    const settingsResponse = await api.get('/settings/google-maps-key')
-    googleMapsApiKey.value = settingsResponse.data.apiKey || ''
+    const settingsResponse = await api.get('/settings/google-address-validation-key')
+    addressValidationApiKey.value = settingsResponse.data.apiKey || ''
   } catch (error) {
     // Fallback to full settings endpoint
     try {
       const settingsResponse = await api.get('/settings')
-      googleMapsApiKey.value = settingsResponse.data.google_maps_api_key || ''
+      addressValidationApiKey.value = settingsResponse.data.google_address_validation_api_key || ''
     } catch (err) {
-      console.error('Error loading Google Maps API key:', err)
+      console.error('Error loading Google Address Validation API key:', err)
     }
   }
   
