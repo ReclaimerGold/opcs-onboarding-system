@@ -60,7 +60,7 @@ const statusClass = computed(() => {
 })
 
 const handleInput = (e) => {
-  const value = e.target.value
+  const {value} = e.target
   emit('update:modelValue', value)
   
   // Clear status when typing

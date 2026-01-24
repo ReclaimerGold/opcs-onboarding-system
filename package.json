@@ -1,20 +1,57 @@
 {
   "name": "opcs-onboarding-system",
   "version": "1.0.0",
+  "private": true,
   "description": "HR Onboarding System for Optimal Prime Cleaning Services",
   "type": "module",
-  "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build",
-    "start": "cd backend && npm start"
+  "packageManager": "bun@1.1.42",
+  "engines": {
+    "node": ">=20.0.0"
   },
-  "keywords": ["onboarding", "hr", "compliance"],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"bun run dev:backend\" \"bun run dev:frontend\"",
+    "dev:backend": "bun run --cwd backend dev",
+    "dev:frontend": "bun run --cwd frontend dev",
+    "build": "bun run --cwd frontend build",
+    "start": "bun run --cwd backend start",
+    "lint": "concurrently \"bun run lint:backend\" \"bun run lint:frontend\"",
+    "lint:backend": "bun run --cwd backend lint",
+    "lint:frontend": "bun run --cwd frontend lint",
+    "typecheck": "bun run --cwd frontend typecheck",
+    "test": "concurrently \"bun run test:backend\" \"bun run test:frontend\"",
+    "test:backend": "bun run --cwd backend test:run",
+    "test:frontend": "bun run --cwd frontend test:run",
+    "test:watch": "concurrently \"bun run --cwd backend test\" \"bun run --cwd frontend test\"",
+    "test:coverage": "concurrently \"bun run --cwd backend test:coverage\" \"bun run --cwd frontend test:coverage\"",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules bun.lockb",
+    "postinstall": "echo '✅ Dependencies installed via Bun workspaces'",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "onboarding",
+    "hr",
+    "compliance"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7"
+  },
+  "lint-staged": {
+    "frontend/src/**/*.{js,vue}": [
+      "bun run --cwd frontend eslint --fix"
+    ],
+    "frontend/src/**/*.{test,spec}.{js,ts}": [
+      "bun run --cwd frontend vitest related --run"
+    ],
+    "backend/**/*.{test,spec}.js": [
+      "bun run --cwd backend vitest related --run"
+    ]
   }
 }
-

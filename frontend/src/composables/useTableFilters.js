@@ -230,8 +230,8 @@ export function useTableFilters(options = {}) {
     range.push(1)
     
     // Calculate range around current page
-    let start = Math.max(2, current - 2)
-    let end = Math.min(total - 1, current + 2)
+    const start = Math.max(2, current - 2)
+    const end = Math.min(total - 1, current + 2)
     
     // Add ellipsis after first page if needed
     if (start > 2) {
