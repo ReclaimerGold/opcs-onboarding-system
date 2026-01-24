@@ -28,8 +28,14 @@ This is an HR onboarding application for Optimal Prime Cleaning Services with fu
 - Use ES6 modules (import/export)
 - Separate concerns: routes, services, middleware
 - Always use `requireAuth` middleware for protected routes
+- Use `requireAdmin` middleware for admin-only routes
 - Use `auditLog` for compliance tracking
 - Handle errors gracefully with proper HTTP status codes
+- Normalize user input: trim whitespace, lowercase emails for consistency
+- First user in system automatically becomes admin (see `createApplicant` in `auth.js`)
+- Admin users require password authentication (non-admins use name/email only)
+- Admin passwords stored as bcrypt hashes in `password_hash` column
+- Default password 'opcs' used for testing when admin password not set (see `init.js`)
 
 ## Code Style
 
@@ -124,8 +130,9 @@ All form fields must follow the standardized labeling pattern established in Ste
 - `backend/src/database/init.js` - Database schema (DO NOT add SSN fields)
 - `backend/src/services/pdfService.js` - PDF generation (SSN included here only)
 - `backend/src/services/encryptionService.js` - AES-256-GCM encryption
-- `backend/src/middleware/auth.js` - Authentication helpers
+- `backend/src/middleware/auth.js` - Authentication helpers (includes `createApplicant`, `findApplicantByCredentials`, normalization)
 - `backend/src/routes/forms.js` - Form submission and draft management
+- `backend/src/routes/admin.js` - Admin routes (dashboard, document access, utilities)
 
 ### Frontend
 - `frontend/src/views/FormWizardView.vue` - Main form wizard with breadcrumbs

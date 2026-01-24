@@ -157,10 +157,14 @@ This will start:
 
 ### For Administrators
 
-1. **Configure Settings**: Go to Settings page to add:
+1. **First Login**: The first user to sign up automatically becomes an administrator
+2. **Password Setup**: Admin users must set a password (minimum 8 characters) on first login
+3. **Configure Settings**: Go to Settings page to add:
    - Google Drive API credentials (required for document storage)
    - Google Maps API key (optional, for address autocomplete)
-2. **View Dashboard**: Monitor applicant progress and document submissions
+4. **View Dashboard**: Monitor applicant progress and document submissions
+5. **Document Access**: View all form submissions and I-9 documents for all applicants
+6. **Admin Tools**: Use admin utilities to normalize data, fix admin assignments, and diagnose login issues
 
 ## Form Steps
 
@@ -214,6 +218,18 @@ This system is designed to comply with:
 - `GET /api/settings` - Get all settings (authenticated)
 - `GET /api/settings/google-maps-key` - Get Google Maps API key (authenticated)
 - `POST /api/settings` - Update settings (admin only)
+
+### Admin (Admin Only)
+- `GET /api/admin/dashboard` - Get dashboard statistics
+- `GET /api/admin/login-attempts` - Get login attempts with filtering
+- `GET /api/admin/onboarding-status` - Get onboarding status for all applicants
+- `GET /api/admin/audit-logs` - Get filtered audit logs
+- `GET /api/admin/submissions` - Get all form submissions for all applicants
+- `GET /api/admin/i9-documents` - Get all I-9 documents for all applicants
+- `POST /api/admin/normalize-applicants` - Normalize existing applicant data (fixes login issues)
+- `POST /api/admin/fix-admin-assignments` - Fix incorrect admin assignments (ensures only first user is admin)
+- `GET /api/admin/diagnose-login` - Diagnostic endpoint for login issues (query params: firstName, lastName, email)
+- `POST /api/admin/tests/run` - Run unit tests and return results
 
 ## Development
 
