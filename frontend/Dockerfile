@@ -1,22 +1,39 @@
-# Build stage
-FROM oven/bun:1.3-debian AS builder
+# Production Dockerfile for frontend service
+# Multi-stage build: Node.js for building, nginx for serving
+
+# =============================================================================
+# Stage 1: Build with Node.js
+# =============================================================================
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
+# Copy package files
 COPY package.json ./
-RUN bun install
 
+# Install dependencies (using npm install since project uses bun.lock)
+RUN npm install --legacy-peer-deps
+
+# Copy source
 COPY . .
-RUN bun run build
 
-# Production stage - nginx
+# Build for production
+RUN npm run build
+
+# =============================================================================
+# Stage 2: Production runtime with nginx
+# =============================================================================
 FROM nginx:alpine
 
-# Copy built assets
+# Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -q --spider http://localhost/ || exit 1
 
 EXPOSE 80
 
