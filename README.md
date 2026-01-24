@@ -15,6 +15,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Loading Banners**: Clear indicators show when pre-fill data or settings are still loading
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
+- **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
 
 ### Form Features
 - **6-step form workflow**: W-4, I-9, Background Check, Direct Deposit, Acknowledgements, Form 8850
@@ -35,7 +36,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - Full audit logging for compliance
 - Automated document retention management
 - AES-256-GCM encryption for sensitive documents and settings
-- Session-based authentication
+- Session-based authentication with persistent SQLite session store
 - **Admin Settings Panel**: Central configuration for Google Drive and Address Validation APIs with status indicators and connection test buttons
 - **Google Drive Folder Browser**: Browse and search your Google Drive folders to select a base folder for document storage
 - **Liability Compliance Checker**: Comprehensive compliance verification for Federal and South Dakota state requirements
@@ -252,6 +253,7 @@ This system is designed to comply with:
 - `POST /api/auth/signup` - Create new applicant account
 - `POST /api/auth/login` - Login to existing account
 - `POST /api/auth/logout` - Logout
+- `POST /api/auth/keepalive` - Refresh session expiration for active users
 - `GET /api/auth/me` - Get current user info
 
 ### Forms

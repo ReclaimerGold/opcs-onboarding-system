@@ -1,5 +1,5 @@
 import express from 'express'
-import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet } from '../middleware/auth.js'
+import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet, requireAuth } from '../middleware/auth.js'
 import { auditLog } from '../services/auditService.js'
 import { getDatabase } from '../database/init.js'
 
@@ -145,115 +145,115 @@ router.post('/login', async (req, res) => {
     const isAdmin = applicant.is_admin === 1
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
     const requiresPassword = isAdmin // All admins require password
+    const shouldCompleteLogin = !requiresPassword || password !== undefined
     
-    // If password is provided, verify it (Phase 2)
-    if (password !== undefined) {
-      if (isAdmin) {
-        let isValid = false
-        
-        if (passwordSet) {
-          // Verify against stored hash
-          isValid = await verifyPassword(password, applicant.password_hash)
-        } else {
-          // Password not set yet - check against default 'opcs'
-          isValid = password === 'opcs'
-        }
-        
-        if (!isValid) {
-          const db = getDatabase()
-          db.prepare(`
-            INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            firstName,
-            lastName,
-            email,
-            0, // failed
-            req.ip,
-            req.get('user-agent'),
-            'Invalid password',
-            applicant.id
-          )
-          
-          return res.status(401).json({
-            error: 'Invalid password',
-            code: 'INVALID_PASSWORD',
-            requiresPassword: true
-          })
-        }
-      }
-      
-      // Password verified (or not required), complete login
-      const db = getDatabase()
-      
-      db.prepare(`
-        INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        firstName,
-        lastName,
-        email,
-        1, // success
-        req.ip,
-        req.get('user-agent'),
-        null,
-        applicant.id
-      )
-      
-      // Check onboarding completion status
-      const submissions = db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM form_submissions 
-        WHERE applicant_id = ?
-      `).get(applicant.id)
-      
-      const completedSteps = submissions.count || 0
-      const isOnboardingComplete = completedSteps >= 6
-      
-      // Set session
-      req.session.applicantId = applicant.id
-      req.session.applicantEmail = applicant.email
-      req.session.isAdmin = applicant.is_admin === 1
-      
-      // Audit log
-      await auditLog({
-        userId: applicant.id,
-        action: 'LOGIN',
-        resourceType: 'AUTH',
-        resourceId: applicant.id,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-        details: { email: applicant.email, completedSteps }
-      })
-      
+    if (!shouldCompleteLogin) {
+      // Phase 1: Return whether password is required
       return res.json({
         success: true,
+        requiresPassword,
+        isAdmin,
         applicant: {
           id: applicant.id,
           firstName: applicant.first_name,
           lastName: applicant.last_name,
           email: applicant.email,
           isAdmin: applicant.is_admin === 1
-        },
-        isNewUser: false,
-        onboardingComplete: isOnboardingComplete,
-        completedSteps,
-        totalSteps: 6
+        }
       })
     }
     
-    // Phase 1: Return whether password is required
-    res.json({
+    if (requiresPassword) {
+      let isValid = false
+      
+      if (passwordSet) {
+        // Verify against stored hash
+        isValid = await verifyPassword(password, applicant.password_hash)
+      } else {
+        // Password not set yet - check against default 'opcs'
+        isValid = password === 'opcs'
+      }
+      
+      if (!isValid) {
+        const db = getDatabase()
+        db.prepare(`
+          INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          firstName,
+          lastName,
+          email,
+          0, // failed
+          req.ip,
+          req.get('user-agent'),
+          'Invalid password',
+          applicant.id
+        )
+        
+        return res.status(401).json({
+          error: 'Invalid password',
+          code: 'INVALID_PASSWORD',
+          requiresPassword: true
+        })
+      }
+    }
+    
+    // Login successful (password verified or not required)
+    const db = getDatabase()
+    
+    db.prepare(`
+      INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      firstName,
+      lastName,
+      email,
+      1, // success
+      req.ip,
+      req.get('user-agent'),
+      null,
+      applicant.id
+    )
+    
+    // Check onboarding completion status
+    const submissions = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM form_submissions 
+      WHERE applicant_id = ?
+    `).get(applicant.id)
+    
+    const completedSteps = submissions.count || 0
+    const isOnboardingComplete = completedSteps >= 6
+    
+    // Set session
+    req.session.applicantId = applicant.id
+    req.session.applicantEmail = applicant.email
+    req.session.isAdmin = applicant.is_admin === 1
+    
+    // Audit log
+    await auditLog({
+      userId: applicant.id,
+      action: 'LOGIN',
+      resourceType: 'AUTH',
+      resourceId: applicant.id,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { email: applicant.email, completedSteps }
+    })
+    
+    return res.json({
       success: true,
-      requiresPassword,
-      isAdmin,
       applicant: {
         id: applicant.id,
         firstName: applicant.first_name,
         lastName: applicant.last_name,
         email: applicant.email,
         isAdmin: applicant.is_admin === 1
-      }
+      },
+      isNewUser: false,
+      onboardingComplete: isOnboardingComplete,
+      completedSteps,
+      totalSteps: 6
     })
   } catch (error) {
     console.error('Login error:', error)
@@ -284,6 +284,21 @@ router.post('/logout', async (req, res) => {
       return res.status(500).json({ error: 'Logout failed' })
     }
     res.json({ success: true })
+  })
+})
+
+/**
+ * POST /api/auth/keepalive
+ * Refresh session expiration for active users
+ */
+router.post('/keepalive', requireAuth, (req, res) => {
+  req.session.touch()
+  const expiresAt = req.session.cookie.expires || req.session.cookie._expires
+
+  res.json({
+    success: true,
+    expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+    timeoutMs: req.session.cookie.maxAge
   })
 })
 

@@ -6,10 +6,10 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { 
-  getTemplateStatus, 
-  updateTemplate, 
-  updateAllTemplates, 
+import {
+  getTemplateStatus,
+  updateTemplate,
+  updateAllTemplates,
   getSupportedFormTypes,
   getTemplate,
   getArchivedTemplate,
@@ -34,13 +34,13 @@ router.use(requireAdmin)
 router.get('/dashboard', async (req, res) => {
   try {
     const db = getDatabase()
-    
+
     // Total applicants
     const totalApplicants = db.prepare('SELECT COUNT(*) as count FROM applicants').get().count
-    
+
     // Total admins
     const totalAdmins = db.prepare('SELECT COUNT(*) as count FROM applicants WHERE is_admin = 1').get().count
-    
+
     // Completed onboarding count
     const completedOnboarding = db.prepare(`
       SELECT COUNT(DISTINCT applicant_id) as count 
@@ -48,7 +48,7 @@ router.get('/dashboard', async (req, res) => {
       GROUP BY applicant_id 
       HAVING COUNT(*) >= 6
     `).all().length
-    
+
     // In progress onboarding
     const inProgress = db.prepare(`
       SELECT COUNT(DISTINCT applicant_id) as count
@@ -56,31 +56,31 @@ router.get('/dashboard', async (req, res) => {
       GROUP BY applicant_id
       HAVING COUNT(*) > 0 AND COUNT(*) < 6
     `).all().length
-    
+
     // Recent login attempts (last 24 hours)
     const recentLogins = db.prepare(`
       SELECT COUNT(*) as count 
       FROM login_attempts 
       WHERE created_at > datetime('now', '-1 day')
     `).get().count
-    
+
     // Failed login attempts (last 24 hours)
     const failedLogins = db.prepare(`
       SELECT COUNT(*) as count 
       FROM login_attempts 
       WHERE success = 0 AND created_at > datetime('now', '-1 day')
     `).get().count
-    
+
     // Total form submissions
     const totalSubmissions = db.prepare('SELECT COUNT(*) as count FROM form_submissions').get().count
-    
+
     // Recent audit logs (last 24 hours)
     const recentAuditLogs = db.prepare(`
       SELECT COUNT(*) as count 
       FROM audit_log 
       WHERE created_at > datetime('now', '-1 day')
     `).get().count
-    
+
     res.json({
       applicants: {
         total: totalApplicants,
@@ -113,22 +113,22 @@ router.get('/dashboard', async (req, res) => {
 router.get('/login-attempts', async (req, res) => {
   try {
     const db = getDatabase()
-    const { 
-      search, 
-      success, 
-      startDate, 
-      endDate, 
-      page = 1, 
+    const {
+      search,
+      success,
+      startDate,
+      endDate,
+      page = 1,
       limit = 25,
       sortKey = 'created_at',
       sortDir = 'desc'
     } = req.query
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit)
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     // Search filter (searches name, email, IP)
     if (search) {
       whereClause += ` AND (
@@ -143,27 +143,27 @@ router.get('/login-attempts', async (req, res) => {
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (success !== undefined && success !== '') {
       whereClause += ' AND la.success = ?'
       params.push(success === 'true' ? 1 : 0)
     }
-    
+
     if (startDate) {
       whereClause += ' AND la.created_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND la.created_at <= ?'
       params.push(endDate)
     }
-    
+
     // Validate sort column to prevent SQL injection
     const validSortColumns = ['created_at', 'first_name', 'email', 'success', 'ip_address']
     const sortColumn = validSortColumns.includes(sortKey) ? `la.${sortKey}` : 'la.created_at'
     const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
-    
+
     // Count total matching records
     const countQuery = `
       SELECT COUNT(*) as total
@@ -172,7 +172,7 @@ router.get('/login-attempts', async (req, res) => {
       ${whereClause}
     `
     const total = db.prepare(countQuery).get(...params).total
-    
+
     // Get paginated results
     const dataQuery = `
       SELECT 
@@ -187,7 +187,7 @@ router.get('/login-attempts', async (req, res) => {
       LIMIT ? OFFSET ?
     `
     const attempts = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -197,8 +197,8 @@ router.get('/login-attempts', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { endpoint: 'login-attempts', filters: req.query }
     })
-    
-    res.json({ 
+
+    res.json({
       attempts,
       pagination: {
         page: parseInt(page),
@@ -221,20 +221,20 @@ router.get('/login-attempts', async (req, res) => {
 router.get('/onboarding-status', async (req, res) => {
   try {
     const db = getDatabase()
-    const { 
-      search, 
+    const {
+      search,
       status,
       isAdmin,
-      startDate, 
-      endDate, 
-      page = 1, 
+      startDate,
+      endDate,
+      page = 1,
       limit = 25,
       sortKey = 'created_at',
       sortDir = 'desc'
     } = req.query
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit)
-    
+
     // First, get all applicants with their submission counts (we need to filter after aggregation for status)
     let baseQuery = `
       SELECT 
@@ -249,10 +249,10 @@ router.get('/onboarding-status', async (req, res) => {
       FROM applicants a
       LEFT JOIN form_submissions fs ON a.id = fs.applicant_id
     `
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     // Search filter
     if (search) {
       whereClause += ` AND (
@@ -263,30 +263,30 @@ router.get('/onboarding-status', async (req, res) => {
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern)
     }
-    
+
     // Admin filter
     if (isAdmin !== undefined && isAdmin !== '') {
       whereClause += ' AND a.is_admin = ?'
       params.push(isAdmin === 'true' ? 1 : 0)
     }
-    
+
     // Date filters
     if (startDate) {
       whereClause += ' AND a.created_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND a.created_at <= ?'
       params.push(endDate)
     }
-    
+
     // Build full query with grouping
     const fullQuery = `${baseQuery} ${whereClause} GROUP BY a.id`
-    
+
     // Get all matching records for filtering by status
     const allApplicants = db.prepare(fullQuery).all(...params)
-    
+
     // Transform and filter by status
     let transformedApplicants = allApplicants.map(app => ({
       id: app.id,
@@ -301,36 +301,36 @@ router.get('/onboarding-status', async (req, res) => {
       createdAt: app.created_at,
       lastSubmission: app.last_submission
     }))
-    
+
     // Filter by status if specified
     if (status && status !== '') {
       transformedApplicants = transformedApplicants.filter(app => app.status === status)
     }
-    
+
     // Sort
     const validSortKeys = ['firstName', 'lastName', 'email', 'createdAt', 'progress', 'completedSteps', 'status']
     const actualSortKey = validSortKeys.includes(sortKey) ? sortKey : 'createdAt'
     transformedApplicants.sort((a, b) => {
       let aVal = a[actualSortKey]
       let bVal = b[actualSortKey]
-      
+
       // Handle string comparison
       if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase()
         bVal = bVal?.toLowerCase() || ''
       }
-      
+
       if (sortDir === 'asc') {
         return aVal > bVal ? 1 : aVal < bVal ? -1 : 0
       } else {
         return aVal < bVal ? 1 : aVal > bVal ? -1 : 0
       }
     })
-    
+
     // Paginate
     const total = transformedApplicants.length
     const paginatedApplicants = transformedApplicants.slice(offset, offset + parseInt(limit))
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -340,8 +340,8 @@ router.get('/onboarding-status', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { endpoint: 'onboarding-status', filters: req.query }
     })
-    
-    res.json({ 
+
+    res.json({
       applicants: paginatedApplicants,
       pagination: {
         page: parseInt(page),
@@ -364,24 +364,24 @@ router.get('/onboarding-status', async (req, res) => {
 router.get('/audit-logs', async (req, res) => {
   try {
     const db = getDatabase()
-    const { 
+    const {
       search,
-      action, 
-      resourceType, 
-      userId, 
-      startDate, 
+      action,
+      resourceType,
+      userId,
+      startDate,
       endDate,
       page = 1,
       limit = 25,
       sortKey = 'created_at',
       sortDir = 'desc'
     } = req.query
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit)
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     // Search filter
     if (search) {
       whereClause += ` AND (
@@ -396,37 +396,37 @@ router.get('/audit-logs', async (req, res) => {
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (action && action !== '') {
       whereClause += ' AND al.action = ?'
       params.push(action)
     }
-    
+
     if (resourceType && resourceType !== '') {
       whereClause += ' AND al.resource_type = ?'
       params.push(resourceType)
     }
-    
+
     if (userId && userId !== '') {
       whereClause += ' AND al.user_id = ?'
       params.push(parseInt(userId))
     }
-    
+
     if (startDate) {
       whereClause += ' AND al.created_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND al.created_at <= ?'
       params.push(endDate)
     }
-    
+
     // Validate sort column
     const validSortColumns = ['created_at', 'action', 'resource_type', 'ip_address']
     const sortColumn = validSortColumns.includes(sortKey) ? `al.${sortKey}` : 'al.created_at'
     const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
-    
+
     // Count total
     const countQuery = `
       SELECT COUNT(*) as total
@@ -435,7 +435,7 @@ router.get('/audit-logs', async (req, res) => {
       ${whereClause}
     `
     const total = db.prepare(countQuery).get(...params).total
-    
+
     // Get paginated results
     const dataQuery = `
       SELECT 
@@ -450,11 +450,11 @@ router.get('/audit-logs', async (req, res) => {
       LIMIT ? OFFSET ?
     `
     const logs = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
-    
+
     // Get distinct actions and resource types for filter dropdowns
     const actions = db.prepare('SELECT DISTINCT action FROM audit_log ORDER BY action').all().map(r => r.action)
     const resourceTypes = db.prepare('SELECT DISTINCT resource_type FROM audit_log ORDER BY resource_type').all().map(r => r.resource_type)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -464,8 +464,8 @@ router.get('/audit-logs', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { endpoint: 'audit-logs', filters: req.query }
     })
-    
-    res.json({ 
+
+    res.json({
       logs,
       pagination: {
         page: parseInt(page),
@@ -491,7 +491,7 @@ router.get('/audit-logs', async (req, res) => {
 router.get('/system-health', async (req, res) => {
   try {
     const db = getDatabase()
-    
+
     // Database table counts
     const tableCounts = {
       applicants: db.prepare('SELECT COUNT(*) as count FROM applicants').get().count,
@@ -502,7 +502,7 @@ router.get('/system-health', async (req, res) => {
       privacy_consents: db.prepare('SELECT COUNT(*) as count FROM privacy_consents').get().count,
       settings: db.prepare('SELECT COUNT(*) as count FROM settings').get().count
     }
-    
+
     // Recent errors from audit log
     const recentErrors = db.prepare(`
       SELECT * FROM audit_log 
@@ -510,7 +510,7 @@ router.get('/system-health', async (req, res) => {
       ORDER BY created_at DESC 
       LIMIT 10
     `).all()
-    
+
     // Database file size
     const dbPath = db.prepare('PRAGMA database_list').all()[0]?.file
     const fs = await import('fs')
@@ -524,11 +524,11 @@ router.get('/system-health', async (req, res) => {
     } catch (error) {
       // Ignore file size errors
     }
-    
+
     // Server uptime (approximate - time since first audit log)
     const firstLog = db.prepare('SELECT MIN(created_at) as first_log FROM audit_log').get()
     const serverStartTime = firstLog?.first_log || new Date().toISOString()
-    
+
     res.json({
       database: {
         status: 'connected',
@@ -563,33 +563,33 @@ router.put('/users/:id/admin', async (req, res) => {
   try {
     const userId = parseInt(req.params.id)
     const { isAdmin } = req.body
-    
+
     if (userId === req.applicantId) {
       return res.status(400).json({ error: 'Cannot modify your own admin status' })
     }
-    
+
     if (typeof isAdmin !== 'boolean') {
       return res.status(400).json({ error: 'isAdmin must be a boolean value' })
     }
-    
+
     const db = getDatabase()
-    
+
     // Check if user exists
     const user = db.prepare('SELECT id, first_name, last_name, email, is_admin FROM applicants WHERE id = ?').get(userId)
     if (!user) {
       return res.status(404).json({ error: 'User not found' })
     }
-    
+
     // Update admin status
     db.prepare('UPDATE applicants SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, userId)
-    
+
     // Check if password is set (only if promoting to admin)
     let requiresPasswordSetup = false
     if (isAdmin) {
       const updatedUser = db.prepare('SELECT password_hash FROM applicants WHERE id = ?').get(userId)
       requiresPasswordSetup = !updatedUser.password_hash || updatedUser.password_hash === ''
     }
-    
+
     // Audit log
     await auditLog({
       userId: req.applicantId,
@@ -598,7 +598,7 @@ router.put('/users/:id/admin', async (req, res) => {
       resourceId: userId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      details: { 
+      details: {
         targetUserId: userId,
         targetUserName: `${user.first_name} ${user.last_name}`,
         targetUserEmail: user.email,
@@ -607,10 +607,10 @@ router.put('/users/:id/admin', async (req, res) => {
         requiresPasswordSetup
       }
     })
-    
+
     res.json({
       success: true,
-      message: isAdmin 
+      message: isAdmin
         ? `User ${user.first_name} ${user.last_name} has been promoted to administrator`
         : `User ${user.first_name} ${user.last_name} has been removed from administrator role`,
       user: {
@@ -636,24 +636,24 @@ router.put('/users/:id/admin', async (req, res) => {
 router.get('/submissions', async (req, res) => {
   try {
     const db = getDatabase()
-    const { 
-      search, 
+    const {
+      search,
       formType,
       stepNumber,
       applicantId,
-      startDate, 
-      endDate, 
-      page = 1, 
+      startDate,
+      endDate,
+      page = 1,
       limit = 25,
       sortKey = 'submitted_at',
       sortDir = 'desc'
     } = req.query
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit)
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     // Search filter
     if (search) {
       whereClause += ` AND (
@@ -666,39 +666,39 @@ router.get('/submissions', async (req, res) => {
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (formType && formType !== '') {
       whereClause += ' AND fs.form_type = ?'
       params.push(formType)
     }
-    
+
     if (stepNumber && stepNumber !== '') {
       whereClause += ' AND fs.step_number = ?'
       params.push(parseInt(stepNumber))
     }
-    
+
     if (applicantId && applicantId !== '') {
       whereClause += ' AND fs.applicant_id = ?'
       params.push(parseInt(applicantId))
     }
-    
+
     if (startDate) {
       whereClause += ' AND fs.submitted_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND fs.submitted_at <= ?'
       params.push(endDate)
     }
-    
+
     // Validate sort column
     const validSortColumns = ['submitted_at', 'step_number', 'form_type', 'first_name', 'email', 'retention_until']
-    const sortColumn = validSortColumns.includes(sortKey) 
+    const sortColumn = validSortColumns.includes(sortKey)
       ? (sortKey === 'first_name' || sortKey === 'email' ? `a.${sortKey}` : `fs.${sortKey}`)
       : 'fs.submitted_at'
     const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
-    
+
     // Count total
     const countQuery = `
       SELECT COUNT(*) as total
@@ -707,7 +707,7 @@ router.get('/submissions', async (req, res) => {
       ${whereClause}
     `
     const total = db.prepare(countQuery).get(...params).total
-    
+
     // Get paginated results
     const dataQuery = `
       SELECT 
@@ -728,10 +728,10 @@ router.get('/submissions', async (req, res) => {
       LIMIT ? OFFSET ?
     `
     const submissions = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
-    
+
     // Get distinct form types for filter dropdown
     const formTypes = db.prepare('SELECT DISTINCT form_type FROM form_submissions ORDER BY form_type').all().map(r => r.form_type)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -741,8 +741,8 @@ router.get('/submissions', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { endpoint: 'submissions', filters: req.query }
     })
-    
-    res.json({ 
+
+    res.json({
       submissions,
       pagination: {
         page: parseInt(page),
@@ -769,24 +769,24 @@ router.get('/submissions', async (req, res) => {
 router.get('/i9-documents', async (req, res) => {
   try {
     const db = getDatabase()
-    const { 
-      search, 
+    const {
+      search,
       documentType,
       documentCategory,
       applicantId,
-      startDate, 
-      endDate, 
-      page = 1, 
+      startDate,
+      endDate,
+      page = 1,
       limit = 25,
       sortKey = 'uploaded_at',
       sortDir = 'desc'
     } = req.query
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit)
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     // Search filter
     if (search) {
       whereClause += ` AND (
@@ -800,39 +800,39 @@ router.get('/i9-documents', async (req, res) => {
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (documentType && documentType !== '') {
       whereClause += ' AND d.document_type = ?'
       params.push(documentType)
     }
-    
+
     if (documentCategory && documentCategory !== '') {
       whereClause += ' AND d.document_category = ?'
       params.push(documentCategory)
     }
-    
+
     if (applicantId && applicantId !== '') {
       whereClause += ' AND d.applicant_id = ?'
       params.push(parseInt(applicantId))
     }
-    
+
     if (startDate) {
       whereClause += ' AND d.uploaded_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND d.uploaded_at <= ?'
       params.push(endDate)
     }
-    
+
     // Validate sort column
     const validSortColumns = ['uploaded_at', 'document_type', 'document_category', 'file_name', 'file_size', 'first_name', 'email']
-    const sortColumn = validSortColumns.includes(sortKey) 
+    const sortColumn = validSortColumns.includes(sortKey)
       ? (sortKey === 'first_name' || sortKey === 'email' ? `a.${sortKey}` : `d.${sortKey}`)
       : 'd.uploaded_at'
     const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
-    
+
     // Count total
     const countQuery = `
       SELECT COUNT(*) as total
@@ -841,7 +841,7 @@ router.get('/i9-documents', async (req, res) => {
       ${whereClause}
     `
     const total = db.prepare(countQuery).get(...params).total
-    
+
     // Get paginated results
     const dataQuery = `
       SELECT 
@@ -863,11 +863,11 @@ router.get('/i9-documents', async (req, res) => {
       LIMIT ? OFFSET ?
     `
     const documents = db.prepare(dataQuery).all(...params, parseInt(limit), offset)
-    
+
     // Get distinct values for filter dropdowns
     const documentTypes = db.prepare('SELECT DISTINCT document_type FROM i9_documents WHERE document_type IS NOT NULL ORDER BY document_type').all().map(r => r.document_type)
     const documentCategories = db.prepare('SELECT DISTINCT document_category FROM i9_documents WHERE document_category IS NOT NULL ORDER BY document_category').all().map(r => r.document_category)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -877,8 +877,8 @@ router.get('/i9-documents', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { endpoint: 'i9-documents', filters: req.query }
     })
-    
-    res.json({ 
+
+    res.json({
       documents,
       pagination: {
         page: parseInt(page),
@@ -905,21 +905,21 @@ router.get('/i9-documents', async (req, res) => {
 router.post('/normalize-applicants', async (req, res) => {
   try {
     const db = getDatabase()
-    
+
     // Get all applicants
     const applicants = db.prepare('SELECT id, first_name, last_name, email FROM applicants').all()
-    
+
     let updated = 0
     const transaction = db.transaction(() => {
       for (const applicant of applicants) {
         const normalizedFirstName = applicant.first_name ? applicant.first_name.trim() : ''
         const normalizedLastName = applicant.last_name ? applicant.last_name.trim() : ''
         const normalizedEmail = applicant.email ? applicant.email.trim().toLowerCase() : ''
-        
+
         // Only update if normalization would change the value
         if (applicant.first_name !== normalizedFirstName ||
-            applicant.last_name !== normalizedLastName ||
-            applicant.email !== normalizedEmail) {
+          applicant.last_name !== normalizedLastName ||
+          applicant.email !== normalizedEmail) {
           db.prepare(`
             UPDATE applicants 
             SET first_name = ?, last_name = ?, email = ?
@@ -929,9 +929,9 @@ router.post('/normalize-applicants', async (req, res) => {
         }
       }
     })
-    
+
     transaction()
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'NORMALIZE_APPLICANTS',
@@ -941,7 +941,7 @@ router.post('/normalize-applicants', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { totalApplicants: applicants.length, updated }
     })
-    
+
     res.json({
       success: true,
       message: `Normalized ${updated} of ${applicants.length} applicants`,
@@ -962,14 +962,14 @@ router.post('/normalize-applicants', async (req, res) => {
 router.post('/fix-admin-assignments', async (req, res) => {
   try {
     const db = getDatabase()
-    
+
     // Get all applicants ordered by creation date
     const applicants = db.prepare(`
       SELECT id, first_name, last_name, email, is_admin, created_at 
       FROM applicants 
       ORDER BY created_at ASC, id ASC
     `).all()
-    
+
     if (applicants.length === 0) {
       return res.json({
         success: true,
@@ -978,16 +978,16 @@ router.post('/fix-admin-assignments', async (req, res) => {
         total: 0
       })
     }
-    
+
     // First user should be admin, all others should not be
     const firstUserId = applicants[0].id
     let fixed = 0
-    
+
     const transaction = db.transaction(() => {
       for (const applicant of applicants) {
         const shouldBeAdmin = applicant.id === firstUserId ? 1 : 0
         const isCurrentlyAdmin = applicant.is_admin === 1
-        
+
         if (shouldBeAdmin !== isCurrentlyAdmin) {
           db.prepare('UPDATE applicants SET is_admin = ? WHERE id = ?')
             .run(shouldBeAdmin, applicant.id)
@@ -995,9 +995,9 @@ router.post('/fix-admin-assignments', async (req, res) => {
         }
       }
     })
-    
+
     transaction()
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'FIX_ADMIN_ASSIGNMENTS',
@@ -1007,7 +1007,7 @@ router.post('/fix-admin-assignments', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { totalApplicants: applicants.length, fixed, firstUserId }
     })
-    
+
     res.json({
       success: true,
       message: `Fixed admin assignments: ${fixed} of ${applicants.length} applicants`,
@@ -1033,20 +1033,20 @@ router.post('/fix-admin-assignments', async (req, res) => {
 router.get('/diagnose-login', async (req, res) => {
   try {
     const { firstName, lastName, email } = req.query
-    
+
     if (!firstName || !lastName || !email) {
-      return res.status(400).json({ 
-        error: 'firstName, lastName, and email query parameters are required' 
+      return res.status(400).json({
+        error: 'firstName, lastName, and email query parameters are required'
       })
     }
-    
+
     const db = getDatabase()
-    
+
     // Normalize input
     const normalizedFirstName = firstName.trim().toLowerCase()
     const normalizedLastName = lastName.trim().toLowerCase()
     const normalizedEmail = email.trim().toLowerCase()
-    
+
     // Try to find with normalized query
     const applicant = db.prepare(`
       SELECT id, first_name, last_name, email,
@@ -1059,7 +1059,7 @@ router.get('/diagnose-login', async (req, res) => {
         AND LOWER(TRIM(email)) = ?
       LIMIT 1
     `).get(normalizedFirstName, normalizedLastName, normalizedEmail)
-    
+
     // Get all applicants for comparison
     const allApplicants = db.prepare(`
       SELECT id, first_name, last_name, email,
@@ -1070,14 +1070,14 @@ router.get('/diagnose-login', async (req, res) => {
       ORDER BY id DESC
       LIMIT 20
     `).all()
-    
+
     res.json({
       input: { firstName, lastName, email },
       normalized: { normalizedFirstName, normalizedLastName, normalizedEmail },
       found: applicant !== undefined,
       applicant: applicant || null,
       sampleApplicants: allApplicants,
-      message: applicant 
+      message: applicant
         ? 'Applicant found - login should work'
         : 'Applicant not found - check if data matches exactly (case-insensitive, trimmed)'
     })
@@ -1095,7 +1095,7 @@ router.get('/pdf-templates/status', async (req, res) => {
   try {
     const status = await getTemplateStatus()
     const supportedTypes = getSupportedFormTypes()
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -1105,7 +1105,7 @@ router.get('/pdf-templates/status', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { endpoint: 'pdf-templates/status' }
     })
-    
+
     res.json({
       supportedFormTypes: supportedTypes,
       templates: status
@@ -1126,9 +1126,9 @@ router.post('/pdf-templates/update', async (req, res) => {
   try {
     const { formType } = req.query
     const force = req.query.force === 'true'
-    
+
     let results
-    
+
     if (formType) {
       // Update specific template
       const supportedTypes = getSupportedFormTypes()
@@ -1137,18 +1137,18 @@ router.post('/pdf-templates/update', async (req, res) => {
           error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
         })
       }
-      
+
       const result = await updateTemplate(formType, force)
       results = { [formType]: result }
     } else {
       // Update all templates
       results = await updateAllTemplates(force)
     }
-    
+
     // Count updates
     const updated = Object.entries(results).filter(([, r]) => r.updated).map(([type]) => type)
     const errors = Object.entries(results).filter(([, r]) => r.error).map(([type, r]) => ({ type, error: r.error }))
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'UPDATE_PDF_TEMPLATES',
@@ -1163,7 +1163,7 @@ router.post('/pdf-templates/update', async (req, res) => {
         errors: errors.length > 0 ? errors : null
       }
     })
-    
+
     res.json({
       success: errors.length === 0,
       message: updated.length > 0
@@ -1187,19 +1187,19 @@ router.get('/pdf-templates/:formType/preview', async (req, res) => {
   try {
     const { formType } = req.params
     const supportedTypes = getSupportedFormTypes()
-    
+
     if (!supportedTypes.includes(formType)) {
       return res.status(400).json({
         error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
       })
     }
-    
+
     const templateBuffer = await getTemplate(formType)
-    
+
     if (!templateBuffer) {
       return res.status(404).json({ error: `Template for ${formType} not found` })
     }
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'PREVIEW_PDF_TEMPLATE',
@@ -1209,7 +1209,7 @@ router.get('/pdf-templates/:formType/preview', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { formType, type: 'current' }
     })
-    
+
     // Set headers for PDF viewing in browser
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="${formType}-template.pdf"`)
@@ -1229,15 +1229,15 @@ router.get('/pdf-templates/:formType/archive', async (req, res) => {
   try {
     const { formType } = req.params
     const supportedTypes = getSupportedFormTypes()
-    
+
     if (!supportedTypes.includes(formType)) {
       return res.status(400).json({
         error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
       })
     }
-    
+
     const versions = await getArchivedVersions(formType)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -1247,7 +1247,7 @@ router.get('/pdf-templates/:formType/archive', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { formType, endpoint: 'archive-list' }
     })
-    
+
     res.json({
       formType,
       versions,
@@ -1267,24 +1267,24 @@ router.get('/pdf-templates/:formType/archive/:filename', async (req, res) => {
   try {
     const { formType, filename } = req.params
     const supportedTypes = getSupportedFormTypes()
-    
+
     if (!supportedTypes.includes(formType)) {
       return res.status(400).json({
         error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
       })
     }
-    
+
     // Validate filename to prevent directory traversal
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       return res.status(400).json({ error: 'Invalid filename' })
     }
-    
+
     const templateBuffer = await getArchivedTemplate(formType, filename)
-    
+
     if (!templateBuffer) {
       return res.status(404).json({ error: `Archived template ${filename} not found` })
     }
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'PREVIEW_PDF_TEMPLATE',
@@ -1294,7 +1294,7 @@ router.get('/pdf-templates/:formType/archive/:filename', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { formType, type: 'archived', filename }
     })
-    
+
     // Set headers for PDF viewing in browser
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
@@ -1314,13 +1314,13 @@ router.post('/tests/run', async (req, res) => {
   try {
     const backendDir = path.join(__dirname, '../../')
     const frontendDir = path.join(__dirname, '../../../frontend')
-    
+
     const results = {
       backend: null,
       frontend: null,
       timestamp: new Date().toISOString()
     }
-    
+
     // Run backend tests
     try {
       const backendTestCmd = 'cd ' + backendDir + ' && npm test -- --json --no-coverage 2>&1'
@@ -1328,9 +1328,9 @@ router.post('/tests/run', async (req, res) => {
         timeout: 120000, // 120 second timeout
         maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       })
-      
+
       const fullOutput = (backendOutput || '') + (backendError || '')
-      
+
       try {
         // Try to parse as JSON (Jest JSON output)
         const jsonMatch = backendOutput.match(/\{[\s\S]*\}/)
@@ -1379,7 +1379,7 @@ router.post('/tests/run', async (req, res) => {
         command: 'cd ' + backendDir + ' && npm test -- --json --no-coverage 2>&1'
       }
     }
-    
+
     // Run frontend tests
     try {
       const frontendTestCmd = 'cd ' + frontendDir + ' && npm test -- --run --reporter=json 2>&1'
@@ -1387,9 +1387,9 @@ router.post('/tests/run', async (req, res) => {
         timeout: 120000, // 120 second timeout
         maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       })
-      
+
       const fullOutput = (frontendOutput || '') + (frontendError || '')
-      
+
       try {
         // Try to parse as JSON (Vitest JSON output)
         const jsonMatch = frontendOutput.match(/\{[\s\S]*\}/)
@@ -1438,7 +1438,7 @@ router.post('/tests/run', async (req, res) => {
         command: 'cd ' + frontendDir + ' && npm test -- --run --reporter=json 2>&1'
       }
     }
-    
+
     // Audit log
     await auditLog({
       userId: req.applicantId,
@@ -1453,7 +1453,7 @@ router.post('/tests/run', async (req, res) => {
         timestamp: results.timestamp
       }
     })
-    
+
     res.json({
       success: true,
       results
@@ -1476,7 +1476,7 @@ router.get('/compliance-check', async (req, res) => {
   try {
     // Run all compliance checks
     const complianceReport = await runAllComplianceChecks()
-    
+
     // Audit log the compliance check
     await auditLog({
       userId: req.applicantId,
@@ -1492,7 +1492,7 @@ router.get('/compliance-check', async (req, res) => {
         timestamp: complianceReport.timestamp
       }
     })
-    
+
     res.json(complianceReport)
   } catch (error) {
     console.error('Compliance check error:', error)
@@ -1512,7 +1512,7 @@ router.get('/compliance-check', async (req, res) => {
  */
 function toCSV(data, columns) {
   if (!data || data.length === 0) return ''
-  
+
   const escapeValue = (val) => {
     if (val === null || val === undefined) return ''
     const str = String(val)
@@ -1521,12 +1521,12 @@ function toCSV(data, columns) {
     }
     return str
   }
-  
+
   const headers = columns.map(col => escapeValue(col.label))
-  const rows = data.map(row => 
+  const rows = data.map(row =>
     columns.map(col => escapeValue(row[col.key])).join(',')
   )
-  
+
   return [headers.join(','), ...rows].join('\n')
 }
 
@@ -1538,7 +1538,7 @@ router.get('/onboarding-status/export', async (req, res) => {
   try {
     const db = getDatabase()
     const { search, status, isAdmin, startDate, endDate } = req.query
-    
+
     let baseQuery = `
       SELECT 
         a.id,
@@ -1552,34 +1552,34 @@ router.get('/onboarding-status/export', async (req, res) => {
       FROM applicants a
       LEFT JOIN form_submissions fs ON a.id = fs.applicant_id
     `
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     if (search) {
       whereClause += ` AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ?)`
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (isAdmin !== undefined && isAdmin !== '') {
       whereClause += ' AND a.is_admin = ?'
       params.push(isAdmin === 'true' ? 1 : 0)
     }
-    
+
     if (startDate) {
       whereClause += ' AND a.created_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND a.created_at <= ?'
       params.push(endDate)
     }
-    
+
     const fullQuery = `${baseQuery} ${whereClause} GROUP BY a.id ORDER BY a.created_at DESC`
     const applicants = db.prepare(fullQuery).all(...params)
-    
+
     let data = applicants.map(app => ({
       id: app.id,
       firstName: app.first_name,
@@ -1592,12 +1592,12 @@ router.get('/onboarding-status/export', async (req, res) => {
       createdAt: app.created_at,
       lastSubmission: app.last_submission || 'N/A'
     }))
-    
+
     if (status && status !== '') {
       const statusMap = { completed: 'Completed', in_progress: 'In Progress', not_started: 'Not Started' }
       data = data.filter(app => app.status === statusMap[status])
     }
-    
+
     const columns = [
       { key: 'id', label: 'ID' },
       { key: 'firstName', label: 'First Name' },
@@ -1610,9 +1610,9 @@ router.get('/onboarding-status/export', async (req, res) => {
       { key: 'createdAt', label: 'Created At' },
       { key: 'lastSubmission', label: 'Last Submission' }
     ]
-    
+
     const csv = toCSV(data, columns)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'EXPORT',
@@ -1622,7 +1622,7 @@ router.get('/onboarding-status/export', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: data.length }
     })
-    
+
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="onboarding-status-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csv)
@@ -1640,41 +1640,41 @@ router.get('/submissions/export', async (req, res) => {
   try {
     const db = getDatabase()
     const { search, formType, stepNumber, applicantId, startDate, endDate } = req.query
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     if (search) {
       whereClause += ` AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR fs.form_type LIKE ? OR fs.pdf_filename LIKE ?)`
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (formType && formType !== '') {
       whereClause += ' AND fs.form_type = ?'
       params.push(formType)
     }
-    
+
     if (stepNumber && stepNumber !== '') {
       whereClause += ' AND fs.step_number = ?'
       params.push(parseInt(stepNumber))
     }
-    
+
     if (applicantId && applicantId !== '') {
       whereClause += ' AND fs.applicant_id = ?'
       params.push(parseInt(applicantId))
     }
-    
+
     if (startDate) {
       whereClause += ' AND fs.submitted_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND fs.submitted_at <= ?'
       params.push(endDate)
     }
-    
+
     const query = `
       SELECT 
         fs.id,
@@ -1692,7 +1692,7 @@ router.get('/submissions/export', async (req, res) => {
       ORDER BY fs.submitted_at DESC
     `
     const submissions = db.prepare(query).all(...params)
-    
+
     const columns = [
       { key: 'id', label: 'ID' },
       { key: 'firstName', label: 'First Name' },
@@ -1704,9 +1704,9 @@ router.get('/submissions/export', async (req, res) => {
       { key: 'submittedAt', label: 'Submitted At' },
       { key: 'retentionUntil', label: 'Retention Until' }
     ]
-    
+
     const csv = toCSV(submissions, columns)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'EXPORT',
@@ -1716,7 +1716,7 @@ router.get('/submissions/export', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: submissions.length }
     })
-    
+
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="submissions-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csv)
@@ -1734,41 +1734,41 @@ router.get('/i9-documents/export', async (req, res) => {
   try {
     const db = getDatabase()
     const { search, documentType, documentCategory, applicantId, startDate, endDate } = req.query
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     if (search) {
       whereClause += ` AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR d.document_type LIKE ? OR d.document_name LIKE ? OR d.file_name LIKE ?)`
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (documentType && documentType !== '') {
       whereClause += ' AND d.document_type = ?'
       params.push(documentType)
     }
-    
+
     if (documentCategory && documentCategory !== '') {
       whereClause += ' AND d.document_category = ?'
       params.push(documentCategory)
     }
-    
+
     if (applicantId && applicantId !== '') {
       whereClause += ' AND d.applicant_id = ?'
       params.push(parseInt(applicantId))
     }
-    
+
     if (startDate) {
       whereClause += ' AND d.uploaded_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND d.uploaded_at <= ?'
       params.push(endDate)
     }
-    
+
     const query = `
       SELECT 
         d.id,
@@ -1787,7 +1787,7 @@ router.get('/i9-documents/export', async (req, res) => {
       ORDER BY d.uploaded_at DESC
     `
     const documents = db.prepare(query).all(...params)
-    
+
     const columns = [
       { key: 'id', label: 'ID' },
       { key: 'firstName', label: 'First Name' },
@@ -1800,9 +1800,9 @@ router.get('/i9-documents/export', async (req, res) => {
       { key: 'fileSize', label: 'File Size' },
       { key: 'uploadedAt', label: 'Uploaded At' }
     ]
-    
+
     const csv = toCSV(documents, columns)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'EXPORT',
@@ -1812,7 +1812,7 @@ router.get('/i9-documents/export', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: documents.length }
     })
-    
+
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="i9-documents-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csv)
@@ -1830,41 +1830,41 @@ router.get('/audit-logs/export', async (req, res) => {
   try {
     const db = getDatabase()
     const { search, action, resourceType, userId, startDate, endDate } = req.query
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     if (search) {
       whereClause += ` AND (al.action LIKE ? OR al.resource_type LIKE ? OR al.details LIKE ? OR a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR al.ip_address LIKE ?)`
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (action && action !== '') {
       whereClause += ' AND al.action = ?'
       params.push(action)
     }
-    
+
     if (resourceType && resourceType !== '') {
       whereClause += ' AND al.resource_type = ?'
       params.push(resourceType)
     }
-    
+
     if (userId && userId !== '') {
       whereClause += ' AND al.user_id = ?'
       params.push(parseInt(userId))
     }
-    
+
     if (startDate) {
       whereClause += ' AND al.created_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND al.created_at <= ?'
       params.push(endDate)
     }
-    
+
     const query = `
       SELECT 
         al.id,
@@ -1883,7 +1883,7 @@ router.get('/audit-logs/export', async (req, res) => {
       ORDER BY al.created_at DESC
     `
     const logs = db.prepare(query).all(...params)
-    
+
     const columns = [
       { key: 'id', label: 'ID' },
       { key: 'createdAt', label: 'Timestamp' },
@@ -1895,9 +1895,9 @@ router.get('/audit-logs/export', async (req, res) => {
       { key: 'ipAddress', label: 'IP Address' },
       { key: 'details', label: 'Details' }
     ]
-    
+
     const csv = toCSV(logs, columns)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'EXPORT',
@@ -1907,7 +1907,7 @@ router.get('/audit-logs/export', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: logs.length }
     })
-    
+
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csv)
@@ -1925,31 +1925,31 @@ router.get('/login-attempts/export', async (req, res) => {
   try {
     const db = getDatabase()
     const { search, success, startDate, endDate } = req.query
-    
+
     let whereClause = 'WHERE 1=1'
     const params = []
-    
+
     if (search) {
       whereClause += ` AND (la.first_name LIKE ? OR la.last_name LIKE ? OR la.email LIKE ? OR a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR la.ip_address LIKE ?)`
       const searchPattern = `%${search}%`
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
     }
-    
+
     if (success !== undefined && success !== '') {
       whereClause += ' AND la.success = ?'
       params.push(success === 'true' ? 1 : 0)
     }
-    
+
     if (startDate) {
       whereClause += ' AND la.created_at >= ?'
       params.push(startDate)
     }
-    
+
     if (endDate) {
       whereClause += ' AND la.created_at <= ?'
       params.push(endDate)
     }
-    
+
     const query = `
       SELECT 
         la.id,
@@ -1966,7 +1966,7 @@ router.get('/login-attempts/export', async (req, res) => {
       ORDER BY la.created_at DESC
     `
     const attempts = db.prepare(query).all(...params)
-    
+
     const columns = [
       { key: 'id', label: 'ID' },
       { key: 'createdAt', label: 'Timestamp' },
@@ -1977,9 +1977,9 @@ router.get('/login-attempts/export', async (req, res) => {
       { key: 'ipAddress', label: 'IP Address' },
       { key: 'errorMessage', label: 'Error Message' }
     ]
-    
+
     const csv = toCSV(attempts, columns)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'EXPORT',
@@ -1989,7 +1989,7 @@ router.get('/login-attempts/export', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: attempts.length }
     })
-    
+
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', `attachment; filename="login-attempts-${new Date().toISOString().split('T')[0]}.csv"`)
     res.send(csv)

@@ -11,8 +11,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body.has-session-footer #app {
+  padding-bottom: 5rem;
+}
+
 #app {
   min-height: 100vh;
   background-color: #ffffff;
 }
-

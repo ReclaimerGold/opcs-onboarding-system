@@ -4,6 +4,11 @@ import cookieParser from 'cookie-parser'
 import session from 'express-session'
 import dotenv from 'dotenv'
 import rateLimit from 'express-rate-limit'
+import path from 'path'
+import fs from 'fs'
+import Database from 'better-sqlite3'
+import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
 import authRoutes from './routes/auth.js'
 import applicantRoutes from './routes/applicants.js'
 import formRoutes from './routes/forms.js'
@@ -17,6 +22,19 @@ import { auditMiddleware } from './middleware/audit.js'
 import { initializeTemplates, updateAllTemplates } from './services/pdfTemplateService.js'
 
 dotenv.config()
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const require = createRequire(import.meta.url)
+const BetterSqlite3SessionStore = require('better-sqlite3-session-store')
+const SqliteStore = BetterSqlite3SessionStore(session)
+
+const sessionsDbPath = path.join(__dirname, '../database/sessions.db')
+const sessionsDbDir = path.dirname(sessionsDbPath)
+if (!fs.existsSync(sessionsDbDir)) {
+  fs.mkdirSync(sessionsDbDir, { recursive: true })
+}
+const sessionsDb = new Database(sessionsDbPath)
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -36,13 +54,21 @@ app.use(cookieParser())
 
 // Session configuration
 app.use(session({
+  store: new SqliteStore({
+    client: sessionsDb,
+    expired: {
+      clear: true,
+      intervalMs: 15 * 60 * 1000 // 15 minutes
+    }
+  }),
   secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 15 * 60 * 1000 // 15 minutes
   }
 }))
 
