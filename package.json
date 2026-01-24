@@ -39,13 +39,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "concurrently": "^9.2.1",
-    "eslint": "^9.0.0",
-    "eslint-plugin-vue": "^9.21.1",
+    "eslint": "^9.39.2",
+    "eslint-plugin-vue": "^10.7.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "vitest": "^4.0.0",
+    "vitest": "^4.0.18",
     "vue-eslint-parser": "^10.2.0"
   },
   "lint-staged": {

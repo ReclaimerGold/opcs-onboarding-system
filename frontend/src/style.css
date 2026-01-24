@@ -1,6 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Custom theme configuration for Tailwind v4 */
+@theme {
+  --color-primary: #1e3a8a;
+  --color-primary-light: #3b82f6;
+  --color-secondary: #3b82f6;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-text: #1f2937;
+  --color-text-light: #6b7280;
+}
 
 body {
   margin: 0;
