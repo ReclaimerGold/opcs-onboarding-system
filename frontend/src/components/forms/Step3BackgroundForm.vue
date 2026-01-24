@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div>
     <form @submit.prevent="handleSubmit" class="space-y-6">
       <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Step 3: Criminal Conviction/Background Check</h2>

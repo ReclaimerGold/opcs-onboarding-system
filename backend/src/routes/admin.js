@@ -6,6 +6,16 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { 
+  getTemplateStatus, 
+  updateTemplate, 
+  updateAllTemplates, 
+  getSupportedFormTypes,
+  getTemplate,
+  getArchivedTemplate,
+  getArchivedVersions,
+  getTemplateDirectory
+} from '../services/pdfTemplateService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -689,6 +699,225 @@ router.get('/diagnose-login', async (req, res) => {
   } catch (error) {
     console.error('Diagnose login error:', error)
     res.status(500).json({ error: 'Failed to diagnose login issue', details: error.message })
+  }
+})
+
+/**
+ * GET /api/admin/pdf-templates/status
+ * Get status of all PDF templates (IRS/USCIS forms)
+ */
+router.get('/pdf-templates/status', async (req, res) => {
+  try {
+    const status = await getTemplateStatus()
+    const supportedTypes = getSupportedFormTypes()
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'VIEW',
+      resourceType: 'PDF_TEMPLATES',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { endpoint: 'pdf-templates/status' }
+    })
+    
+    res.json({
+      supportedFormTypes: supportedTypes,
+      templates: status
+    })
+  } catch (error) {
+    console.error('Get PDF template status error:', error)
+    res.status(500).json({ error: 'Failed to retrieve PDF template status' })
+  }
+})
+
+/**
+ * POST /api/admin/pdf-templates/update
+ * Manually trigger update of PDF templates
+ * Query params: formType (optional) - specific form type to update (W4, I9, 8850)
+ * If formType is not specified, all templates are updated
+ */
+router.post('/pdf-templates/update', async (req, res) => {
+  try {
+    const { formType } = req.query
+    const force = req.query.force === 'true'
+    
+    let results
+    
+    if (formType) {
+      // Update specific template
+      const supportedTypes = getSupportedFormTypes()
+      if (!supportedTypes.includes(formType)) {
+        return res.status(400).json({
+          error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
+        })
+      }
+      
+      const result = await updateTemplate(formType, force)
+      results = { [formType]: result }
+    } else {
+      // Update all templates
+      results = await updateAllTemplates(force)
+    }
+    
+    // Count updates
+    const updated = Object.entries(results).filter(([, r]) => r.updated).map(([type]) => type)
+    const errors = Object.entries(results).filter(([, r]) => r.error).map(([type, r]) => ({ type, error: r.error }))
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'UPDATE_PDF_TEMPLATES',
+      resourceType: 'PDF_TEMPLATES',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: {
+        formType: formType || 'all',
+        force,
+        updated,
+        errors: errors.length > 0 ? errors : null
+      }
+    })
+    
+    res.json({
+      success: errors.length === 0,
+      message: updated.length > 0
+        ? `Updated templates: ${updated.join(', ')}`
+        : 'No templates needed updating',
+      results,
+      updated,
+      errors: errors.length > 0 ? errors : null
+    })
+  } catch (error) {
+    console.error('Update PDF templates error:', error)
+    res.status(500).json({ error: 'Failed to update PDF templates', details: error.message })
+  }
+})
+
+/**
+ * GET /api/admin/pdf-templates/:formType/preview
+ * Serve the current PDF template for preview/download
+ */
+router.get('/pdf-templates/:formType/preview', async (req, res) => {
+  try {
+    const { formType } = req.params
+    const supportedTypes = getSupportedFormTypes()
+    
+    if (!supportedTypes.includes(formType)) {
+      return res.status(400).json({
+        error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
+      })
+    }
+    
+    const templateBuffer = await getTemplate(formType)
+    
+    if (!templateBuffer) {
+      return res.status(404).json({ error: `Template for ${formType} not found` })
+    }
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'PREVIEW_PDF_TEMPLATE',
+      resourceType: 'PDF_TEMPLATES',
+      resourceId: formType,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { formType, type: 'current' }
+    })
+    
+    // Set headers for PDF viewing in browser
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${formType}-template.pdf"`)
+    res.setHeader('Content-Length', templateBuffer.length)
+    res.send(templateBuffer)
+  } catch (error) {
+    console.error('Preview PDF template error:', error)
+    res.status(500).json({ error: 'Failed to retrieve PDF template' })
+  }
+})
+
+/**
+ * GET /api/admin/pdf-templates/:formType/archive
+ * Get list of archived versions for a form type
+ */
+router.get('/pdf-templates/:formType/archive', async (req, res) => {
+  try {
+    const { formType } = req.params
+    const supportedTypes = getSupportedFormTypes()
+    
+    if (!supportedTypes.includes(formType)) {
+      return res.status(400).json({
+        error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
+      })
+    }
+    
+    const versions = await getArchivedVersions(formType)
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'VIEW',
+      resourceType: 'PDF_TEMPLATES',
+      resourceId: formType,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { formType, endpoint: 'archive-list' }
+    })
+    
+    res.json({
+      formType,
+      versions,
+      count: versions.length
+    })
+  } catch (error) {
+    console.error('Get archived versions error:', error)
+    res.status(500).json({ error: 'Failed to retrieve archived versions' })
+  }
+})
+
+/**
+ * GET /api/admin/pdf-templates/:formType/archive/:filename
+ * Serve an archived PDF template for preview/download
+ */
+router.get('/pdf-templates/:formType/archive/:filename', async (req, res) => {
+  try {
+    const { formType, filename } = req.params
+    const supportedTypes = getSupportedFormTypes()
+    
+    if (!supportedTypes.includes(formType)) {
+      return res.status(400).json({
+        error: `Invalid form type: ${formType}. Supported types: ${supportedTypes.join(', ')}`
+      })
+    }
+    
+    // Validate filename to prevent directory traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid filename' })
+    }
+    
+    const templateBuffer = await getArchivedTemplate(formType, filename)
+    
+    if (!templateBuffer) {
+      return res.status(404).json({ error: `Archived template ${filename} not found` })
+    }
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'PREVIEW_PDF_TEMPLATE',
+      resourceType: 'PDF_TEMPLATES',
+      resourceId: formType,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { formType, type: 'archived', filename }
+    })
+    
+    // Set headers for PDF viewing in browser
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
+    res.setHeader('Content-Length', templateBuffer.length)
+    res.send(templateBuffer)
+  } catch (error) {
+    console.error('Preview archived template error:', error)
+    res.status(500).json({ error: 'Failed to retrieve archived template' })
   }
 })
 

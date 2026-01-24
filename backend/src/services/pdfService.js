@@ -2,6 +2,19 @@ import { PDFDocument } from 'pdf-lib'
 import { encryptBuffer } from './encryptionService.js'
 import { uploadToGoogleDrive, isGoogleDriveConfigured } from './googleDriveService.js'
 import { getDatabase } from '../database/init.js'
+import { getTemplate, hasTemplate } from './pdfTemplateService.js'
+import {
+  W4_FIELD_MAPPING,
+  I9_FIELD_MAPPING,
+  F8850_FIELD_MAPPING,
+  trySetTextField,
+  trySetCheckbox,
+  mapW4FormData,
+  mapI9FormData,
+  map8850FormData,
+  getFormFieldInfo,
+  formatDateForPDF
+} from './pdfFieldMapping.js'
 import path from 'path'
 import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
@@ -78,20 +91,124 @@ export function calculateRetentionDate(formType, hireDate, terminationDate) {
 }
 
 /**
- * Generate W-4 PDF
- * Note: This is a simplified version - in production, you'd use actual IRS W-4 PDF template
+ * Fill a PDF template with form data
+ * @param {PDFDocument} pdfDoc - Loaded PDF document
+ * @param {Object} fieldMapping - Field name mapping object
+ * @param {Object} mappedData - Mapped form data
+ * @returns {Object} Result with filled fields count
+ */
+async function fillPDFTemplate(pdfDoc, fieldMapping, mappedData) {
+  const form = pdfDoc.getForm()
+  let filledCount = 0
+  let failedFields = []
+  
+  // Log all available fields for debugging (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    const fieldInfo = getFormFieldInfo(form)
+    console.log(`PDF has ${fieldInfo.length} form fields`)
+  }
+  
+  for (const [dataKey, value] of Object.entries(mappedData)) {
+    if (value === undefined || value === null || value === '') continue
+    
+    const fieldNames = fieldMapping[dataKey]
+    if (!fieldNames) continue
+    
+    // Handle boolean values (checkboxes)
+    if (typeof value === 'boolean') {
+      if (value && trySetCheckbox(form, fieldNames, true)) {
+        filledCount++
+      } else if (!value) {
+        // Don't count unchecked boxes as failures
+        continue
+      } else {
+        failedFields.push(dataKey)
+      }
+    } else {
+      // Text fields
+      if (trySetTextField(form, fieldNames, String(value))) {
+        filledCount++
+      } else {
+        failedFields.push(dataKey)
+      }
+    }
+  }
+  
+  // Flatten the form to prevent further editing (optional)
+  // form.flatten()
+  
+  return { filledCount, failedFields }
+}
+
+/**
+ * Generate W-4 PDF using official IRS template
+ * Falls back to basic generation only if template is completely unavailable
  */
 export async function generateW4PDF(formData, applicantData) {
-  // Create a new PDF document
+  // Try to use official template
+  const templateBuffer = await getTemplate('W4')
+  
+  if (!templateBuffer) {
+    console.warn('W-4 template not available, attempting to download...')
+    // Try to force download
+    const { updateTemplate } = await import('./pdfTemplateService.js')
+    const updateResult = await updateTemplate('W4', true)
+    
+    if (updateResult.updated || updateResult.metadata) {
+      const retryBuffer = await getTemplate('W4')
+      if (retryBuffer) {
+        console.log('W-4 template downloaded successfully, using template')
+        return await fillW4Template(retryBuffer, formData)
+      }
+    }
+    
+    console.error('W-4 template unavailable after download attempt, using fallback')
+    return generateW4PDFFallback(formData, applicantData)
+  }
+  
+  // Use template
+  try {
+    return await fillW4Template(templateBuffer, formData)
+  } catch (error) {
+    console.error('Failed to fill W-4 template, using fallback:', error.message)
+    return generateW4PDFFallback(formData, applicantData)
+  }
+}
+
+/**
+ * Fill W-4 template with form data
+ * @param {Buffer} templateBuffer - Template PDF buffer
+ * @param {Object} formData - Form data
+ * @returns {Promise<Buffer>} Filled PDF buffer
+ */
+async function fillW4Template(templateBuffer, formData) {
+  try {
+    console.log('Using official IRS W-4 template')
+    const pdfDoc = await PDFDocument.load(templateBuffer)
+    const mappedData = mapW4FormData(formData)
+    
+    const result = await fillPDFTemplate(pdfDoc, W4_FIELD_MAPPING, mappedData)
+    console.log(`W-4: Successfully filled ${result.filledCount} fields`)
+    
+    if (result.failedFields.length > 0) {
+      console.warn(`W-4: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
+    }
+    
+    const pdfBytes = await pdfDoc.save()
+    return pdfBytes
+  } catch (error) {
+    console.error('Error filling W-4 template:', error.message)
+    throw error // Re-throw to trigger fallback in caller
+  }
+}
+
+/**
+ * Fallback W-4 PDF generation (basic text output)
+ */
+async function generateW4PDFFallback(formData, applicantData) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792]) // US Letter size
   
-  // In production, you would:
-  // 1. Load the actual IRS W-4 PDF template
-  // 2. Get form fields using pdfDoc.getForm()
-  // 3. Fill in the fields with formData
-  
-  // For now, create a simple PDF with the data
   const { width, height } = page.getSize()
   const fontSize = 12
   
@@ -106,8 +223,15 @@ export async function generateW4PDF(formData, applicantData) {
     font: helveticaBoldFont
   })
   
+  page.drawText('(Fallback version - official template unavailable)', {
+    x: 50,
+    y: height - 70,
+    size: 10,
+    font: helveticaFont
+  })
+  
   // Employee Information
-  let yPos = height - 100
+  let yPos = height - 110
   page.drawText(`Name: ${formData.firstName} ${formData.middleName || ''} ${formData.lastName}`.trim(), {
     x: 50,
     y: yPos,
@@ -167,14 +291,84 @@ export async function generateW4PDF(formData, applicantData) {
     font: helveticaFont
   })
   
+  yPos -= 40
+  page.drawText(`Date: ${formatDateForPDF(new Date())}`, {
+    x: 50,
+    y: yPos,
+    size: fontSize,
+    font: helveticaFont
+  })
+  
   const pdfBytes = await pdfDoc.save()
   return pdfBytes
 }
 
 /**
- * Generate I-9 PDF
+ * Generate I-9 PDF using official USCIS template
+ * Falls back to basic generation only if template is completely unavailable
  */
 export async function generateI9PDF(formData, applicantData) {
+  // Try to use official template
+  const templateBuffer = await getTemplate('I9')
+  
+  if (!templateBuffer) {
+    console.warn('I-9 template not available, attempting to download...')
+    // Try to force download
+    const { updateTemplate } = await import('./pdfTemplateService.js')
+    const updateResult = await updateTemplate('I9', true)
+    
+    if (updateResult.updated || updateResult.metadata) {
+      const retryBuffer = await getTemplate('I9')
+      if (retryBuffer) {
+        console.log('I-9 template downloaded successfully, using template')
+        return await fillI9Template(retryBuffer, formData)
+      }
+    }
+    
+    console.error('I-9 template unavailable after download attempt, using fallback')
+    return generateI9PDFFallback(formData, applicantData)
+  }
+  
+  // Use template
+  try {
+    return await fillI9Template(templateBuffer, formData)
+  } catch (error) {
+    console.error('Failed to fill I-9 template, using fallback:', error.message)
+    return generateI9PDFFallback(formData, applicantData)
+  }
+}
+
+/**
+ * Fill I-9 template with form data
+ * @param {Buffer} templateBuffer - Template PDF buffer
+ * @param {Object} formData - Form data
+ * @returns {Promise<Buffer>} Filled PDF buffer
+ */
+async function fillI9Template(templateBuffer, formData) {
+  try {
+    console.log('Using official USCIS I-9 template')
+    const pdfDoc = await PDFDocument.load(templateBuffer)
+    const mappedData = mapI9FormData(formData)
+    
+    const result = await fillPDFTemplate(pdfDoc, I9_FIELD_MAPPING, mappedData)
+    console.log(`I-9: Successfully filled ${result.filledCount} fields`)
+    
+    if (result.failedFields.length > 0) {
+      console.warn(`I-9: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
+    }
+    
+    const pdfBytes = await pdfDoc.save()
+    return pdfBytes
+  } catch (error) {
+    console.error('Error filling I-9 template:', error.message)
+    throw error // Re-throw to trigger fallback in caller
+  }
+}
+
+/**
+ * Fallback I-9 PDF generation (basic text output)
+ */
+async function generateI9PDFFallback(formData, applicantData) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792])
   
@@ -190,7 +384,14 @@ export async function generateI9PDF(formData, applicantData) {
     font: helveticaBoldFont
   })
   
-  let yPos = height - 100
+  page.drawText('(Fallback version - official template unavailable)', {
+    x: 50,
+    y: height - 70,
+    size: 10,
+    font: helveticaFont
+  })
+  
+  let yPos = height - 110
   page.drawText(`Name: ${formData.firstName} ${formData.middleName || ''} ${formData.lastName}`.trim(), {
     x: 50,
     y: yPos,
@@ -206,7 +407,44 @@ export async function generateI9PDF(formData, applicantData) {
     font: helveticaFont
   })
   
+  if (formData.address) {
+    yPos -= 20
+    page.drawText(`Address: ${formData.address}`, {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaFont
+    })
+  }
+  
+  if (formData.city && formData.state && formData.zipCode) {
+    yPos -= 20
+    page.drawText(`City, State, ZIP: ${formData.city}, ${formData.state} ${formData.zipCode}`, {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaFont
+    })
+  }
+  
+  if (formData.dateOfBirth) {
+    yPos -= 20
+    page.drawText(`Date of Birth: ${formatDateForPDF(formData.dateOfBirth)}`, {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaFont
+    })
+  }
+  
   if (formData.listADocument) {
+    yPos -= 30
+    page.drawText('Documents:', {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaBoldFont
+    })
     yPos -= 20
     page.drawText(`List A Document: ${formData.listADocument}`, {
       x: 50,
@@ -236,14 +474,84 @@ export async function generateI9PDF(formData, applicantData) {
     })
   }
   
+  yPos -= 40
+  page.drawText(`Date: ${formatDateForPDF(new Date())}`, {
+    x: 50,
+    y: yPos,
+    size: fontSize,
+    font: helveticaFont
+  })
+  
   const pdfBytes = await pdfDoc.save()
   return pdfBytes
 }
 
 /**
- * Generate Form 8850 PDF
+ * Generate Form 8850 PDF using official IRS template
+ * Falls back to basic generation only if template is completely unavailable
  */
 export async function generate8850PDF(formData, applicantData) {
+  // Try to use official template
+  const templateBuffer = await getTemplate('8850')
+  
+  if (!templateBuffer) {
+    console.warn('Form 8850 template not available, attempting to download...')
+    // Try to force download
+    const { updateTemplate } = await import('./pdfTemplateService.js')
+    const updateResult = await updateTemplate('8850', true)
+    
+    if (updateResult.updated || updateResult.metadata) {
+      const retryBuffer = await getTemplate('8850')
+      if (retryBuffer) {
+        console.log('Form 8850 template downloaded successfully, using template')
+        return await fill8850Template(retryBuffer, formData)
+      }
+    }
+    
+    console.error('Form 8850 template unavailable after download attempt, using fallback')
+    return generate8850PDFFallback(formData, applicantData)
+  }
+  
+  // Use template
+  try {
+    return await fill8850Template(templateBuffer, formData)
+  } catch (error) {
+    console.error('Failed to fill Form 8850 template, using fallback:', error.message)
+    return generate8850PDFFallback(formData, applicantData)
+  }
+}
+
+/**
+ * Fill Form 8850 template with form data
+ * @param {Buffer} templateBuffer - Template PDF buffer
+ * @param {Object} formData - Form data
+ * @returns {Promise<Buffer>} Filled PDF buffer
+ */
+async function fill8850Template(templateBuffer, formData) {
+  try {
+    console.log('Using official IRS Form 8850 template')
+    const pdfDoc = await PDFDocument.load(templateBuffer)
+    const mappedData = map8850FormData(formData)
+    
+    const result = await fillPDFTemplate(pdfDoc, F8850_FIELD_MAPPING, mappedData)
+    console.log(`8850: Successfully filled ${result.filledCount} fields`)
+    
+    if (result.failedFields.length > 0) {
+      console.warn(`8850: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
+    }
+    
+    const pdfBytes = await pdfDoc.save()
+    return pdfBytes
+  } catch (error) {
+    console.error('Error filling Form 8850 template:', error.message)
+    throw error // Re-throw to trigger fallback in caller
+  }
+}
+
+/**
+ * Fallback Form 8850 PDF generation (basic text output)
+ */
+async function generate8850PDFFallback(formData, applicantData) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792])
   
@@ -259,7 +567,14 @@ export async function generate8850PDF(formData, applicantData) {
     font: helveticaBoldFont
   })
   
-  let yPos = height - 100
+  page.drawText('(Fallback version - official template unavailable)', {
+    x: 50,
+    y: height - 70,
+    size: 10,
+    font: helveticaFont
+  })
+  
+  let yPos = height - 110
   page.drawText(`Name: ${formData.firstName} ${formData.middle || ''} ${formData.lastName}`.trim(), {
     x: 50,
     y: yPos,
@@ -276,7 +591,7 @@ export async function generate8850PDF(formData, applicantData) {
   })
   
   yPos -= 20
-  page.drawText(`Address: ${formData.address}, ${formData.city}, ${formData.state} ${formData.zip}`, {
+  page.drawText(`Address: ${formData.address}, ${formData.city}, ${formData.state} ${formData.zip || formData.zipCode}`, {
     x: 50,
     y: yPos,
     size: fontSize,
@@ -285,6 +600,34 @@ export async function generate8850PDF(formData, applicantData) {
   
   yPos -= 20
   page.drawText(`County: ${formData.county}`, {
+    x: 50,
+    y: yPos,
+    size: fontSize,
+    font: helveticaFont
+  })
+  
+  if (formData.phone) {
+    yPos -= 20
+    page.drawText(`Phone: ${formData.phone}`, {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaFont
+    })
+  }
+  
+  if (formData.dateOfBirth) {
+    yPos -= 20
+    page.drawText(`Date of Birth: ${formatDateForPDF(formData.dateOfBirth)}`, {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaFont
+    })
+  }
+  
+  yPos -= 40
+  page.drawText(`Date: ${formatDateForPDF(new Date())}`, {
     x: 50,
     y: yPos,
     size: fontSize,
@@ -451,4 +794,3 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     storageType: googleDriveId ? 'google_drive' : 'local'
   }
 }
-

@@ -24,7 +24,9 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **SSN Privacy Protection**: SSNs only included in PDFs, never stored in database
 
 ### Technical Features
-- Automatic PDF generation with IRS form auto-fill
+- **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data
+- **Automatic Template Updates**: Checks for new form versions daily, downloads and caches updates
+- **Template Version History**: Archives previous template versions when updates are detected, allowing admin preview of historical forms
 - Google Drive integration for document storage (with local fallback)
 - **Local Storage Fallback**: When Google Drive credentials are not configured, encrypted PDFs are stored locally
 - SQLite database (SSN-free design)
@@ -64,11 +66,14 @@ opcs-onboarding-system/
 │   │   │   ├── encryptionService.js # AES-256-GCM encryption
 │   │   │   ├── googleDriveService.js # Google Drive integration
 │   │   │   ├── pdfService.js        # PDF generation
+│   │   │   ├── pdfTemplateService.js # IRS/USCIS PDF template download & caching
+│   │   │   ├── pdfFieldMapping.js   # PDF form field mappings
 │   │   │   └── retentionService.js  # Document retention management
 │   │   └── index.js             # Express server entry point
 │   ├── storage/                 # Local storage (used when Google Drive not configured)
 │   │   ├── encrypted-pdfs/      # Form submission PDFs
-│   │   └── encrypted-i9-docs/   # I-9 identity documents
+│   │   ├── encrypted-i9-docs/   # I-9 identity documents
+│   │   └── pdf-templates/       # Cached IRS/USCIS fillable PDF templates
 │   └── package.json
 ├── frontend/
 │   ├── src/
@@ -230,6 +235,11 @@ This system is designed to comply with:
 - `POST /api/admin/fix-admin-assignments` - Fix incorrect admin assignments (ensures only first user is admin)
 - `GET /api/admin/diagnose-login` - Diagnostic endpoint for login issues (query params: firstName, lastName, email)
 - `POST /api/admin/tests/run` - Run unit tests and return results
+- `GET /api/admin/pdf-templates/status` - Get status of all PDF templates (IRS/USCIS forms)
+- `POST /api/admin/pdf-templates/update` - Manually trigger PDF template updates (query params: formType, force)
+- `GET /api/admin/pdf-templates/:formType/preview` - Preview/download current PDF template (W4, I9, 8850)
+- `GET /api/admin/pdf-templates/:formType/archive` - List archived versions of a template
+- `GET /api/admin/pdf-templates/:formType/archive/:filename` - Preview/download an archived template version
 
 ## Development
 
@@ -278,6 +288,14 @@ If ports 3000 or 9999 are in use:
 - Verify Google Maps API key is set in Settings
 - Ensure Places API is enabled in Google Cloud Console
 - Check browser console for API errors
+
+### PDF Template Issues
+- **Templates not downloading**: Check network connectivity to IRS (irs.gov) and USCIS (uscis.gov) servers
+- **Templates stale**: Use the "PDF Templates" tab in Admin Dashboard or endpoint `POST /api/admin/pdf-templates/update?force=true` to force re-download
+- **Form fields not filling**: The system falls back to basic PDF generation if template fields can't be filled
+- **Template locations**: Cached templates are stored in `backend/storage/pdf-templates/` with metadata
+- **Version history**: Archived template versions are stored in `backend/storage/pdf-templates/{formType}/archive/`
+- **Admin UI**: View template status, preview forms, and manage archived versions in Admin Dashboard → PDF Templates tab
 
 ## License
 

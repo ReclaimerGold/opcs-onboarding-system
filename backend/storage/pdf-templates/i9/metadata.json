@@ -1,0 +1,10 @@
+{
+  "formType": "I9",
+  "name": "Form I-9",
+  "agency": "USCIS",
+  "sourceUrl": "https://www.uscis.gov/sites/default/files/document/forms/i-9-paper-version.pdf",
+  "checksum": "780f348c34df694bb0b4dbbfaf9f22b99b9757b80d16a37ba89aadf069597281",
+  "fileSize": 524095,
+  "downloadedAt": "2026-01-24T00:45:19.434Z",
+  "lastCheckedAt": "2026-01-24T00:45:19.434Z"
+}

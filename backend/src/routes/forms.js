@@ -190,6 +190,91 @@ router.get('/submissions', async (req, res) => {
 })
 
 /**
+ * POST /api/forms/preview/:step
+ * Generate a preview PDF from form data (without saving)
+ */
+router.post('/preview/:step', async (req, res) => {
+  try {
+    const step = parseInt(req.params.step)
+    if (step < 1 || step > 6) {
+      return res.status(400).json({ error: 'Invalid step number' })
+    }
+    
+    const formType = FORM_TYPES[step]
+    if (!formType) {
+      return res.status(400).json({ error: 'Invalid form type' })
+    }
+    
+    // Only allow preview for forms that generate PDFs (W-4, I-9, 8850)
+    if (!['W4', 'I9', '8850'].includes(formType)) {
+      return res.status(400).json({ error: 'Preview not available for this form type' })
+    }
+    
+    // Parse form data
+    let formData
+    if (typeof req.body.formData === 'string') {
+      formData = JSON.parse(req.body.formData)
+    } else {
+      formData = req.body.formData || req.body
+    }
+    
+    // Get applicant data
+    const db = getDatabase()
+    const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
+    
+    if (!applicant) {
+      return res.status(404).json({ error: 'Applicant not found' })
+    }
+    
+    // Generate PDF preview (without saving)
+    const { generateW4PDF, generateI9PDF, generate8850PDF } = await import('../services/pdfService.js')
+    
+    let pdfBytes
+    const applicantData = {
+      first_name: applicant.first_name,
+      last_name: applicant.last_name,
+      email: applicant.email,
+      phone: applicant.phone,
+      date_of_birth: applicant.date_of_birth,
+      address: applicant.address,
+      city: applicant.city,
+      state: applicant.state,
+      zip_code: applicant.zip_code
+    }
+    
+    switch (formType) {
+      case 'W4':
+        pdfBytes = await generateW4PDF(formData, applicantData)
+        break
+      case 'I9':
+        pdfBytes = await generateI9PDF(formData, applicantData)
+        break
+      case '8850':
+        pdfBytes = await generate8850PDF(formData, applicantData)
+        break
+      default:
+        return res.status(400).json({ error: 'Preview not available for this form type' })
+    }
+    
+    // Return PDF as response with appropriate headers
+    // Convert Uint8Array to Buffer for Express to send as binary data
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'inline; filename="preview.pdf"')
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    res.setHeader('Pragma', 'no-cache')
+    res.setHeader('Expires', '0')
+    res.send(Buffer.from(pdfBytes))
+  } catch (error) {
+    console.error('Preview generation error:', error)
+    console.error('Error stack:', error.stack)
+    // Make sure we return JSON, not try to send PDF
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate preview', message: error.message })
+    }
+  }
+})
+
+/**
  * GET /api/forms/submissions/:id/view
  * View/download a form submission PDF
  */

@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div>
     <PrivacyNotice :show-consent="true" v-model:consented="ssnConsented" />
     
     <form @submit.prevent="handleSubmit" class="space-y-6">
@@ -259,14 +259,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import PrivacyNotice from '../PrivacyNotice.vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 import { formatPhoneNumber, validatePhoneNumber } from '../../utils/validation.js'
 
-const emit = defineEmits(['submitted'])
+const emit = defineEmits(['submitted', 'form-data-change'])
 
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
@@ -299,6 +299,17 @@ const emailLocked = ref(false)
 const dateOfBirthLocked = ref(false)
 const addressLocked = ref(false)
 const middleNameLocked = ref(false)
+
+// Emit form data changes for real-time preview (debounced)
+let emitDebounceTimer = null
+watch(formData, () => {
+  if (emitDebounceTimer) {
+    clearTimeout(emitDebounceTimer)
+  }
+  emitDebounceTimer = setTimeout(() => {
+    emit('form-data-change', { ...formData.value })
+  }, 300) // 300ms debounce for form data changes
+}, { deep: true })
 
 // Load applicant data and previous form data to auto-populate all available fields
 onMounted(async () => {

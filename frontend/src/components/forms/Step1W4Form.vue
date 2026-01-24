@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div>
     <!-- W-4 Disclaimer -->
     <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
       <h3 class="text-sm font-semibold text-gray-900 mb-2">Federal W-4 - Employee's Withholding Certificate</h3>
@@ -436,7 +436,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import PrivacyNotice from '../PrivacyNotice.vue'
 import AddressSearch from '../ui/AddressSearch.vue'
 import api from '../../services/api.js'
@@ -445,7 +445,7 @@ import { useApplicantData } from '../../composables/useApplicantData.js'
 import { formatPhoneNumber, validatePhoneNumber, validateEmail as validateEmailUtil, formatEmail } from '../../utils/validation.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 
-const emit = defineEmits(['submitted'])
+const emit = defineEmits(['submitted', 'form-data-change'])
 
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
@@ -479,6 +479,17 @@ const emailLocked = ref(false)
 
 // Draft functionality
 const { isSaving, lastSaved, saveDraft } = useFormDraft(1, formData)
+
+// Emit form data changes for real-time preview (debounced)
+let emitDebounceTimer = null
+watch(formData, () => {
+  if (emitDebounceTimer) {
+    clearTimeout(emitDebounceTimer)
+  }
+  emitDebounceTimer = setTimeout(() => {
+    emit('form-data-change', { ...formData.value })
+  }, 300) // 300ms debounce for form data changes
+}, { deep: true })
 
 // Load applicant data and settings
 onMounted(async () => {

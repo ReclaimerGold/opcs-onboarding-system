@@ -13,6 +13,7 @@ import diagnosticsRoutes from './routes/diagnostics.js'
 import { initializeDatabase } from './database/init.js'
 import { startRetentionScheduler } from './services/retentionService.js'
 import { auditMiddleware } from './middleware/audit.js'
+import { initializeTemplates, updateAllTemplates } from './services/pdfTemplateService.js'
 
 dotenv.config()
 
@@ -78,9 +79,34 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`)
   // Start retention service scheduler
   startRetentionScheduler()
+  
+  // Initialize PDF templates (download if not present)
+  try {
+    await initializeTemplates()
+  } catch (error) {
+    console.error('Failed to initialize PDF templates:', error.message)
+    console.log('PDF generation will use fallback method until templates are available')
+  }
+  
+  // Schedule periodic template update checks (every 24 hours)
+  const TEMPLATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
+  setInterval(async () => {
+    console.log('Running scheduled PDF template update check...')
+    try {
+      const results = await updateAllTemplates(false)
+      const updated = Object.entries(results).filter(([, r]) => r.updated)
+      if (updated.length > 0) {
+        console.log('Template updates:', updated.map(([type]) => type).join(', '))
+      } else {
+        console.log('All templates are up to date')
+      }
+    } catch (error) {
+      console.error('Scheduled template update check failed:', error.message)
+    }
+  }, TEMPLATE_CHECK_INTERVAL)
 })
 

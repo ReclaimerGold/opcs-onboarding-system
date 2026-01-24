@@ -20,6 +20,22 @@
     </nav>
     
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Auto-Fill Disclaimer -->
+      <div class="mb-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
+        <div class="flex items-start">
+          <svg class="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p class="text-sm text-blue-800">
+              <strong>Automatic Document Filling:</strong> This system automatically fills official IRS and USCIS forms with the information you provide. 
+              The forms are generated using official government templates and your data is securely processed. 
+              Please review all information before submitting.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Progress Steps - Clickable Breadcrumbs -->
       <div class="mb-8">
         <div class="relative">
@@ -244,21 +260,127 @@
         </div>
       </div>
 
-      <!-- Form Content -->
-      <div>
-        <Step1W4Form v-if="currentStep === 1" @submitted="handleStepComplete" />
-        <Step2I9Form v-if="currentStep === 2" @submitted="handleStepComplete" />
-        <Step3BackgroundForm v-if="currentStep === 3" @submitted="handleStepComplete" />
-        <Step4DirectDepositForm v-if="currentStep === 4" @submitted="handleStepComplete" />
-        <Step5AcknowledgementsForm v-if="currentStep === 5" @submitted="handleStepComplete" />
-        <Step68850Form v-if="currentStep === 6" @submitted="handleStepComplete" />
+      <!-- Form Content - Full Width Layout with PDF Preview -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Form Section (2 columns on large screens) -->
+        <div class="lg:col-span-2">
+          <Step1W4Form 
+            v-if="currentStep === 1" 
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+          <Step2I9Form 
+            v-if="currentStep === 2" 
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+          <Step3BackgroundForm 
+            v-if="currentStep === 3" 
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+          <Step4DirectDepositForm 
+            v-if="currentStep === 4" 
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+          <Step5AcknowledgementsForm 
+            v-if="currentStep === 5" 
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+          <Step68850Form 
+            v-if="currentStep === 6" 
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+        </div>
+
+        <!-- PDF Preview Section (1 column on large screens, hidden on smaller screens for non-PDF forms) -->
+        <div 
+          v-if="hasPDFPreview" 
+          class="lg:col-span-1 hidden lg:block"
+        >
+          <div class="bg-white rounded-lg shadow-lg p-4 sticky top-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+              <svg class="h-5 w-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {{ pdfPreviewTitle }}
+            </h3>
+            <div class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50" style="height: 600px;">
+              <!-- PDF iframe when URL is available -->
+              <iframe
+                v-if="pdfPreviewUrl && !generatingPreview && !previewError"
+                :src="pdfPreviewUrl"
+                class="w-full h-full"
+                frameborder="0"
+                title="PDF Preview"
+                @error="handlePreviewError"
+              ></iframe>
+              
+              <!-- Loading state -->
+              <div v-else-if="generatingPreview" class="w-full h-full flex items-center justify-center bg-gray-100">
+                <div class="text-center p-6">
+                  <svg class="animate-spin mx-auto h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p class="text-sm text-gray-600">Generating preview...</p>
+                </div>
+              </div>
+              
+              <!-- Error state -->
+              <div v-else-if="previewError" class="w-full h-full flex items-center justify-center bg-red-50">
+                <div class="text-center p-6">
+                  <svg class="mx-auto h-12 w-12 text-red-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <p class="text-sm text-red-600 font-medium mb-2">Preview Error</p>
+                  <p class="text-xs text-red-500 mb-4">{{ previewError }}</p>
+                  <button 
+                    @click="retryPreview"
+                    class="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm font-medium transition-colors"
+                  >
+                    Retry Preview
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Default placeholder state -->
+              <div v-else class="w-full h-full flex items-center justify-center bg-gray-100">
+                <div class="text-center p-6">
+                  <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p class="text-sm text-gray-500">PDF preview will appear here</p>
+                  <p class="text-xs text-gray-400 mt-1">as you fill out the form</p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 text-xs text-gray-500 text-center">
+              <p v-if="pdfPreviewUrl && !previewError">This is a <strong>live preview</strong> of your {{ getStepLabel(currentStep) }} form.</p>
+              <p v-else-if="generatingPreview" class="text-gray-400 italic">Generating preview...</p>
+              <p v-else-if="previewError" class="text-red-500 italic">Preview generation failed</p>
+              <p v-else class="text-gray-400 italic">Start filling out the form to see a live preview.</p>
+              <a 
+                v-if="pdfPreviewUrl && !previewError"
+                :href="pdfPreviewUrl" 
+                target="_blank"
+                class="text-primary hover:text-primary-light hover:underline mt-1 inline-block"
+              >
+                Open in new tab →
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import Step1W4Form from '../components/forms/Step1W4Form.vue'
@@ -278,6 +400,12 @@ const hasDrafts = ref(false)
 const completedSteps = ref(new Set())
 const applicantData = ref(null)
 const stepWarnings = ref({})
+const submissions = ref([])
+const currentFormData = ref(null)
+const pdfPreviewUrl = ref(null)
+const generatingPreview = ref(false)
+const previewError = ref(null)
+let previewDebounceTimer = null
 
 const stepLabels = {
   1: 'W-4',
@@ -328,15 +456,43 @@ onMounted(async () => {
   } else {
     validateCurrentStep()
   }
+  
+  // Initialize preview for current step
+  updatePreviewForStep(currentStep.value)
+})
+
+onBeforeUnmount(() => {
+  // Clean up blob URLs to prevent memory leaks
+  if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(pdfPreviewUrl.value)
+  }
+  if (previewDebounceTimer) {
+    clearTimeout(previewDebounceTimer)
+  }
 })
 
 const loadProgress = async () => {
   try {
     const progressResponse = await api.get('/applicants/me/progress')
-    const submissions = progressResponse.data.submissions || []
+    const progressSubmissions = progressResponse.data.submissions || []
+    
+    // Fetch full submissions with IDs for PDF preview
+    try {
+      const submissionsResponse = await api.get('/forms/submissions')
+      submissions.value = submissionsResponse.data.map(sub => ({
+        id: sub.id,
+        stepNumber: sub.step_number,
+        formType: sub.form_type,
+        submittedAt: sub.submitted_at,
+        pdfFilename: sub.pdf_filename
+      }))
+    } catch (subError) {
+      console.error('Error loading submissions:', subError)
+      submissions.value = []
+    }
     
     // Track completed steps
-    submissions.forEach(sub => {
+    progressSubmissions.forEach(sub => {
       completedSteps.value.add(sub.stepNumber)
     })
     
@@ -406,6 +562,27 @@ const validateCurrentStep = () => {
 const getStepLabel = (step) => {
   return stepLabels[step] || `Step ${step}`
 }
+
+// Steps that have PDF previews (W-4, I-9, Form 8850)
+const stepsWithPDF = [1, 2, 6]
+
+// Check if current step has PDF preview
+const hasPDFPreview = computed(() => {
+  return stepsWithPDF.includes(currentStep.value)
+})
+
+// Get PDF preview URL for current step (computed property removed, now using ref)
+
+// Get PDF preview title
+const pdfPreviewTitle = computed(() => {
+  if (!hasPDFPreview.value) return ''
+  
+  const stepLabel = getStepLabel(currentStep.value)
+  if (completedSteps.value.has(currentStep.value)) {
+    return `${stepLabel} Form (Filled)`
+  }
+  return `${stepLabel} Form Preview`
+})
 
 const getStepStatus = (step) => {
   const isCompleted = completedSteps.value.has(step)
@@ -486,8 +663,30 @@ const navigateToStep = async (step) => {
   currentStep.value = step
   validateCurrentStep()
   
+  // Update PDF preview for new step
+  updatePreviewForStep(step)
+  
   // Scroll to top of form
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const updatePreviewForStep = (step) => {
+  // Clear previous preview and error state
+  if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(pdfPreviewUrl.value)
+  }
+  pdfPreviewUrl.value = null
+  currentFormData.value = null
+  previewError.value = null
+  
+  // Check if step has a completed submission
+  if (hasPDFPreview.value) {
+    const submission = submissions.value.find(s => s.stepNumber === step)
+    if (submission && submission.id) {
+      pdfPreviewUrl.value = `/api/forms/submissions/${submission.id}/view`
+    }
+    // Don't generate preview on step change - wait for form data changes
+  }
 }
 
 const navigateToRequiredStep = () => {
@@ -501,7 +700,209 @@ const navigateToRequiredStep = () => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const handleFormDataChange = (formData) => {
+  // Store current form data
+  currentFormData.value = formData
+  
+  // Only generate preview for steps with PDFs
+  if (!hasPDFPreview.value) {
+    return
+  }
+  
+  // Check if step is already completed - if so, use submission PDF
+  const submission = submissions.value.find(s => s.stepNumber === currentStep.value)
+  if (submission && submission.id) {
+    pdfPreviewUrl.value = `/api/forms/submissions/${submission.id}/view`
+    return
+  }
+  
+  // Debounce preview generation to avoid too many API calls
+  if (previewDebounceTimer) {
+    clearTimeout(previewDebounceTimer)
+  }
+  
+  previewDebounceTimer = setTimeout(() => {
+    generatePreview(formData)
+  }, 500) // 500ms debounce
+}
+
+const generatePreview = async (formData) => {
+  if (!hasPDFPreview.value || !formData) {
+    return
+  }
+  
+  // Clear any previous error
+  previewError.value = null
+  
+  // Check if step already has a submission - use that instead
+  const submission = submissions.value.find(s => s.stepNumber === currentStep.value)
+  if (submission && submission.id) {
+    // Revoke blob URL if it exists
+    if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewUrl.value)
+    }
+    pdfPreviewUrl.value = `/api/forms/submissions/${submission.id}/view`
+    return
+  }
+  
+  // Validate that we have minimum required data before generating preview
+  // This prevents errors when form is first loaded with empty data
+  const hasMinimumData = validateMinimumFormData(formData, currentStep.value)
+  if (!hasMinimumData) {
+    // Don't generate preview if we don't have minimum required fields
+    // Clear any existing preview
+    if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewUrl.value)
+    }
+    pdfPreviewUrl.value = null
+    return
+  }
+  
+  generatingPreview.value = true
+  
+  try {
+    let response
+    try {
+      response = await api.post(
+        `/forms/preview/${currentStep.value}`,
+        { formData },
+        {
+          responseType: 'blob',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          // Prevent axios from rejecting on error status codes
+          validateStatus: (status) => status < 500
+        }
+      )
+    } catch (axiosError) {
+      // Network error or 500+ server error
+      if (axiosError.response) {
+        // Server responded with 500+ error - try to read error message
+        let errorMessage = 'Server error generating preview'
+        if (axiosError.response.data instanceof Blob) {
+          try {
+            const text = await axiosError.response.data.text()
+            const errorData = JSON.parse(text)
+            errorMessage = errorData.error || errorData.message || errorMessage
+          } catch (e) {
+            errorMessage = `Server error (${axiosError.response.status})`
+          }
+        }
+        throw new Error(errorMessage)
+      }
+      // Network or other error
+      throw new Error(axiosError.message || 'Network error - unable to generate preview')
+    }
+    
+    // Check if response is an error (4xx status)
+    if (response.status >= 400) {
+      let errorMessage = 'Failed to generate preview'
+      // Response data is a blob, try to read it as text
+      if (response.data instanceof Blob) {
+        try {
+          const text = await response.data.text()
+          const errorData = JSON.parse(text)
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch (e) {
+          errorMessage = `Error (${response.status})`
+        }
+      }
+      throw new Error(errorMessage)
+    }
+    
+    // Verify we got valid response data
+    if (!response.data) {
+      throw new Error('Empty response from server')
+    }
+    
+    // Verify we got a blob with content
+    if (!(response.data instanceof Blob) || response.data.size === 0) {
+      throw new Error('Invalid or empty PDF response')
+    }
+    
+    // Check the content type - if it's JSON, it's likely an error response
+    const contentType = response.headers['content-type'] || response.data.type || ''
+    
+    // If response is JSON (error response disguised as success), parse and throw
+    if (contentType.includes('application/json')) {
+      const text = await response.data.text()
+      const errorData = JSON.parse(text)
+      throw new Error(errorData.error || errorData.message || 'Server returned an error')
+    }
+    
+    // Verify it looks like a PDF by checking magic bytes
+    const arrayBuffer = await response.data.slice(0, 5).arrayBuffer()
+    const header = new Uint8Array(arrayBuffer)
+    const pdfMagic = [0x25, 0x50, 0x44, 0x46, 0x2D] // %PDF-
+    const isPDF = pdfMagic.every((byte, i) => header[i] === byte)
+    
+    if (!isPDF) {
+      // Not a valid PDF - might be an error response
+      const text = await response.data.text()
+      if (text.startsWith('{')) {
+        try {
+          const errorData = JSON.parse(text)
+          throw new Error(errorData.error || errorData.message || 'Invalid PDF response')
+        } catch (e) {
+          if (e.message.includes('Invalid PDF')) throw e
+          throw new Error('Server did not return a valid PDF')
+        }
+      }
+      throw new Error('Server did not return a valid PDF document')
+    }
+    
+    // Create blob URL for the PDF
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    
+    // Revoke previous URL to prevent memory leaks
+    if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewUrl.value)
+    }
+    
+    pdfPreviewUrl.value = url
+    previewError.value = null
+  } catch (error) {
+    console.error('Error generating preview:', error)
+    console.error('Error details:', error.response?.data || error.message)
+    
+    // Set error message for user feedback
+    previewError.value = error.message || 'Failed to generate preview'
+    
+    // Clear preview URL on error so user sees placeholder with error
+    if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewUrl.value)
+    }
+    pdfPreviewUrl.value = null
+  } finally {
+    generatingPreview.value = false
+  }
+}
+
+// Validate that form has minimum required data for preview generation
+const validateMinimumFormData = (formData, step) => {
+  if (!formData) return false
+  
+  switch (step) {
+    case 1: // W-4
+      // Need at least name for W-4 preview (SSN can be added later)
+      return !!(formData.firstName && formData.lastName)
+    case 2: // I-9
+      // Need at least name for I-9 preview
+      return !!(formData.firstName && formData.lastName)
+    case 6: // 8850
+      // Need at least name for 8850 preview (SSN can be added later)
+      return !!(formData.firstName && formData.lastName)
+    default:
+      return false
+  }
+}
+
 const handleStepComplete = async (step) => {
+  // Reload progress to get updated submissions for PDF preview
+  await loadProgress()
+  
   // Mark step as completed
   completedSteps.value.add(step)
   
@@ -509,10 +910,26 @@ const handleStepComplete = async (step) => {
   await loadProgress()
   await loadApplicantData()
   
+  // Update PDF preview to show submitted version
+  const submission = submissions.value.find(s => s.stepNumber === step)
+  if (submission && submission.id) {
+    // Revoke blob URL if it exists
+    if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewUrl.value)
+    }
+    pdfPreviewUrl.value = `/api/forms/submissions/${submission.id}/view`
+  }
+  
   // Move to next step
   if (step < 6) {
     currentStep.value = step + 1
     validateCurrentStep()
+    // Clear preview when moving to next step
+    if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewUrl.value)
+    }
+    pdfPreviewUrl.value = null
+    currentFormData.value = null
   } else {
     // Step 6 completed - check if admin and password setup required
     if (authStore.isAdmin) {
@@ -528,6 +945,26 @@ const handleStepComplete = async (step) => {
       }
     }
     router.push('/dashboard')
+  }
+}
+
+const handlePreviewError = (event) => {
+  console.error('PDF preview iframe error:', event)
+  // Set error message for user feedback
+  previewError.value = 'Failed to load PDF document in browser'
+  // Clear the preview URL on iframe error
+  if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(pdfPreviewUrl.value)
+  }
+  pdfPreviewUrl.value = null
+}
+
+const retryPreview = () => {
+  // Clear error state
+  previewError.value = null
+  // Re-generate preview with current form data
+  if (currentFormData.value) {
+    generatePreview(currentFormData.value)
   }
 }
 

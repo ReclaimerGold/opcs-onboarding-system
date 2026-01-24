@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div>
     <!-- I-9 Disclaimer -->
     <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-r">
       <h3 class="text-sm font-semibold text-gray-900 mb-2">Federal Form I-9 - Employment Eligibility Verification</h3>
@@ -732,12 +732,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 
-const emit = defineEmits(['submitted'])
+const emit = defineEmits(['submitted', 'form-data-change'])
 
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
@@ -789,6 +789,17 @@ const uploading = ref({
 
 // Draft functionality
 const { isSaving, lastSaved, saveDraft } = useFormDraft(2, formData)
+
+// Emit form data changes for real-time preview (debounced)
+let emitDebounceTimer = null
+watch(formData, () => {
+  if (emitDebounceTimer) {
+    clearTimeout(emitDebounceTimer)
+  }
+  emitDebounceTimer = setTimeout(() => {
+    emit('form-data-change', { ...formData.value })
+  }, 300) // 300ms debounce for form data changes
+}, { deep: true })
 
 // Load applicant data
 onMounted(async () => {

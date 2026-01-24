@@ -174,6 +174,17 @@
             >
               Documents
             </button>
+            <button
+              @click="activeTab = 'pdf-templates'"
+              :class="[
+                'px-6 py-3 text-sm font-medium border-b-2',
+                activeTab === 'pdf-templates'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ]"
+            >
+              PDF Templates
+            </button>
           </nav>
         </div>
 
@@ -708,6 +719,252 @@
               </div>
             </div>
           </div>
+
+          <!-- PDF Templates Tab -->
+          <div v-if="activeTab === 'pdf-templates'">
+            <div class="mb-6 flex justify-between items-center">
+              <h3 class="text-lg font-semibold text-gray-900">PDF Form Templates</h3>
+              <div class="flex space-x-2">
+                <button
+                  @click="refreshTemplateStatus"
+                  :disabled="loadingTemplates"
+                  class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 flex items-center"
+                >
+                  <svg v-if="!loadingTemplates" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Refresh Status
+                </button>
+                <button
+                  @click="updateAllTemplates"
+                  :disabled="updatingTemplates"
+                  class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 flex items-center"
+                >
+                  <svg v-if="!updatingTemplates" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {{ updatingTemplates ? 'Updating...' : 'Check for Updates' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="mb-6 bg-blue-50 border-l-4 border-blue-400 rounded-md p-4">
+              <div class="flex">
+                <svg class="h-5 w-5 text-blue-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+                <div class="text-sm text-blue-800">
+                  <strong>About PDF Templates:</strong> These are official fillable PDF forms downloaded from IRS and USCIS. 
+                  The system automatically checks for updates every 24 hours. When a new version is detected (indicated by different revision or checksum), 
+                  the previous version is archived for reference.
+                </div>
+              </div>
+            </div>
+
+            <!-- Template Cards -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div 
+                v-for="(template, formType) in pdfTemplates" 
+                :key="formType"
+                class="bg-white border rounded-lg shadow-sm overflow-hidden"
+              >
+                <!-- Card Header -->
+                <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                  <div>
+                    <h4 class="font-semibold text-gray-900">{{ template.name }}</h4>
+                    <p class="text-xs text-gray-500">{{ template.agency }}</p>
+                  </div>
+                  <span 
+                    :class="[
+                      'px-2 py-1 text-xs rounded-full font-medium',
+                      template.exists ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    ]"
+                  >
+                    {{ template.exists ? 'Cached' : 'Not Downloaded' }}
+                  </span>
+                </div>
+
+                <!-- Card Body -->
+                <div class="p-4 space-y-3">
+                  <!-- Revision Info -->
+                  <div v-if="template.metadata?.pdfInfo?.revision" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    <span class="text-gray-600">Revision:</span>
+                    <span class="ml-2 font-medium text-gray-900">{{ template.metadata.pdfInfo.revision }}</span>
+                  </div>
+
+                  <!-- Page Count -->
+                  <div v-if="template.metadata?.pdfInfo?.pageCount" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span class="text-gray-600">Pages:</span>
+                    <span class="ml-2 font-medium text-gray-900">{{ template.metadata.pdfInfo.pageCount }}</span>
+                  </div>
+
+                  <!-- Form Fields -->
+                  <div v-if="template.metadata?.pdfInfo?.formFieldCount" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                    <span class="text-gray-600">Fillable Fields:</span>
+                    <span class="ml-2 font-medium text-gray-900">{{ template.metadata.pdfInfo.formFieldCount }}</span>
+                  </div>
+
+                  <!-- File Size -->
+                  <div v-if="template.metadata?.fileSize" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                    </svg>
+                    <span class="text-gray-600">Size:</span>
+                    <span class="ml-2 font-medium text-gray-900">{{ formatFileSize(template.metadata.fileSize) }}</span>
+                  </div>
+
+                  <!-- Downloaded -->
+                  <div v-if="template.metadata?.downloadedAt" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="text-gray-600">Downloaded:</span>
+                    <span class="ml-2 text-gray-900">{{ formatDate(template.metadata.downloadedAt) }}</span>
+                  </div>
+
+                  <!-- Last Checked -->
+                  <div v-if="template.metadata?.lastCheckedAt" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <span class="text-gray-600">Last Checked:</span>
+                    <span class="ml-2 text-gray-900">{{ formatDate(template.metadata.lastCheckedAt) }}</span>
+                  </div>
+
+                  <!-- Checksum (truncated) -->
+                  <div v-if="template.metadata?.checksum" class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span class="text-gray-600">Checksum:</span>
+                    <span class="ml-2 font-mono text-xs text-gray-900">{{ template.metadata.checksum.substring(0, 16) }}...</span>
+                  </div>
+
+                  <!-- Status Badges -->
+                  <div class="flex flex-wrap gap-2 mt-3">
+                    <span v-if="template.needsUpdate" class="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800">
+                      Update Check Due
+                    </span>
+                    <span v-if="template.isStale" class="px-2 py-1 text-xs rounded bg-orange-100 text-orange-800">
+                      Stale (30+ days old)
+                    </span>
+                    <span v-if="template.metadata?.lastError" class="px-2 py-1 text-xs rounded bg-red-100 text-red-800">
+                      Last Error: {{ template.metadata.lastError.substring(0, 30) }}...
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Card Footer - Actions -->
+                <div class="px-4 py-3 bg-gray-50 border-t flex justify-between items-center">
+                  <div class="flex space-x-2">
+                    <button
+                      v-if="template.exists"
+                      @click="previewTemplate(formType)"
+                      class="px-3 py-1.5 text-sm bg-primary text-white rounded hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      Preview PDF
+                    </button>
+                    <button
+                      @click="updateSingleTemplate(formType)"
+                      :disabled="updatingTemplates"
+                      class="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-100 focus:outline-none"
+                    >
+                      Update
+                    </button>
+                  </div>
+                  <span v-if="template.versionCount > 1" class="text-xs text-gray-500">
+                    {{ template.versionCount - 1 }} archived
+                  </span>
+                </div>
+
+                <!-- Archived Versions Expandable -->
+                <div v-if="template.archivedVersions && template.archivedVersions.length > 0">
+                  <button
+                    @click="toggleArchive(formType)"
+                    class="w-full px-4 py-2 text-sm text-left text-gray-600 hover:bg-gray-50 flex items-center justify-between border-t"
+                  >
+                    <span>View Archived Versions ({{ template.archivedVersions.length }})</span>
+                    <svg 
+                      class="w-4 h-4 transition-transform"
+                      :class="{ 'rotate-180': expandedArchives[formType] }"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  <div v-if="expandedArchives[formType]" class="px-4 pb-4 bg-gray-50 border-t">
+                    <div class="space-y-2 mt-2">
+                      <div 
+                        v-for="version in template.archivedVersions" 
+                        :key="version.filename"
+                        class="flex items-center justify-between py-2 px-3 bg-white rounded border text-sm"
+                      >
+                        <div>
+                          <div class="font-medium text-gray-900">{{ version.revision || 'Unknown Revision' }}</div>
+                          <div class="text-xs text-gray-500">
+                            {{ formatDate(version.archivedAt) }} • {{ formatFileSize(version.fileSize) }}
+                          </div>
+                        </div>
+                        <button
+                          @click="previewArchivedTemplate(formType, version.filename)"
+                          class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        >
+                          Preview
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- No templates state -->
+            <div v-if="Object.keys(pdfTemplates).length === 0 && !loadingTemplates" class="text-center py-12 text-gray-500">
+              <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p class="text-lg font-medium">No PDF templates loaded</p>
+              <p class="text-sm mt-2">Click "Check for Updates" to download the official IRS/USCIS forms</p>
+            </div>
+
+            <!-- Update Results -->
+            <div v-if="templateUpdateResults" class="mt-6">
+              <div :class="[
+                'rounded-lg p-4 border',
+                templateUpdateResults.success ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+              ]">
+                <h4 class="font-medium mb-2">{{ templateUpdateResults.message }}</h4>
+                <ul v-if="templateUpdateResults.updated && templateUpdateResults.updated.length > 0" class="text-sm space-y-1">
+                  <li v-for="type in templateUpdateResults.updated" :key="type" class="text-green-700">
+                    ✓ {{ type }} template updated
+                  </li>
+                </ul>
+                <ul v-if="templateUpdateResults.errors && templateUpdateResults.errors.length > 0" class="text-sm space-y-1 mt-2">
+                  <li v-for="err in templateUpdateResults.errors" :key="err.type" class="text-red-700">
+                    ✗ {{ err.type }}: {{ err.error }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -743,6 +1000,13 @@ const showFrontendStderr = ref(false)
 const updatingAdmin = ref(null)
 const currentUserId = ref(null)
 
+// PDF Templates state
+const pdfTemplates = ref({})
+const loadingTemplates = ref(false)
+const updatingTemplates = ref(false)
+const templateUpdateResults = ref(null)
+const expandedArchives = ref({})
+
 const stepNames = {
   1: 'W-4',
   2: 'I-9',
@@ -772,6 +1036,7 @@ onMounted(async () => {
   await loadSystemHealth()
   await loadAllSubmissions()
   await loadAllI9Documents()
+  await loadPdfTemplateStatus()
 })
 
 const loadDashboardStats = async () => {
@@ -847,6 +1112,9 @@ watch(activeTab, (newTab) => {
   if (newTab === 'documents') {
     loadAllSubmissions()
     loadAllI9Documents()
+  }
+  if (newTab === 'pdf-templates') {
+    loadPdfTemplateStatus()
   }
 })
 
@@ -944,6 +1212,78 @@ const formatDetails = (details) => {
   } catch {
     return details.substring(0, 100)
   }
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return 'N/A'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+}
+
+// PDF Template functions
+const loadPdfTemplateStatus = async () => {
+  loadingTemplates.value = true
+  try {
+    const response = await api.get('/admin/pdf-templates/status')
+    pdfTemplates.value = response.data.templates || {}
+  } catch (error) {
+    console.error('Error loading PDF template status:', error)
+  } finally {
+    loadingTemplates.value = false
+  }
+}
+
+const refreshTemplateStatus = async () => {
+  await loadPdfTemplateStatus()
+}
+
+const updateAllTemplates = async () => {
+  updatingTemplates.value = true
+  templateUpdateResults.value = null
+  try {
+    const response = await api.post('/admin/pdf-templates/update?force=true')
+    templateUpdateResults.value = response.data
+    await loadPdfTemplateStatus()
+  } catch (error) {
+    console.error('Error updating templates:', error)
+    templateUpdateResults.value = {
+      success: false,
+      message: error.response?.data?.error || 'Failed to update templates'
+    }
+  } finally {
+    updatingTemplates.value = false
+  }
+}
+
+const updateSingleTemplate = async (formType) => {
+  updatingTemplates.value = true
+  templateUpdateResults.value = null
+  try {
+    const response = await api.post(`/admin/pdf-templates/update?formType=${formType}&force=true`)
+    templateUpdateResults.value = response.data
+    await loadPdfTemplateStatus()
+  } catch (error) {
+    console.error(`Error updating ${formType} template:`, error)
+    templateUpdateResults.value = {
+      success: false,
+      message: error.response?.data?.error || `Failed to update ${formType} template`
+    }
+  } finally {
+    updatingTemplates.value = false
+  }
+}
+
+const previewTemplate = (formType) => {
+  window.open(`/api/admin/pdf-templates/${formType}/preview`, '_blank')
+}
+
+const previewArchivedTemplate = (formType, filename) => {
+  window.open(`/api/admin/pdf-templates/${formType}/archive/${encodeURIComponent(filename)}`, '_blank')
+}
+
+const toggleArchive = (formType) => {
+  expandedArchives.value[formType] = !expandedArchives.value[formType]
 }
 
 const toggleAdminStatus = async (user) => {
