@@ -284,19 +284,54 @@ Use Tailwind config colors from `frontend/tailwind.config.js`:
 
 ## Git Workflow
 
+### Commit Philosophy
+- **DO NOT commit automatically** - Always itemize changes first and let the user review before committing
+- **Atomic commits are mandatory**: Each commit should represent ONE logical change that can be reverted independently
+- **Separate features from implementation details**: Break work into logical units based on:
+  1. **Feature commits**: User-facing functionality (e.g., "add address validation")
+  2. **Fix commits**: Bug fixes (e.g., "fix Google Drive credential check")
+  3. **Refactor commits**: Code improvements without behavior change
+  4. **Style commits**: UI/UX changes
+  5. **Docs commits**: Documentation updates
+
 ### Commit Structure
-- **Use atomic commits**: Each commit should represent a single, logical change
 - **Follow Conventional Commits**: Use the conventional commit format
   - Format: `<type>(<scope>): <description>`
   - Types: `feat`, `fix`, `test`, `docs`, `style`, `refactor`, `perf`, `chore`
   - Examples:
     - `feat(auth): add rate limiting for signup endpoint`
     - `fix(forms): resolve 429 error on account creation`
-    - `test(backend): add unit tests for auth routes`
-    - `style(forms): standardize auto-filled field labeling`
-    - `refactor(forms): improve I-9 document option visibility`
-- **Break large changes into smaller commits**: Each commit should be reviewable and revertible independently
-- **Write clear commit messages**: Describe what and why, not how (code shows how)
+    - `fix(gdrive): check credential values not just row existence`
+    - `style(forms): simplify address section for first-time users`
+    - `refactor(address): streamline AddressSearch component`
+- **Small, clear, concise commits**: Each commit message should be under 72 characters
+- **One concern per commit**: Don't mix unrelated changes
+
+### Breaking Down Changes
+When implementing a feature request, separate commits by:
+1. **Backend changes** (routes, services, database)
+2. **Frontend changes** (components, views, stores)
+3. **Bug fixes** (separate from feature work)
+4. **Documentation updates** (README, CONTRIBUTING, etc.)
+5. **Style/UI improvements** (separate from functionality)
+
+Example breakdown for "Add Google Drive folder browser":
+```
+fix(gdrive): validate credential values before upload attempt
+feat(gdrive): add folder listing endpoint
+feat(gdrive): add folder info endpoint  
+feat(settings): add folder browser UI component
+feat(settings): add API connection test buttons
+docs(readme): document new Google Drive endpoints
+```
+
+### Commit Preparation Process
+1. **Itemize all changes** made during the session
+2. **Group by logical concern** (feature, fix, refactor, etc.)
+3. **Order for safe reversion** (dependencies first)
+4. **Present to user for review** before any commits
+5. **User approves or modifies** the commit plan
+6. **Execute commits** one at a time with clear messages
 
 ### Files to Exclude
 - Don't commit `.env` files

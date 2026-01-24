@@ -19,7 +19,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **6-step form workflow**: W-4, I-9, Background Check, Direct Deposit, Acknowledgements, Form 8850
 - **US Phone Number Validation**: Auto-formats to (XXX) XXX-XXXX with validation
 - **Email Validation**: Real-time email format validation
-- **Google Maps Address Search**: Autocomplete address search with auto-fill of city, state, and zip
+- **Google Address Validation**: Address validation with auto-fill of city, state, and zip code (optional API - falls back to manual parsing when not configured)
 - **Comprehensive Disclaimers**: All disclaimers from original JotForms included
 - **SSN Privacy Protection**: SSNs only included in PDFs, never stored in database
 
@@ -27,13 +27,16 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data
 - **Automatic Template Updates**: Checks for new form versions daily, downloads and caches updates
 - **Template Version History**: Archives previous template versions when updates are detected, allowing admin preview of historical forms
-- Google Drive integration for document storage (with local fallback)
+- **Google Drive Integration**: Document storage with direct Google Drive links for viewing files
 - **Local Storage Fallback**: When Google Drive credentials are not configured, encrypted PDFs are stored locally
+- **Direct Document Links**: When Google Drive is configured, document links go directly to Google Drive for viewing
 - SQLite database (SSN-free design)
 - Full audit logging for compliance
 - Automated document retention management
 - AES-256-GCM encryption for sensitive documents and settings
 - Session-based authentication
+- **Admin Settings Panel**: Central configuration for Google Drive and Address Validation APIs with status indicators and connection test buttons
+- **Google Drive Folder Browser**: Browse and search your Google Drive folders to select a base folder for document storage
 - **Liability Compliance Checker**: Comprehensive compliance verification for Federal and South Dakota state requirements
 
 ## Tech Stack
@@ -43,7 +46,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Database**: SQLite (better-sqlite3)
 - **PDF**: pdf-lib
 - **Storage**: Google Drive API
-- **Maps**: Google Maps Places API (for address autocomplete)
+- **Address Validation**: Google Address Validation API (optional - for address verification and auto-fill with fallback to manual entry)
 - **Encryption**: AES-256-GCM
 
 ## Project Structure
@@ -106,7 +109,8 @@ opcs-onboarding-system/
 │   │   │   ├── LoginView.vue
 │   │   │   ├── FormWizardView.vue
 │   │   │   ├── DashboardView.vue
-│   │   │   └── SettingsView.vue
+│   │   │   ├── AdminDashboardView.vue
+│   │   │   └── SettingsView.vue    # Admin-only settings page
 │   │   └── router/
 │   │       └── index.js
 │   └── package.json
@@ -151,14 +155,21 @@ This will start:
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project or select existing
    - Enable Google Drive API
-   - Create OAuth 2.0 credentials
-   - Generate refresh token using OAuth2 flow
-   - Add credentials in Settings page (Settings → Google Drive API Configuration)
+   - Create OAuth 2.0 credentials (Web application type)
+   - Add `http://localhost:3000/oauth2callback` as an authorized redirect URI
+   - Use the [OAuth Playground](https://developers.google.com/oauthplayground/) to generate a refresh token
+   - Add credentials in Settings page (Admin → Settings):
+     - **Google OAuth Client ID**: Your OAuth client ID
+     - **Google OAuth Client Secret**: Your OAuth client secret
+     - **Google OAuth Refresh Token**: Token from OAuth Playground
+     - **Google Drive Base Folder ID** (optional): Click "Browse..." to browse and select a folder from your Google Drive, or leave empty to use root
+   - **Test Connection**: Click "Test Connection" to verify your Google Drive credentials are working
 
-2. **Google Maps API (Optional but recommended):**
-   - In same Google Cloud project, enable Places API
-   - Create API key
-   - Add API key in Settings page (Settings → Google Maps API Configuration)
+2. **Google Address Validation API (Optional but recommended):**
+   - In same Google Cloud project, enable Address Validation API
+   - Create API key (restrict to your domain for security)
+   - Add API key in Settings page (Admin → Settings → Google Address Validation API Key)
+   - **Test Connection**: Click "Test Connection" to verify your API key is working (tests with a sample US address)
 
 ## Usage
 
@@ -178,7 +189,7 @@ This will start:
 2. **Password Setup**: Admin users must set a password (minimum 8 characters) on first login
 3. **Configure Settings**: Go to Settings page to add:
    - Google Drive API credentials (required for document storage)
-   - Google Maps API key (optional, for address autocomplete)
+   - Google Address Validation API key (optional, for address validation and auto-fill)
 4. **View Dashboard**: Monitor applicant progress and document submissions with priority-based alerts
 5. **Document Access**: View all form submissions and I-9 documents with advanced filtering
 6. **Admin Tools**: Use admin utilities to normalize data, fix admin assignments, and diagnose login issues
@@ -244,10 +255,14 @@ This system is designed to comply with:
 
 ### Forms
 - `POST /api/forms/submit/:step` - Submit form step (1-6)
-- `GET /api/forms/submissions` - Get all form submissions
+- `GET /api/forms/submissions` - Get all form submissions (includes `web_view_link` for Google Drive direct links)
+- `GET /api/forms/submissions/:id/view` - View form submission PDF (or redirects to Google Drive if `web_view_link` available)
 - `POST /api/forms/draft/:step` - Save draft for step
 - `GET /api/forms/draft/:step` - Load draft for step
 - `GET /api/forms/drafts` - Get all drafts
+- `POST /api/forms/i9/upload-document` - Upload I-9 identity document
+- `GET /api/forms/i9/documents` - Get all I-9 documents (includes `web_view_link` for Google Drive direct links)
+- `GET /api/forms/i9/documents/:id/view` - View I-9 document (or redirects to Google Drive if `web_view_link` available)
 
 ### Applicants
 - `GET /api/applicants/me` - Get current applicant data
@@ -256,8 +271,19 @@ This system is designed to comply with:
 
 ### Settings
 - `GET /api/settings` - Get all settings (authenticated)
-- `GET /api/settings/google-maps-key` - Get Google Maps API key (authenticated)
+- `GET /api/settings/google-address-validation-key` - Get Google Address Validation API key (authenticated)
 - `POST /api/settings` - Update settings (admin only)
+  - Settings keys: `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`
+- `GET /api/settings/google-drive/folders` - List Google Drive folders (admin only)
+- `GET /api/settings/google-drive/folder/:id` - Get folder info (admin only)
+- `GET /api/settings/google-drive/browse` - Browse Google Drive folders with search (admin only)
+  - Query params: `parentId` (folder to browse, default: 'root'), `search` (search folders by name)
+- `POST /api/settings/test/google-drive` - Test Google Drive API connection (admin only)
+- `POST /api/settings/test/address-validation` - Test Google Address Validation API connection (admin only)
+
+### Address Validation
+- `POST /api/address/validate` - Validate an address using Google Address Validation API (authenticated)
+- `GET /api/address/status` - Check if address validation is configured (authenticated)
 
 ### Admin (Admin Only)
 - `GET /api/admin/dashboard` - Get dashboard statistics
@@ -333,10 +359,16 @@ If ports 3000 or 9999 are in use:
 - Ensure Google Drive API is enabled in Cloud Console
 - **Local Storage Fallback**: If Google Drive is not configured, PDFs are automatically stored locally in `backend/storage/encrypted-pdfs/` and `backend/storage/encrypted-i9-docs/`. The system will log when local storage is used.
 
-### Address Autocomplete Not Working
-- Verify Google Maps API key is set in Settings
-- Ensure Places API is enabled in Google Cloud Console
+### Address Validation Not Working
+- Verify Google Address Validation API key is set in Settings
+- Ensure Address Validation API is enabled in Google Cloud Console
 - Check browser console for API errors
+- Note: Address Validation API requires billing to be enabled in your Google Cloud project
+- **Fallback Behavior**: If the API is not configured or fails, the system automatically falls back to manual address parsing. Users can:
+  - Click "Parse Address" to attempt to extract city, state, and zip from a typed address
+  - Click "Enter address components manually" to manually fill in all fields
+  - Edit any auto-parsed fields as needed
+- Address data is saved to documents regardless of whether validation was used
 
 ### PDF Template Issues
 - **Templates not downloading**: Check network connectivity to IRS (irs.gov) and USCIS (uscis.gov) servers
