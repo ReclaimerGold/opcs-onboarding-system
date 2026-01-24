@@ -16,6 +16,7 @@ import {
   getArchivedVersions,
   getTemplateDirectory
 } from '../services/pdfTemplateService.js'
+import { runAllComplianceChecks } from '../services/complianceService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -1077,6 +1078,42 @@ router.post('/tests/run', async (req, res) => {
     console.error('Test execution error:', error)
     res.status(500).json({
       error: 'Failed to run tests',
+      message: error.message
+    })
+  }
+})
+
+/**
+ * GET /api/admin/compliance-check
+ * Run comprehensive compliance check for Federal and South Dakota state requirements
+ * Verifies SSN protection, document retention, encryption, audit logging, and more
+ */
+router.get('/compliance-check', async (req, res) => {
+  try {
+    // Run all compliance checks
+    const complianceReport = await runAllComplianceChecks()
+    
+    // Audit log the compliance check
+    await auditLog({
+      userId: req.applicantId,
+      action: 'COMPLIANCE_CHECK',
+      resourceType: 'SYSTEM',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: {
+        complianceScore: complianceReport.summary.complianceScore,
+        status: complianceReport.summary.status,
+        criticalIssues: complianceReport.summary.criticalIssues,
+        timestamp: complianceReport.timestamp
+      }
+    })
+    
+    res.json(complianceReport)
+  } catch (error) {
+    console.error('Compliance check error:', error)
+    res.status(500).json({
+      error: 'Failed to run compliance check',
       message: error.message
     })
   }

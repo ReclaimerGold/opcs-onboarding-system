@@ -34,6 +34,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - Automated document retention management
 - AES-256-GCM encryption for sensitive documents and settings
 - Session-based authentication
+- **Liability Compliance Checker**: Comprehensive compliance verification for Federal and South Dakota state requirements
 
 ## Tech Stack
 
@@ -170,6 +171,7 @@ This will start:
 4. **View Dashboard**: Monitor applicant progress and document submissions
 5. **Document Access**: View all form submissions and I-9 documents for all applicants
 6. **Admin Tools**: Use admin utilities to normalize data, fix admin assignments, and diagnose login issues
+7. **Compliance Checker**: Run comprehensive compliance checks to verify Federal and SD state requirements
 
 ## Form Steps
 
@@ -240,6 +242,7 @@ This system is designed to comply with:
 - `GET /api/admin/pdf-templates/:formType/preview` - Preview/download current PDF template (W4, I9, 8850)
 - `GET /api/admin/pdf-templates/:formType/archive` - List archived versions of a template
 - `GET /api/admin/pdf-templates/:formType/archive/:filename` - Preview/download an archived template version
+- `GET /api/admin/compliance-check` - Run comprehensive compliance check for Federal and SD state requirements
 
 ## Development
 

@@ -438,6 +438,13 @@ All of the following events must be logged:
    - Function: `calculateRetentionDate()`
    - Calculates retention based on form type and employment dates
 
+6. **Liability Compliance Checker**
+   - Location: `backend/src/services/complianceService.js`
+   - Frontend: `frontend/src/components/admin/ComplianceChecker.vue`
+   - API Endpoint: `GET /api/admin/compliance-check`
+   - Comprehensive verification of all compliance requirements
+   - See [Compliance Checker](#compliance-checker) section below
+
 ### Database Schema Compliance
 
 - **No SSN Fields**: Database schema excludes SSN fields
@@ -451,6 +458,100 @@ All of the following events must be logged:
 - **Integration Tests**: Test document deletion after retention
 - **Security Tests**: Verify encryption and SSN protection
 - **Audit Tests**: Verify all events are logged
+
+---
+
+## Compliance Checker
+
+The system includes a comprehensive **Liability Compliance Checker** that verifies all Federal and South Dakota state requirements for information storage. This tool is available in the Admin Dashboard under the "Compliance" tab.
+
+### How to Use
+
+1. Navigate to **Admin Dashboard** → **Compliance** tab
+2. Click **"Run Compliance Check"** button
+3. Review the results grouped by category
+4. Address any critical or warning issues identified
+
+### Checks Performed
+
+The compliance checker verifies the following categories:
+
+#### SSN Protection
+- **SSN Schema Protection**: Verifies no SSN-related columns exist in database tables
+- **SSN Data Protection**: Scans form_data JSON for potential SSN values stored in database
+
+#### Privacy & Data Protection
+- **Privacy Consent Records**: Verifies consent records exist for SSN collection
+- **Data Minimization**: Confirms only necessary PII is stored
+
+#### Document Retention
+- **Document Retention Dates**: Validates retention dates are calculated correctly per federal requirements
+- **Expired Document Cleanup**: Checks for expired documents that should have been deleted
+
+#### Encryption
+- **Encryption Key Configuration**: Verifies encryption key is configured
+- **Settings Encryption**: Checks that sensitive settings are encrypted
+- **I-9 Document Encryption**: Verifies I-9 identity documents are encrypted
+
+#### Audit Logging
+- **Audit Log Completeness**: Verifies all required audit events are logged
+- **Audit Log Structure**: Confirms audit log table has all required columns
+
+#### Database Schema
+- **Required Database Tables**: Verifies all required tables exist
+- **Foreign Key Constraints**: Checks that foreign keys are enabled
+- **Database Indexes**: Verifies recommended indexes exist
+
+#### South Dakota State
+- **SD Data Breach Notification Readiness**: Verifies compliance with SDCL 22-40-20
+- **SD Employment Record Compliance**: Confirms federal requirements (which SD follows) are met
+
+### Compliance Status
+
+The checker provides three status levels:
+
+| Status | Description |
+|--------|-------------|
+| **COMPLIANT** | All checks passed, no issues found |
+| **WARNING** | Some non-critical issues found, should be addressed |
+| **CRITICAL** | Critical compliance issues found, must be addressed immediately |
+
+### Compliance Score
+
+The compliance score is calculated as:
+```
+Score = (Passed Checks / Total Checks) × 100%
+```
+
+- **90-100%**: Excellent compliance (green)
+- **70-89%**: Acceptable with warnings (yellow)
+- **Below 70%**: Critical issues requiring attention (red)
+
+### Export Report
+
+Click the **"Export Report (JSON)"** button to download a complete compliance report for documentation and audit purposes.
+
+### Regulations Verified
+
+**Federal:**
+- IRCA / 8 CFR 274a.2 (I-9)
+- IRS 26 CFR 31.6001-1 (W-4)
+- FCRA 15 U.S.C. § 1681 (Background)
+- FLSA 29 CFR Part 516 (Payroll)
+- EEOC 29 CFR 1602 (Employment Records)
+
+**South Dakota State:**
+- SDCL 22-40-20 (Data Breach Notification)
+- South Dakota Right to Work Law
+
+### Recommended Schedule
+
+| Check Type | Frequency |
+|------------|-----------|
+| Quick Check | Weekly |
+| Full Compliance Review | Monthly |
+| Detailed Audit | Quarterly |
+| Export for Records | After any significant changes |
 
 ---
 
