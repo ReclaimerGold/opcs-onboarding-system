@@ -74,10 +74,10 @@ export function checkSSNInSchema() {
 
   for (const table of tables) {
     const columns = db.prepare(`PRAGMA table_info(${table.name})`).all()
-    
+
     for (const column of columns) {
       const colNameLower = column.name.toLowerCase()
-      
+
       for (const forbidden of FORBIDDEN_COLUMNS) {
         if (colNameLower.includes(forbidden)) {
           passed = false
@@ -290,7 +290,7 @@ export function checkRetentionDates() {
 
   for (const submission of submissions) {
     checkedCount++
-    
+
     // Recalculate expected retention date
     const expectedRetention = calculateRetentionDate(
       submission.form_type,
@@ -839,7 +839,7 @@ export function checkDatabaseIndexes() {
   const missingIndexes = []
 
   for (const req of requiredIndexes) {
-    const hasIndex = indexNames.some(name => 
+    const hasIndex = indexNames.some(name =>
       name.includes(req.table) && name.includes(req.column)
     )
     if (!hasIndex) {
@@ -1030,35 +1030,35 @@ export function checkDataMinimization() {
  */
 export async function runAllComplianceChecks() {
   const startTime = Date.now()
-  
+
   // Run all checks
   const checks = [
     // SSN Protection
     checkSSNInSchema(),
     checkSSNInFormData(),
-    
+
     // Privacy & Data Protection
     checkPrivacyConsents(),
     checkDataMinimization(),
-    
+
     // Document Retention
     checkRetentionDates(),
     checkExpiredDocuments(),
-    
+
     // Encryption
     checkEncryptionKey(),
     checkEncryptedSettings(),
     checkI9DocumentsEncryption(),
-    
+
     // Audit Logging
     checkAuditLogCompleteness(),
     checkAuditLogStructure(),
-    
+
     // Database Schema
     checkRequiredTables(),
     checkForeignKeys(),
     checkDatabaseIndexes(),
-    
+
     // South Dakota State
     checkSDBreachReadiness(),
     checkSDEmploymentRecords()
