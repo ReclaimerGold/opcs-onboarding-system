@@ -4,10 +4,12 @@ import { sharedRules, sharedLanguageOptions } from "../eslint.config.js";
 
 export default [
   {
-    files: ["**/*.{js,vue,ts}"],
+    files: ["**/*.{js,vue}"],
     ignores: ["node_modules/**"],
     languageOptions: {
       ...sharedLanguageOptions,
+      // TypeScript support: vue-tsc handles type checking.
+      // Add @typescript-eslint/parser when TS linting is needed.
       parser: vueParser,
       globals: {
         window: "readonly",
