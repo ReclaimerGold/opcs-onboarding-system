@@ -16,11 +16,27 @@ router.use(requireAuth)
 /**
  * GET /api/diagnostics/export
  * Export comprehensive diagnostic information optimized for Cursor
+ * Query params:
+ *   - includeTestResults: if true, will attempt to run tests and include results
+ *   - testResults: JSON string of test results to include (optional)
  */
 router.get('/export', async (req, res) => {
   try {
     const db = getDatabase()
     const timestamp = new Date().toISOString()
+    const includeTestResults = req.query.includeTestResults === 'true'
+    let testResults = null
+    
+    // Get test results if requested
+    if (includeTestResults || req.query.testResults) {
+      if (req.query.testResults) {
+        try {
+          testResults = JSON.parse(req.query.testResults)
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
     
     // System Health
     const tableCounts = {
@@ -163,6 +179,40 @@ ${recentErrors.length > 0
 - PORT: ${process.env.PORT || '3000 (default)'}
 - Database Path: ${dbPath}
 
+${testResults ? `### Unit Test Results
+Generated: ${testResults.timestamp || 'N/A'}
+
+#### Backend Tests
+${testResults.backend ? `
+- Status: ${testResults.backend.success ? '✅ Passed' : '❌ Failed'}
+${testResults.backend.output ? `
+- Total Tests: ${testResults.backend.output.numTotalTests || 'N/A'}
+- Passed: ${testResults.backend.output.numPassedTests || 'N/A'}
+- Failed: ${testResults.backend.output.numFailedTests || 'N/A'}
+- Test Suites: ${testResults.backend.output.numTotalTestSuites || 'N/A'}
+- Passed Suites: ${testResults.backend.output.numPassedTestSuites || 'N/A'}
+- Failed Suites: ${testResults.backend.output.numFailedTestSuites || 'N/A'}
+` : ''}
+${testResults.backend.error ? `- Error: ${testResults.backend.error}` : ''}
+${testResults.backend.rawOutput ? `\n\`\`\`\n${testResults.backend.rawOutput.substring(0, 2000)}\n\`\`\`` : ''}
+` : '- No backend test results available'}
+
+#### Frontend Tests
+${testResults.frontend ? `
+- Status: ${testResults.frontend.success ? '✅ Passed' : '❌ Failed'}
+${testResults.frontend.output ? `
+- Total Test Suites: ${testResults.frontend.output.numTotalTestSuites || 'N/A'}
+- Total Tests: ${testResults.frontend.output.numTotalTests || 'N/A'}
+- Passed: ${testResults.frontend.output.numPassedTests || 'N/A'}
+- Failed: ${testResults.frontend.output.numFailedTests || 'N/A'}
+- Passed Suites: ${testResults.frontend.output.numPassedTestSuites || 'N/A'}
+- Failed Suites: ${testResults.frontend.output.numFailedTestSuites || 'N/A'}
+` : ''}
+${testResults.frontend.error ? `- Error: ${testResults.frontend.error}` : ''}
+${testResults.frontend.rawOutput ? `\n\`\`\`\n${testResults.frontend.rawOutput.substring(0, 2000)}\n\`\`\`` : ''}
+` : '- No frontend test results available'}
+` : ''}
+
 ---
 *End of diagnostic export*
 `
@@ -197,7 +247,8 @@ ${recentErrors.length > 0
         recentErrors: recentErrors.map(err => ({
           ...err,
           details: err.details ? JSON.parse(err.details) : {}
-        }))
+        })),
+        testResults: testResults || null
       }
     })
   } catch (error) {

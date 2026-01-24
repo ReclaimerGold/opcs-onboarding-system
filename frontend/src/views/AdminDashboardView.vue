@@ -3,7 +3,12 @@
     <nav class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-          <div class="flex items-center">
+          <div class="flex items-center space-x-3">
+            <img 
+              src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
+              alt="Optimal Prime Services Logo" 
+              class="h-10 w-auto"
+            />
             <h1 class="text-xl font-semibold text-gray-900">Admin Dashboard</h1>
           </div>
           <div class="flex items-center space-x-4">
@@ -16,7 +21,7 @@
     </nav>
     
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Export Diagnostics Button -->
+      <!-- Action Buttons -->
       <div class="mb-6 flex justify-end">
         <button
           @click="exportDiagnostics"
@@ -30,6 +35,7 @@
           <span v-else>Export Diagnostics for Cursor</span>
         </button>
       </div>
+
 
       <!-- Dashboard Stats -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -145,6 +151,28 @@
               ]"
             >
               System Health
+            </button>
+            <button
+              @click="activeTab = 'tests'"
+              :class="[
+                'px-6 py-3 text-sm font-medium border-b-2',
+                activeTab === 'tests'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ]"
+            >
+              Tests
+            </button>
+            <button
+              @click="activeTab = 'documents'"
+              :class="[
+                'px-6 py-3 text-sm font-medium border-b-2',
+                activeTab === 'documents'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ]"
+            >
+              Documents
             </button>
           </nav>
         </div>
@@ -300,6 +328,351 @@
             </div>
           </div>
 
+          <!-- Documents Tab -->
+          <div v-if="activeTab === 'documents'">
+            <div class="mb-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">All Documents</h3>
+              
+              <!-- Tabs for Documents -->
+              <div class="border-b border-gray-200 mb-4">
+                <nav class="flex -mb-px">
+                  <button
+                    @click="documentTab = 'submissions'"
+                    :class="[
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      documentTab === 'submissions'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ]"
+                  >
+                    Form Submissions ({{ allSubmissions.length }})
+                  </button>
+                  <button
+                    @click="documentTab = 'i9'"
+                    :class="[
+                      'px-4 py-2 text-sm font-medium border-b-2',
+                      documentTab === 'i9'
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ]"
+                  >
+                    I-9 Documents ({{ allI9Documents.length }})
+                  </button>
+                </nav>
+              </div>
+            </div>
+
+            <!-- Form Submissions -->
+            <div v-if="documentTab === 'submissions'">
+              <div v-if="allSubmissions.length === 0" class="text-center py-8 text-gray-500">
+                <p>No form submissions found.</p>
+              </div>
+              <div v-else class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Retention Until</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="submission in allSubmissions" :key="submission.id">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">{{ submission.first_name }} {{ submission.last_name }}</div>
+                        <div class="text-sm text-gray-500">{{ submission.email }}</div>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {{ getStepName(submission.step_number) }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ submission.pdf_filename }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ formatDate(submission.submitted_at) }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ formatDate(submission.retention_until) }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <a
+                          :href="`/api/forms/submissions/${submission.id}/view`"
+                          target="_blank"
+                          class="text-primary hover:text-primary-light hover:underline"
+                        >
+                          View PDF
+                        </a>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- I-9 Documents -->
+            <div v-if="documentTab === 'i9'">
+              <div v-if="allI9Documents.length === 0" class="text-center py-8 text-gray-500">
+                <p>No I-9 documents found.</p>
+              </div>
+              <div v-else class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document Type</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="doc in allI9Documents" :key="doc.id">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">{{ doc.first_name }} {{ doc.last_name }}</div>
+                        <div class="text-sm text-gray-500">{{ doc.email }}</div>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ doc.document_type || 'N/A' }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span :class="[
+                          'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
+                          doc.document_category === 'listA' ? 'bg-green-100 text-green-800' :
+                          doc.document_category === 'listB' ? 'bg-blue-100 text-blue-800' :
+                          'bg-purple-100 text-purple-800'
+                        ]">
+                          {{ doc.document_category === 'listA' ? 'List A' : doc.document_category === 'listB' ? 'List B' : 'List C' }}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ doc.file_name }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ formatDate(doc.uploaded_at) }}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          @click="viewI9Document(doc.id)"
+                          class="text-primary hover:text-primary-light hover:underline"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tests Tab -->
+          <div v-if="activeTab === 'tests'">
+            <div class="mb-6 flex justify-between items-center">
+              <h3 class="text-lg font-semibold text-gray-900">Unit Tests</h3>
+              <button
+                @click="runTests"
+                :disabled="runningTests"
+                class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 flex items-center"
+              >
+                <svg v-if="!runningTests" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span v-if="runningTests">Running Tests...</span>
+                <span v-else>Run All Tests</span>
+              </button>
+            </div>
+
+            <div v-if="!testResults && !runningTests" class="text-center py-12 text-gray-500">
+              <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p class="text-lg font-medium">No test results yet</p>
+              <p class="text-sm mt-2">Click "Run All Tests" to execute backend and frontend unit tests</p>
+            </div>
+
+            <div v-if="testResults" class="space-y-6">
+              <div class="text-sm text-gray-500 mb-4">
+                Last run: {{ formatDate(testResults.timestamp) }}
+              </div>
+
+              <!-- Backend Tests -->
+              <div class="border rounded-lg p-6" :class="testResults.backend?.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
+                <div class="flex items-center justify-between mb-4">
+                  <h4 class="text-lg font-semibold text-gray-900">Backend Tests</h4>
+                  <span :class="testResults.backend?.success ? 'text-green-700 font-bold' : 'text-red-700 font-bold'">
+                    {{ testResults.backend?.success ? '✅ Passed' : '❌ Failed' }}
+                  </span>
+                </div>
+
+                <!-- Test Summary -->
+                <div v-if="testResults.backend?.output" class="mb-4 p-4 bg-white rounded border">
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span class="text-gray-600">Total Tests:</span>
+                      <span class="ml-2 font-semibold">{{ testResults.backend.output.numTotalTests || 'N/A' }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">Passed:</span>
+                      <span class="ml-2 font-semibold text-green-700">{{ testResults.backend.output.numPassedTests || 0 }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">Failed:</span>
+                      <span class="ml-2 font-semibold text-red-700">{{ testResults.backend.output.numFailedTests || 0 }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">Suites:</span>
+                      <span class="ml-2 font-semibold">{{ testResults.backend.output.numTotalTestSuites || 'N/A' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Error Message -->
+                <div v-if="testResults.backend?.error" class="mb-4 p-4 bg-red-100 border border-red-300 rounded">
+                  <div class="flex items-start">
+                    <svg class="h-5 w-5 text-red-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                    <div class="flex-1">
+                      <p class="font-semibold text-red-900">Error:</p>
+                      <p class="text-red-800 text-sm mt-1">{{ testResults.backend.error }}</p>
+                      <p v-if="testResults.backend.code" class="text-red-700 text-xs mt-1">Exit Code: {{ testResults.backend.code }}</p>
+                      <p v-if="testResults.backend.signal" class="text-red-700 text-xs mt-1">Signal: {{ testResults.backend.signal }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Command Used -->
+                <div v-if="testResults.backend?.command" class="mb-4 text-xs text-gray-600">
+                  <strong>Command:</strong> <code class="bg-gray-100 px-2 py-1 rounded">{{ testResults.backend.command }}</code>
+                </div>
+
+                <!-- Verbose Output -->
+                <div class="mb-4">
+                  <button
+                    @click="showBackendOutput = !showBackendOutput"
+                    class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 mb-2"
+                  >
+                    <svg class="w-4 h-4 mr-1" :class="showBackendOutput ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    {{ showBackendOutput ? 'Hide' : 'Show' }} Verbose Output
+                  </button>
+                  <div v-if="showBackendOutput" class="bg-gray-900 text-green-400 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                    <pre class="whitespace-pre-wrap">{{ testResults.backend.rawOutput || 'No output available' }}</pre>
+                  </div>
+                </div>
+
+                <!-- Stderr Output -->
+                <div v-if="testResults.backend?.stderr" class="mb-4">
+                  <button
+                    @click="showBackendStderr = !showBackendStderr"
+                    class="flex items-center text-sm font-medium text-red-700 hover:text-red-900 mb-2"
+                  >
+                    <svg class="w-4 h-4 mr-1" :class="showBackendStderr ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    {{ showBackendStderr ? 'Hide' : 'Show' }} Error Output (stderr)
+                  </button>
+                  <div v-if="showBackendStderr" class="bg-red-900 text-red-100 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                    <pre class="whitespace-pre-wrap">{{ testResults.backend.stderr }}</pre>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Frontend Tests -->
+              <div class="border rounded-lg p-6" :class="testResults.frontend?.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
+                <div class="flex items-center justify-between mb-4">
+                  <h4 class="text-lg font-semibold text-gray-900">Frontend Tests</h4>
+                  <span :class="testResults.frontend?.success ? 'text-green-700 font-bold' : 'text-red-700 font-bold'">
+                    {{ testResults.frontend?.success ? '✅ Passed' : '❌ Failed' }}
+                  </span>
+                </div>
+
+                <!-- Test Summary -->
+                <div v-if="testResults.frontend?.output" class="mb-4 p-4 bg-white rounded border">
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span class="text-gray-600">Total Suites:</span>
+                      <span class="ml-2 font-semibold">{{ testResults.frontend.output.numTotalTestSuites || 'N/A' }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">Total Tests:</span>
+                      <span class="ml-2 font-semibold">{{ testResults.frontend.output.numTotalTests || 'N/A' }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">Passed:</span>
+                      <span class="ml-2 font-semibold text-green-700">{{ testResults.frontend.output.numPassedTests || 0 }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">Failed:</span>
+                      <span class="ml-2 font-semibold text-red-700">{{ testResults.frontend.output.numFailedTests || 0 }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Error Message -->
+                <div v-if="testResults.frontend?.error" class="mb-4 p-4 bg-red-100 border border-red-300 rounded">
+                  <div class="flex items-start">
+                    <svg class="h-5 w-5 text-red-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                    <div class="flex-1">
+                      <p class="font-semibold text-red-900">Error:</p>
+                      <p class="text-red-800 text-sm mt-1">{{ testResults.frontend.error }}</p>
+                      <p v-if="testResults.frontend.code" class="text-red-700 text-xs mt-1">Exit Code: {{ testResults.frontend.code }}</p>
+                      <p v-if="testResults.frontend.signal" class="text-red-700 text-xs mt-1">Signal: {{ testResults.frontend.signal }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Command Used -->
+                <div v-if="testResults.frontend?.command" class="mb-4 text-xs text-gray-600">
+                  <strong>Command:</strong> <code class="bg-gray-100 px-2 py-1 rounded">{{ testResults.frontend.command }}</code>
+                </div>
+
+                <!-- Verbose Output -->
+                <div class="mb-4">
+                  <button
+                    @click="showFrontendOutput = !showFrontendOutput"
+                    class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 mb-2"
+                  >
+                    <svg class="w-4 h-4 mr-1" :class="showFrontendOutput ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    {{ showFrontendOutput ? 'Hide' : 'Show' }} Verbose Output
+                  </button>
+                  <div v-if="showFrontendOutput" class="bg-gray-900 text-green-400 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                    <pre class="whitespace-pre-wrap">{{ testResults.frontend.rawOutput || 'No output available' }}</pre>
+                  </div>
+                </div>
+
+                <!-- Stderr Output -->
+                <div v-if="testResults.frontend?.stderr" class="mb-4">
+                  <button
+                    @click="showFrontendStderr = !showFrontendStderr"
+                    class="flex items-center text-sm font-medium text-red-700 hover:text-red-900 mb-2"
+                  >
+                    <svg class="w-4 h-4 mr-1" :class="showFrontendStderr ? 'transform rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    {{ showFrontendStderr ? 'Hide' : 'Show' }} Error Output (stderr)
+                  </button>
+                  <div v-if="showFrontendStderr" class="bg-red-900 text-red-100 p-4 rounded font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                    <pre class="whitespace-pre-wrap">{{ testResults.frontend.stderr }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- System Health Tab -->
           <div v-if="activeTab === 'system-health'">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
@@ -342,7 +715,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
@@ -351,15 +724,37 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const activeTab = ref('login-attempts')
+const documentTab = ref('submissions')
 const dashboardStats = ref({})
 const loginAttempts = ref([])
 const onboardingStatus = ref([])
 const auditLogs = ref([])
 const systemHealth = ref({})
+const allSubmissions = ref([])
+const allI9Documents = ref([])
 const loginFilter = ref('')
 const exporting = ref(false)
+const runningTests = ref(false)
+const testResults = ref(null)
+const showBackendOutput = ref(false)
+const showBackendStderr = ref(false)
+const showFrontendOutput = ref(false)
+const showFrontendStderr = ref(false)
 const updatingAdmin = ref(null)
 const currentUserId = ref(null)
+
+const stepNames = {
+  1: 'W-4',
+  2: 'I-9',
+  3: 'Background',
+  4: 'Direct Deposit',
+  5: 'Acknowledgements',
+  6: 'Form 8850'
+}
+
+const getStepName = (step) => {
+  return stepNames[step] || `Step ${step}`
+}
 
 onMounted(async () => {
   // Get current user ID
@@ -375,6 +770,8 @@ onMounted(async () => {
   await loadOnboardingStatus()
   await loadAuditLogs()
   await loadSystemHealth()
+  await loadAllSubmissions()
+  await loadAllI9Documents()
 })
 
 const loadDashboardStats = async () => {
@@ -423,10 +820,92 @@ const loadSystemHealth = async () => {
   }
 }
 
+const loadAllSubmissions = async () => {
+  try {
+    const response = await api.get('/admin/submissions')
+    allSubmissions.value = response.data.submissions || []
+  } catch (error) {
+    console.error('Error loading all submissions:', error)
+  }
+}
+
+const loadAllI9Documents = async () => {
+  try {
+    const response = await api.get('/admin/i9-documents')
+    allI9Documents.value = response.data.documents || []
+  } catch (error) {
+    console.error('Error loading all I-9 documents:', error)
+  }
+}
+
+const viewI9Document = (documentId) => {
+  window.open(`/api/forms/i9/documents/${documentId}/view`, '_blank')
+}
+
+// Watch for tab changes to load documents when needed
+watch(activeTab, (newTab) => {
+  if (newTab === 'documents') {
+    loadAllSubmissions()
+    loadAllI9Documents()
+  }
+})
+
+const runTests = async () => {
+  runningTests.value = true
+  testResults.value = null
+  showBackendOutput.value = false
+  showBackendStderr.value = false
+  showFrontendOutput.value = false
+  showFrontendStderr.value = false
+  
+  // Switch to tests tab if not already there
+  if (activeTab.value !== 'tests') {
+    activeTab.value = 'tests'
+  }
+  
+  try {
+    const response = await api.post('/admin/tests/run')
+    testResults.value = response.data.results
+    
+    // Auto-expand error outputs if tests failed
+    if (testResults.value.backend && !testResults.value.backend.success) {
+      showBackendOutput.value = true
+      if (testResults.value.backend.stderr) {
+        showBackendStderr.value = true
+      }
+    }
+    if (testResults.value.frontend && !testResults.value.frontend.success) {
+      showFrontendOutput.value = true
+      if (testResults.value.frontend.stderr) {
+        showFrontendStderr.value = true
+      }
+    }
+  } catch (error) {
+    console.error('Error running tests:', error)
+    testResults.value = {
+      timestamp: new Date().toISOString(),
+      backend: {
+        success: false,
+        error: error.response?.data?.error || error.message || 'Unknown error',
+        rawOutput: error.response?.data?.message || 'Failed to execute test command'
+      },
+      frontend: null
+    }
+    showBackendOutput.value = true
+  } finally {
+    runningTests.value = false
+  }
+}
+
 const exportDiagnostics = async () => {
   exporting.value = true
   try {
-    const response = await api.get('/diagnostics/export')
+    // Include test results if available
+    const params = {}
+    if (testResults.value) {
+      params.testResults = JSON.stringify(testResults.value)
+    }
+    const response = await api.get('/diagnostics/export', { params })
     const markdown = response.data.markdown || response.data.data
     
     // Copy to clipboard
@@ -488,7 +967,12 @@ const toggleAdminStatus = async (user) => {
       // Reload dashboard stats to update admin count
       await loadDashboardStats()
       
-      alert(response.data.message)
+      // Check if password setup is required for newly promoted admin
+      if (response.data.requiresPasswordSetup && !user.isAdmin) {
+        alert(`${response.data.message}\n\nNote: This user will need to set a password before accessing admin features.`)
+      } else {
+        alert(response.data.message)
+      }
     }
   } catch (error) {
     console.error('Error updating admin status:', error)

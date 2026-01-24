@@ -2,6 +2,14 @@ import express from 'express'
 import { requireAdmin } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
 import { auditLog } from '../services/auditService.js'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const execAsync = promisify(exec)
 
 const router = express.Router()
 
@@ -366,6 +374,13 @@ router.put('/users/:id/admin', async (req, res) => {
     // Update admin status
     db.prepare('UPDATE applicants SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, userId)
     
+    // Check if password is set (only if promoting to admin)
+    let requiresPasswordSetup = false
+    if (isAdmin) {
+      const updatedUser = db.prepare('SELECT password_hash FROM applicants WHERE id = ?').get(userId)
+      requiresPasswordSetup = !updatedUser.password_hash || updatedUser.password_hash === ''
+    }
+    
     // Audit log
     await auditLog({
       userId: req.applicantId,
@@ -379,7 +394,8 @@ router.put('/users/:id/admin', async (req, res) => {
         targetUserName: `${user.first_name} ${user.last_name}`,
         targetUserEmail: user.email,
         previousStatus: user.is_admin === 1,
-        newStatus: isAdmin
+        newStatus: isAdmin,
+        requiresPasswordSetup
       }
     })
     
@@ -394,11 +410,446 @@ router.put('/users/:id/admin', async (req, res) => {
         lastName: user.last_name,
         email: user.email,
         isAdmin
-      }
+      },
+      requiresPasswordSetup
     })
   } catch (error) {
     console.error('Update admin status error:', error)
     res.status(500).json({ error: 'Failed to update admin status' })
+  }
+})
+
+/**
+ * GET /api/admin/submissions
+ * Get all form submissions for all applicants
+ */
+router.get('/submissions', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const submissions = db.prepare(`
+      SELECT 
+        fs.id,
+        fs.step_number,
+        fs.form_type,
+        fs.pdf_filename,
+        fs.submitted_at,
+        fs.retention_until,
+        a.id as applicant_id,
+        a.first_name,
+        a.last_name,
+        a.email
+      FROM form_submissions fs
+      JOIN applicants a ON fs.applicant_id = a.id
+      ORDER BY fs.submitted_at DESC
+    `).all()
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'VIEW',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { endpoint: 'submissions' }
+    })
+    
+    res.json({ submissions })
+  } catch (error) {
+    console.error('Get all submissions error:', error)
+    res.status(500).json({ error: 'Failed to retrieve submissions' })
+  }
+})
+
+/**
+ * GET /api/admin/i9-documents
+ * Get all I-9 documents for all applicants
+ */
+router.get('/i9-documents', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const documents = db.prepare(`
+      SELECT 
+        d.id,
+        d.document_type,
+        d.document_category,
+        d.document_name,
+        d.file_name,
+        d.file_size,
+        d.uploaded_at,
+        a.id as applicant_id,
+        a.first_name,
+        a.last_name,
+        a.email
+      FROM i9_documents d
+      JOIN applicants a ON d.applicant_id = a.id
+      ORDER BY d.uploaded_at DESC
+    `).all()
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'VIEW',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { endpoint: 'i9-documents' }
+    })
+    
+    res.json({ documents })
+  } catch (error) {
+    console.error('Get all I-9 documents error:', error)
+    res.status(500).json({ error: 'Failed to retrieve I-9 documents' })
+  }
+})
+
+/**
+ * POST /api/admin/normalize-applicants
+ * Normalize existing applicant data (first_name, last_name, email) to ensure consistency
+ * This fixes accounts that were created before normalization was added
+ */
+router.post('/normalize-applicants', async (req, res) => {
+  try {
+    const db = getDatabase()
+    
+    // Get all applicants
+    const applicants = db.prepare('SELECT id, first_name, last_name, email FROM applicants').all()
+    
+    let updated = 0
+    const transaction = db.transaction(() => {
+      for (const applicant of applicants) {
+        const normalizedFirstName = applicant.first_name ? applicant.first_name.trim() : ''
+        const normalizedLastName = applicant.last_name ? applicant.last_name.trim() : ''
+        const normalizedEmail = applicant.email ? applicant.email.trim().toLowerCase() : ''
+        
+        // Only update if normalization would change the value
+        if (applicant.first_name !== normalizedFirstName ||
+            applicant.last_name !== normalizedLastName ||
+            applicant.email !== normalizedEmail) {
+          db.prepare(`
+            UPDATE applicants 
+            SET first_name = ?, last_name = ?, email = ?
+            WHERE id = ?
+          `).run(normalizedFirstName, normalizedLastName, normalizedEmail, applicant.id)
+          updated++
+        }
+      }
+    })
+    
+    transaction()
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'NORMALIZE_APPLICANTS',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { totalApplicants: applicants.length, updated }
+    })
+    
+    res.json({
+      success: true,
+      message: `Normalized ${updated} of ${applicants.length} applicants`,
+      totalApplicants: applicants.length,
+      updated
+    })
+  } catch (error) {
+    console.error('Normalize applicants error:', error)
+    res.status(500).json({ error: 'Failed to normalize applicants', details: error.message })
+  }
+})
+
+/**
+ * POST /api/admin/fix-admin-assignments
+ * Fix incorrect admin assignments - only keep the first user as admin
+ * This fixes the issue where all users were incorrectly made admins
+ */
+router.post('/fix-admin-assignments', async (req, res) => {
+  try {
+    const db = getDatabase()
+    
+    // Get all applicants ordered by creation date
+    const applicants = db.prepare(`
+      SELECT id, first_name, last_name, email, is_admin, created_at 
+      FROM applicants 
+      ORDER BY created_at ASC, id ASC
+    `).all()
+    
+    if (applicants.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No applicants found',
+        fixed: 0,
+        total: 0
+      })
+    }
+    
+    // First user should be admin, all others should not be
+    const firstUserId = applicants[0].id
+    let fixed = 0
+    
+    const transaction = db.transaction(() => {
+      for (const applicant of applicants) {
+        const shouldBeAdmin = applicant.id === firstUserId ? 1 : 0
+        const isCurrentlyAdmin = applicant.is_admin === 1
+        
+        if (shouldBeAdmin !== isCurrentlyAdmin) {
+          db.prepare('UPDATE applicants SET is_admin = ? WHERE id = ?')
+            .run(shouldBeAdmin, applicant.id)
+          fixed++
+        }
+      }
+    })
+    
+    transaction()
+    
+    await auditLog({
+      userId: req.applicantId,
+      action: 'FIX_ADMIN_ASSIGNMENTS',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { totalApplicants: applicants.length, fixed, firstUserId }
+    })
+    
+    res.json({
+      success: true,
+      message: `Fixed admin assignments: ${fixed} of ${applicants.length} applicants`,
+      totalApplicants: applicants.length,
+      fixed,
+      firstUser: {
+        id: firstUserId,
+        name: `${applicants[0].first_name} ${applicants[0].last_name}`,
+        email: applicants[0].email
+      }
+    })
+  } catch (error) {
+    console.error('Fix admin assignments error:', error)
+    res.status(500).json({ error: 'Failed to fix admin assignments', details: error.message })
+  }
+})
+
+/**
+ * GET /api/admin/diagnose-login
+ * Diagnostic endpoint to help identify login issues
+ * Query params: firstName, lastName, email
+ */
+router.get('/diagnose-login', async (req, res) => {
+  try {
+    const { firstName, lastName, email } = req.query
+    
+    if (!firstName || !lastName || !email) {
+      return res.status(400).json({ 
+        error: 'firstName, lastName, and email query parameters are required' 
+      })
+    }
+    
+    const db = getDatabase()
+    
+    // Normalize input
+    const normalizedFirstName = firstName.trim().toLowerCase()
+    const normalizedLastName = lastName.trim().toLowerCase()
+    const normalizedEmail = email.trim().toLowerCase()
+    
+    // Try to find with normalized query
+    const applicant = db.prepare(`
+      SELECT id, first_name, last_name, email,
+             LOWER(TRIM(first_name)) as norm_first,
+             LOWER(TRIM(last_name)) as norm_last,
+             LOWER(TRIM(email)) as norm_email
+      FROM applicants 
+      WHERE LOWER(TRIM(first_name)) = ?
+        AND LOWER(TRIM(last_name)) = ?
+        AND LOWER(TRIM(email)) = ?
+      LIMIT 1
+    `).get(normalizedFirstName, normalizedLastName, normalizedEmail)
+    
+    // Get all applicants for comparison
+    const allApplicants = db.prepare(`
+      SELECT id, first_name, last_name, email,
+             LOWER(TRIM(first_name)) as norm_first,
+             LOWER(TRIM(last_name)) as norm_last,
+             LOWER(TRIM(email)) as norm_email
+      FROM applicants
+      ORDER BY id DESC
+      LIMIT 20
+    `).all()
+    
+    res.json({
+      input: { firstName, lastName, email },
+      normalized: { normalizedFirstName, normalizedLastName, normalizedEmail },
+      found: applicant !== undefined,
+      applicant: applicant || null,
+      sampleApplicants: allApplicants,
+      message: applicant 
+        ? 'Applicant found - login should work'
+        : 'Applicant not found - check if data matches exactly (case-insensitive, trimmed)'
+    })
+  } catch (error) {
+    console.error('Diagnose login error:', error)
+    res.status(500).json({ error: 'Failed to diagnose login issue', details: error.message })
+  }
+})
+
+/**
+ * POST /api/admin/tests/run
+ * Run unit tests and return results
+ */
+router.post('/tests/run', async (req, res) => {
+  try {
+    const backendDir = path.join(__dirname, '../../')
+    const frontendDir = path.join(__dirname, '../../../frontend')
+    
+    const results = {
+      backend: null,
+      frontend: null,
+      timestamp: new Date().toISOString()
+    }
+    
+    // Run backend tests
+    try {
+      const backendTestCmd = 'cd ' + backendDir + ' && npm test -- --json --no-coverage 2>&1'
+      const { stdout: backendOutput, stderr: backendError } = await execAsync(backendTestCmd, {
+        timeout: 120000, // 120 second timeout
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+      })
+      
+      const fullOutput = (backendOutput || '') + (backendError || '')
+      
+      try {
+        // Try to parse as JSON (Jest JSON output)
+        const jsonMatch = backendOutput.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          results.backend = {
+            success: parsed.numFailedTests === 0 && parsed.numFailedTestSuites === 0,
+            output: parsed,
+            rawOutput: fullOutput,
+            stderr: backendError || '',
+            command: backendTestCmd
+          }
+        } else {
+          const hasPass = fullOutput.includes('PASS') || fullOutput.includes('✓')
+          const hasFail = fullOutput.includes('FAIL') || fullOutput.includes('✕') || fullOutput.includes('Error:')
+          results.backend = {
+            success: hasPass && !hasFail,
+            output: null,
+            rawOutput: fullOutput,
+            stderr: backendError || '',
+            command: backendTestCmd
+          }
+        }
+      } catch (parseError) {
+        const hasPass = fullOutput.includes('PASS') || fullOutput.includes('✓')
+        const hasFail = fullOutput.includes('FAIL') || fullOutput.includes('✕') || fullOutput.includes('Error:')
+        results.backend = {
+          success: hasPass && !hasFail,
+          output: null,
+          rawOutput: fullOutput,
+          stderr: backendError || '',
+          command: backendTestCmd,
+          parseError: parseError.message
+        }
+      }
+    } catch (backendTestError) {
+      const errorOutput = (backendTestError.stdout || '') + (backendTestError.stderr || '') + (backendTestError.message || '')
+      results.backend = {
+        success: false,
+        error: backendTestError.message,
+        code: backendTestError.code,
+        signal: backendTestError.signal,
+        output: null,
+        rawOutput: errorOutput,
+        stderr: backendTestError.stderr || '',
+        command: 'cd ' + backendDir + ' && npm test -- --json --no-coverage 2>&1'
+      }
+    }
+    
+    // Run frontend tests
+    try {
+      const frontendTestCmd = 'cd ' + frontendDir + ' && npm test -- --run --reporter=json 2>&1'
+      const { stdout: frontendOutput, stderr: frontendError } = await execAsync(frontendTestCmd, {
+        timeout: 120000, // 120 second timeout
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+      })
+      
+      const fullOutput = (frontendOutput || '') + (frontendError || '')
+      
+      try {
+        // Try to parse as JSON (Vitest JSON output)
+        const jsonMatch = frontendOutput.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          results.frontend = {
+            success: parsed.numFailedTests === 0 && parsed.numFailedTestSuites === 0,
+            output: parsed,
+            rawOutput: fullOutput,
+            stderr: frontendError || '',
+            command: frontendTestCmd
+          }
+        } else {
+          const hasPass = fullOutput.includes('PASS') || fullOutput.includes('✓') || fullOutput.includes('passed')
+          const hasFail = fullOutput.includes('FAIL') || fullOutput.includes('✕') || fullOutput.includes('failed') || fullOutput.includes('Error:')
+          results.frontend = {
+            success: hasPass && !hasFail,
+            output: null,
+            rawOutput: fullOutput,
+            stderr: frontendError || '',
+            command: frontendTestCmd
+          }
+        }
+      } catch (parseError) {
+        const hasPass = fullOutput.includes('PASS') || fullOutput.includes('✓') || fullOutput.includes('passed')
+        const hasFail = fullOutput.includes('FAIL') || fullOutput.includes('✕') || fullOutput.includes('failed') || fullOutput.includes('Error:')
+        results.frontend = {
+          success: hasPass && !hasFail,
+          output: null,
+          rawOutput: fullOutput,
+          stderr: frontendError || '',
+          command: frontendTestCmd,
+          parseError: parseError.message
+        }
+      }
+    } catch (frontendTestError) {
+      const errorOutput = (frontendTestError.stdout || '') + (frontendTestError.stderr || '') + (frontendTestError.message || '')
+      results.frontend = {
+        success: false,
+        error: frontendTestError.message,
+        code: frontendTestError.code,
+        signal: frontendTestError.signal,
+        output: null,
+        rawOutput: errorOutput,
+        stderr: frontendTestError.stderr || '',
+        command: 'cd ' + frontendDir + ' && npm test -- --run --reporter=json 2>&1'
+      }
+    }
+    
+    // Audit log
+    await auditLog({
+      userId: req.applicantId,
+      action: 'RUN_TESTS',
+      resourceType: 'SYSTEM',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: {
+        backendSuccess: results.backend?.success,
+        frontendSuccess: results.frontend?.success,
+        timestamp: results.timestamp
+      }
+    })
+    
+    res.json({
+      success: true,
+      results
+    })
+  } catch (error) {
+    console.error('Test execution error:', error)
+    res.status(500).json({
+      error: 'Failed to run tests',
+      message: error.message
+    })
   }
 })
 

@@ -47,6 +47,13 @@ export function initializeDatabase() {
     // Column already exists, ignore
   }
 
+  // Add password_hash column if it doesn't exist (for existing databases)
+  try {
+    db.exec(`ALTER TABLE applicants ADD COLUMN password_hash TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
   // Form submissions with retention tracking
   db.exec(`
     CREATE TABLE IF NOT EXISTS form_submissions (
@@ -200,6 +207,46 @@ export function initializeDatabase() {
   `)
 
   console.log('Database initialized successfully')
+  
+  // Set default password for existing admin users (for testing)
+  // This will be called asynchronously after bcrypt is available
+  setDefaultPasswordsForAdmins().catch(err => {
+    console.warn('Could not set default passwords for admins:', err.message)
+  })
+}
+
+/**
+ * Set default password 'opcs' for existing admin users who don't have a password set
+ * This is for testing purposes
+ */
+async function setDefaultPasswordsForAdmins() {
+  try {
+    const { hashPassword } = await import('../middleware/auth.js')
+    const db = getDatabase()
+    
+    // Get all admin users without passwords
+    const adminsWithoutPassword = db.prepare(`
+      SELECT id FROM applicants 
+      WHERE is_admin = 1 
+        AND (password_hash IS NULL OR password_hash = '')
+    `).all()
+    
+    if (adminsWithoutPassword.length > 0) {
+      const defaultPassword = 'opcs'
+      const defaultHash = await hashPassword(defaultPassword)
+      
+      for (const admin of adminsWithoutPassword) {
+        db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
+          .run(defaultHash, admin.id)
+      }
+      
+      console.log(`Set default password for ${adminsWithoutPassword.length} admin user(s)`)
+    }
+  } catch (error) {
+    // If bcrypt is not available yet, this will be called later
+    // Don't fail initialization if this fails
+    console.warn('Could not set default passwords for admins:', error.message)
+  }
 }
 
 export function getDatabase() {

@@ -4,6 +4,7 @@ import DashboardView from '../views/DashboardView.vue'
 import FormWizardView from '../views/FormWizardView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import AdminDashboardView from '../views/AdminDashboardView.vue'
+import PasswordSetupView from '../views/PasswordSetupView.vue'
 
 const routes = [
   {
@@ -37,6 +38,12 @@ const routes = [
     path: '/admin',
     name: 'Admin',
     component: AdminDashboardView,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/password-setup',
+    name: 'PasswordSetup',
+    component: PasswordSetupView,
     meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
@@ -85,6 +92,21 @@ router.beforeEach(async (to, from, next) => {
       // Non-admin trying to access admin route
       next('/dashboard')
       return
+    }
+    
+    // Check if password setup is required (except for password-setup route itself)
+    if (to.path !== '/password-setup') {
+      try {
+        const api = (await import('../services/api.js')).default
+        const passwordStatus = await api.get('/auth/password-status')
+        if (passwordStatus.data.requiresPassword) {
+          next('/password-setup')
+          return
+        }
+      } catch (error) {
+        // If check fails, allow access (don't block on error)
+        console.error('Failed to check password status:', error)
+      }
     }
   }
   

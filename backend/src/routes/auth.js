@@ -1,5 +1,5 @@
 import express from 'express'
-import { findApplicantByCredentials, createApplicant, isFirstUser } from '../middleware/auth.js'
+import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet } from '../middleware/auth.js'
 import { auditLog } from '../services/auditService.js'
 import { getDatabase } from '../database/init.js'
 
@@ -101,11 +101,12 @@ router.post('/signup', async (req, res) => {
 
 /**
  * POST /api/auth/login
+ * Phase 1: Check user credentials and determine if password is required
  * Login to continue/resume onboarding process
  */
 router.post('/login', async (req, res) => {
   try {
-    const { firstName, lastName, email } = req.body
+    const { firstName, lastName, email, password } = req.body
     
     if (!firstName || !lastName || !email) {
       return res.status(400).json({ 
@@ -141,62 +142,118 @@ router.post('/login', async (req, res) => {
       })
     }
     
-    // Log successful login attempt and check onboarding status
-    const db = getDatabase()
+    const isAdmin = applicant.is_admin === 1
+    const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
+    const requiresPassword = isAdmin // All admins require password
     
-    db.prepare(`
-      INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      firstName,
-      lastName,
-      email,
-      1, // success
-      req.ip,
-      req.get('user-agent'),
-      null,
-      applicant.id // applicant_id
-    )
+    // If password is provided, verify it (Phase 2)
+    if (password !== undefined) {
+      if (isAdmin) {
+        let isValid = false
+        
+        if (passwordSet) {
+          // Verify against stored hash
+          isValid = await verifyPassword(password, applicant.password_hash)
+        } else {
+          // Password not set yet - check against default 'opcs'
+          isValid = password === 'opcs'
+        }
+        
+        if (!isValid) {
+          const db = getDatabase()
+          db.prepare(`
+            INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            firstName,
+            lastName,
+            email,
+            0, // failed
+            req.ip,
+            req.get('user-agent'),
+            'Invalid password',
+            applicant.id
+          )
+          
+          return res.status(401).json({
+            error: 'Invalid password',
+            code: 'INVALID_PASSWORD',
+            requiresPassword: true
+          })
+        }
+      }
+      
+      // Password verified (or not required), complete login
+      const db = getDatabase()
+      
+      db.prepare(`
+        INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        firstName,
+        lastName,
+        email,
+        1, // success
+        req.ip,
+        req.get('user-agent'),
+        null,
+        applicant.id
+      )
+      
+      // Check onboarding completion status
+      const submissions = db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM form_submissions 
+        WHERE applicant_id = ?
+      `).get(applicant.id)
+      
+      const completedSteps = submissions.count || 0
+      const isOnboardingComplete = completedSteps >= 6
+      
+      // Set session
+      req.session.applicantId = applicant.id
+      req.session.applicantEmail = applicant.email
+      req.session.isAdmin = applicant.is_admin === 1
+      
+      // Audit log
+      await auditLog({
+        userId: applicant.id,
+        action: 'LOGIN',
+        resourceType: 'AUTH',
+        resourceId: applicant.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email: applicant.email, completedSteps }
+      })
+      
+      return res.json({
+        success: true,
+        applicant: {
+          id: applicant.id,
+          firstName: applicant.first_name,
+          lastName: applicant.last_name,
+          email: applicant.email,
+          isAdmin: applicant.is_admin === 1
+        },
+        isNewUser: false,
+        onboardingComplete: isOnboardingComplete,
+        completedSteps,
+        totalSteps: 6
+      })
+    }
     
-    // Check onboarding completion status
-    const submissions = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM form_submissions 
-      WHERE applicant_id = ?
-    `).get(applicant.id)
-    
-    const completedSteps = submissions.count || 0
-    const isOnboardingComplete = completedSteps >= 6
-    
-    // Set session
-    req.session.applicantId = applicant.id
-    req.session.applicantEmail = applicant.email
-    req.session.isAdmin = applicant.is_admin === 1
-    
-    // Audit log
-    await auditLog({
-      userId: applicant.id,
-      action: 'LOGIN',
-      resourceType: 'AUTH',
-      resourceId: applicant.id,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
-      details: { email: applicant.email, completedSteps }
-    })
-    
+    // Phase 1: Return whether password is required
     res.json({
       success: true,
+      requiresPassword,
+      isAdmin,
       applicant: {
         id: applicant.id,
         firstName: applicant.first_name,
         lastName: applicant.last_name,
         email: applicant.email,
         isAdmin: applicant.is_admin === 1
-      },
-      isNewUser: false,
-      onboardingComplete: isOnboardingComplete,
-      completedSteps,
-      totalSteps: 6
+      }
     })
   } catch (error) {
     console.error('Login error:', error)
@@ -239,7 +296,7 @@ router.get('/me', async (req, res) => {
     if (req.session && req.session.applicantId) {
       const { getDatabase } = await import('../database/init.js')
       const db = getDatabase()
-      const applicant = db.prepare('SELECT id, first_name, last_name, email FROM applicants WHERE id = ?')
+      const applicant = db.prepare('SELECT id, first_name, last_name, email, is_admin FROM applicants WHERE id = ?')
         .get(req.session.applicantId)
       
       if (applicant) {
@@ -259,6 +316,218 @@ router.get('/me', async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error)
     res.status(500).json({ error: 'Failed to retrieve user information' })
+  }
+})
+
+/**
+ * GET /api/auth/password-status
+ * Check if password is set for current user
+ */
+router.get('/password-status', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+    
+    const db = getDatabase()
+    const applicant = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?')
+      .get(req.session.applicantId)
+    
+    if (!applicant) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    
+    const isAdmin = applicant.is_admin === 1
+    const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
+    const requiresPassword = isAdmin && !passwordSet
+    
+    res.json({
+      passwordSet,
+      requiresPassword,
+      isAdmin
+    })
+  } catch (error) {
+    console.error('Password status error:', error)
+    res.status(500).json({ error: 'Failed to check password status' })
+  }
+})
+
+/**
+ * POST /api/auth/set-password
+ * Set password for admin user (initial setup)
+ */
+router.post('/set-password', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+    
+    const { password, confirmPassword } = req.body
+    
+    if (!password || !confirmPassword) {
+      return res.status(400).json({ 
+        error: 'Password and confirmation are required',
+        code: 'MISSING_FIELDS'
+      })
+    }
+    
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        error: 'Passwords do not match',
+        code: 'PASSWORD_MISMATCH'
+      })
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long',
+        code: 'PASSWORD_TOO_SHORT'
+      })
+    }
+    
+    const db = getDatabase()
+    const applicant = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?')
+      .get(req.session.applicantId)
+    
+    if (!applicant) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    
+    if (!applicant.is_admin) {
+      return res.status(403).json({ error: 'Only administrators can set passwords' })
+    }
+    
+    // Check if password already set (unless force flag)
+    if (applicant.password_hash && !req.body.force) {
+      return res.status(400).json({
+        error: 'Password already set. Use change-password endpoint to update it.',
+        code: 'PASSWORD_ALREADY_SET'
+      })
+    }
+    
+    // Hash password
+    const { hashPassword } = await import('../middleware/auth.js')
+    const passwordHash = await hashPassword(password)
+    
+    // Update password
+    db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
+      .run(passwordHash, req.session.applicantId)
+    
+    // Audit log
+    await auditLog({
+      userId: req.session.applicantId,
+      action: 'SET_PASSWORD',
+      resourceType: 'AUTH',
+      resourceId: req.session.applicantId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { isInitialSetup: !applicant.password_hash }
+    })
+    
+    res.json({
+      success: true,
+      message: 'Password set successfully'
+    })
+  } catch (error) {
+    console.error('Set password error:', error)
+    res.status(500).json({ 
+      error: 'Failed to set password',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
+  }
+})
+
+/**
+ * POST /api/auth/change-password
+ * Change existing password for admin user
+ */
+router.post('/change-password', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+    
+    const { currentPassword, newPassword, confirmPassword } = req.body
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ 
+        error: 'Current password, new password, and confirmation are required',
+        code: 'MISSING_FIELDS'
+      })
+    }
+    
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        error: 'New passwords do not match',
+        code: 'PASSWORD_MISMATCH'
+      })
+    }
+    
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long',
+        code: 'PASSWORD_TOO_SHORT'
+      })
+    }
+    
+    const db = getDatabase()
+    const applicant = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?')
+      .get(req.session.applicantId)
+    
+    if (!applicant) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    
+    if (!applicant.is_admin) {
+      return res.status(403).json({ error: 'Only administrators can change passwords' })
+    }
+    
+    // Verify current password
+    const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
+    let currentPasswordValid = false
+    
+    if (passwordSet) {
+      currentPasswordValid = await verifyPassword(currentPassword, applicant.password_hash)
+    } else {
+      // If password not set, check against default 'opcs'
+      currentPasswordValid = currentPassword === 'opcs'
+    }
+    
+    if (!currentPasswordValid) {
+      return res.status(401).json({
+        error: 'Current password is incorrect',
+        code: 'INVALID_CURRENT_PASSWORD'
+      })
+    }
+    
+    // Hash new password
+    const { hashPassword } = await import('../middleware/auth.js')
+    const passwordHash = await hashPassword(newPassword)
+    
+    // Update password
+    db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
+      .run(passwordHash, req.session.applicantId)
+    
+    // Audit log
+    await auditLog({
+      userId: req.session.applicantId,
+      action: 'CHANGE_PASSWORD',
+      resourceType: 'AUTH',
+      resourceId: req.session.applicantId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    })
+    
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    })
+  } catch (error) {
+    console.error('Change password error:', error)
+    res.status(500).json({ 
+      error: 'Failed to change password',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 })
 

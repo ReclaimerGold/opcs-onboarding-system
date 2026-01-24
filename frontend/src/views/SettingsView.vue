@@ -3,7 +3,12 @@
     <nav class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-          <div class="flex items-center">
+          <div class="flex items-center space-x-3">
+            <img 
+              src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
+              alt="Optimal Prime Services Logo" 
+              class="h-10 w-auto"
+            />
             <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
           </div>
           <div class="flex items-center space-x-4">

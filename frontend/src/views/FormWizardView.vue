@@ -3,7 +3,12 @@
     <nav class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-          <div class="flex items-center">
+          <div class="flex items-center space-x-3">
+            <img 
+              src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
+              alt="Optimal Prime Services Logo" 
+              class="h-10 w-auto"
+            />
             <h1 class="text-xl font-semibold text-gray-900">Onboarding Forms</h1>
           </div>
           <div class="flex items-center space-x-4">
@@ -509,6 +514,19 @@ const handleStepComplete = async (step) => {
     currentStep.value = step + 1
     validateCurrentStep()
   } else {
+    // Step 6 completed - check if admin and password setup required
+    if (authStore.isAdmin) {
+      try {
+        const passwordStatus = await api.get('/auth/password-status')
+        if (passwordStatus.data.requiresPassword) {
+          router.push('/password-setup')
+          return
+        }
+      } catch (error) {
+        // If check fails, continue to dashboard
+        console.error('Failed to check password status:', error)
+      }
+    }
     router.push('/dashboard')
   }
 }

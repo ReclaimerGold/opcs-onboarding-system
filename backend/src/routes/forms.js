@@ -118,6 +118,25 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       applicant
     )
     
+    // Check if onboarding is complete (6 steps) and if user is admin
+    const submissions = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM form_submissions 
+      WHERE applicant_id = ?
+    `).get(req.applicantId)
+    
+    const completedSteps = submissions.count || 0
+    const isOnboardingComplete = completedSteps >= 6
+    
+    // Check if admin and password setup required
+    let requiresPasswordSetup = false
+    if (isOnboardingComplete) {
+      const adminCheck = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?').get(req.applicantId)
+      if (adminCheck && adminCheck.is_admin === 1) {
+        requiresPasswordSetup = !adminCheck.password_hash || adminCheck.password_hash === ''
+      }
+    }
+    
     // Audit log
     await auditLog({
       userId: req.applicantId,
@@ -129,7 +148,9 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       details: {
         step,
         formType,
-        filename: pdfResult.filename
+        filename: pdfResult.filename,
+        isOnboardingComplete,
+        requiresPasswordSetup
       }
     })
     
@@ -137,7 +158,9 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       success: true,
       submissionId: pdfResult.submissionId,
       filename: pdfResult.filename,
-      retentionUntil: pdfResult.retentionUntil
+      retentionUntil: pdfResult.retentionUntil,
+      isOnboardingComplete,
+      requiresPasswordSetup
     })
   } catch (error) {
     console.error('Form submission error:', error)

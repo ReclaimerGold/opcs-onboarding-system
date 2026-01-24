@@ -3,7 +3,12 @@
     <nav class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-          <div class="flex items-center">
+          <div class="flex items-center space-x-3">
+            <img 
+              src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
+              alt="Optimal Prime Services Logo" 
+              class="h-10 w-auto"
+            />
             <h1 class="text-xl font-semibold text-gray-900">Onboarding Dashboard</h1>
           </div>
           <div class="flex items-center space-x-4">
@@ -18,9 +23,90 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Progress Overview -->
       <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">Onboarding Progress</h2>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Onboarding Status</h2>
         
-        <div class="mb-4">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <!-- Progress Card -->
+          <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-blue-700 mb-1">Overall Progress</p>
+                <p class="text-2xl font-bold text-blue-900">{{ progress }}%</p>
+                <p class="text-xs text-blue-600 mt-1">{{ completedStepsCount }}/6 steps completed</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center">
+                <svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Forms Submitted Card -->
+          <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-green-700 mb-1">Forms Submitted</p>
+                <p class="text-2xl font-bold text-green-900">{{ submissions.length }}</p>
+                <p class="text-xs text-green-600 mt-1">{{ submissions.length === 6 ? 'All complete!' : `${6 - submissions.length} remaining` }}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-green-200 flex items-center justify-center">
+                <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- I-9 Documents Card -->
+          <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-purple-700 mb-1">I-9 Documents</p>
+                <p class="text-2xl font-bold text-purple-900">{{ i9DocumentsCount }}</p>
+                <p class="text-xs text-purple-600 mt-1">{{ i9DocumentsStatus }}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-purple-200 flex items-center justify-center">
+                <svg class="w-6 h-6 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+            </div>
+            <button
+              @click="scrollToDocuments"
+              class="mt-2 w-full text-xs text-purple-700 hover:text-purple-900 font-medium underline"
+            >
+              View Documents →
+            </button>
+          </div>
+
+          <!-- Current Step Card -->
+          <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-yellow-700 mb-1">Current Step</p>
+                <p class="text-2xl font-bold text-yellow-900">{{ currentStepName }}</p>
+                <p class="text-xs text-yellow-600 mt-1">{{ currentStepStatus }}</p>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-yellow-200 flex items-center justify-center">
+                <svg class="w-6 h-6 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+            </div>
+            <router-link
+              v-if="currentStep && canAccessStep(currentStep)"
+              :to="`/forms?step=${currentStep}`"
+              class="mt-2 w-full text-xs text-yellow-700 hover:text-yellow-900 font-medium underline block text-center"
+            >
+              Continue →
+            </router-link>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="mb-6">
           <div class="flex justify-between mb-2">
             <span class="text-sm font-medium text-gray-700">Overall Progress</span>
             <span class="text-sm font-medium text-gray-900">{{ progress }}%</span>
@@ -33,7 +119,7 @@
           </div>
         </div>
         
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-6">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <component
             v-for="step in 6"
             :key="step"
@@ -51,7 +137,9 @@
                 :class="[
                   'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
                   getStepStatus(step).status === 'completed'
-                    ? 'bg-primary text-white shadow-md'
+                    ? 'bg-green-500 text-white shadow-md'
+                    : getStepStatus(step).status === 'current' && completedStepsCount < 6
+                    ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30 animate-pulse'
                     : getStepStatus(step).status === 'current'
                     ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
                     : canAccessStep(step)
@@ -65,8 +153,9 @@
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
+                  stroke-width="3"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
                 <svg 
                   v-else-if="!canAccessStep(step)" 
@@ -84,7 +173,9 @@
               <div 
                 :class="[
                   'text-xs font-medium transition-colors whitespace-nowrap',
-                  getStepStatus(step).status === 'completed' || getStepStatus(step).status === 'current'
+                  getStepStatus(step).status === 'completed'
+                    ? 'text-green-600'
+                    : getStepStatus(step).status === 'current'
                     ? 'text-primary'
                     : canAccessStep(step)
                     ? 'text-gray-600 group-hover:text-gray-900'
@@ -95,6 +186,95 @@
               </div>
             </div>
           </component>
+        </div>
+
+        <!-- Quick Document Access -->
+        <div v-if="submissions.length > 0 || i9DocumentsCount > 0" class="mt-6 pt-6 border-t border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Quick Document Access</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Submitted Forms -->
+            <div v-if="submissions.length > 0" class="bg-gray-50 rounded-lg p-4">
+              <h4 class="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                <svg class="w-4 h-4 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Submitted Forms ({{ submissions.length }})
+              </h4>
+              <div class="space-y-2">
+                <div
+                  v-for="submission in submissions.slice(0, 3)"
+                  :key="submission.id"
+                  class="flex items-center justify-between text-sm"
+                >
+                  <span class="text-gray-700">{{ getStepName(submission.step_number) }}</span>
+                  <a
+                    :href="`/api/forms/submissions/${submission.id}/view`"
+                    target="_blank"
+                    class="text-primary hover:text-primary-light hover:underline font-medium"
+                  >
+                    View PDF →
+                  </a>
+                </div>
+                <div v-if="submissions.length > 3" class="text-xs text-gray-500 pt-1">
+                  +{{ submissions.length - 3 }} more form{{ submissions.length - 3 !== 1 ? 's' : '' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- I-9 Documents -->
+            <div v-if="i9DocumentsCount > 0" class="bg-gray-50 rounded-lg p-4">
+              <h4 class="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                <svg class="w-4 h-4 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                I-9 Documents ({{ i9DocumentsCount }})
+              </h4>
+              <div class="space-y-2">
+                <div v-if="hasListA" class="flex items-center justify-between text-sm">
+                  <span class="text-gray-700 flex items-center">
+                    <span class="w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold mr-2">A</span>
+                    List A Document
+                  </span>
+                  <button
+                    @click="viewDocument(getDocumentByCategory('listA').id)"
+                    class="text-primary hover:text-primary-light hover:underline font-medium"
+                  >
+                    View →
+                  </button>
+                </div>
+                <div v-if="hasListB" class="flex items-center justify-between text-sm">
+                  <span class="text-gray-700 flex items-center">
+                    <span class="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold mr-2">B</span>
+                    List B Document
+                  </span>
+                  <button
+                    @click="viewDocument(getDocumentByCategory('listB').id)"
+                    class="text-primary hover:text-primary-light hover:underline font-medium"
+                  >
+                    View →
+                  </button>
+                </div>
+                <div v-if="hasListC" class="flex items-center justify-between text-sm">
+                  <span class="text-gray-700 flex items-center">
+                    <span class="w-5 h-5 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold mr-2">C</span>
+                    List C Document
+                  </span>
+                  <button
+                    @click="viewDocument(getDocumentByCategory('listC').id)"
+                    class="text-primary hover:text-primary-light hover:underline font-medium"
+                  >
+                    View →
+                  </button>
+                </div>
+                <button
+                  @click="scrollToDocuments"
+                  class="text-xs text-gray-600 hover:text-gray-900 font-medium underline pt-1"
+                >
+                  View all documents →
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -166,23 +346,45 @@
       </div>
       
       <!-- I-9 Identity Documents -->
-      <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">I-9 Identity Documents</h2>
+      <div id="i9-documents" class="bg-white shadow rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-gray-900">I-9 Identity Documents</h2>
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-600">
+              Status: <span :class="i9DocumentsComplete ? 'text-green-600 font-semibold' : 'text-yellow-600 font-semibold'">
+                {{ i9DocumentsComplete ? 'Complete' : 'In Progress' }}
+              </span>
+            </span>
+          </div>
+        </div>
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- List A Document -->
           <div :class="[
             'p-4 rounded-lg border-2',
-            getDocumentByCategory('listA')
+            hasListA
               ? 'border-green-200 bg-green-50'
-              : 'border-yellow-200 bg-yellow-50'
+              : (hasListB && hasListC)
+                ? 'border-gray-200 bg-gray-50'
+                : 'border-yellow-200 bg-yellow-50'
           ]">
-            <div class="flex items-center mb-3">
-              <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold mr-2">A</div>
-              <h3 class="font-semibold text-gray-900">List A Document</h3>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold mr-2">A</div>
+                <h3 class="font-semibold text-gray-900">List A Document</h3>
+              </div>
+              <span v-if="hasListA" class="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
+                (Uploaded)
+              </span>
+              <span v-else-if="hasListB && hasListC" class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                (Not Required)
+              </span>
+              <span v-else class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
+                (Required)
+              </span>
             </div>
             
-            <div v-if="getDocumentByCategory('listA')" class="space-y-3">
+            <div v-if="hasListA" class="space-y-3">
               <div>
                 <p class="text-sm text-gray-600 mb-1">
                   <strong>File:</strong> {{ getDocumentByCategory('listA').file_name }}
@@ -210,8 +412,11 @@
             </div>
             
             <div v-else>
-              <p class="text-sm text-yellow-800 mb-3 font-medium">
-                ⚠️ List A document is required. Please upload your document.
+              <p v-if="hasListB && hasListC" class="text-sm text-gray-600 mb-3">
+                <span class="text-gray-500">ℹ️</span> List A document is not required. You have provided List B + List C documents.
+              </p>
+              <p v-else class="text-sm text-yellow-800 mb-3 font-medium">
+                ⚠️ {{ getListAStatus.message }}. Please upload your document.
               </p>
               <input
                 ref="listAFileInput"
@@ -222,8 +427,13 @@
               />
               <button
                 @click="$refs.listAFileInput.click()"
-                :disabled="uploading.listA"
-                class="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                :disabled="uploading.listA || (hasListB && hasListC)"
+                :class="[
+                  'w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
+                  (hasListB && hasListC)
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary-light'
+                ]"
               >
                 {{ uploading.listA ? 'Uploading...' : 'Upload Document' }}
               </button>
@@ -234,16 +444,34 @@
           <!-- List B Document -->
           <div :class="[
             'p-4 rounded-lg border-2',
-            getDocumentByCategory('listB')
+            hasListB
               ? 'border-blue-200 bg-blue-50'
-              : 'border-yellow-200 bg-yellow-50'
+              : hasListA
+                ? 'border-gray-200 bg-gray-50'
+                : (hasListC && !hasListB)
+                  ? 'border-red-200 bg-red-50'
+                  : 'border-yellow-200 bg-yellow-50'
           ]">
-            <div class="flex items-center mb-3">
-              <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold mr-2">B</div>
-              <h3 class="font-semibold text-gray-900">List B Document</h3>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold mr-2">B</div>
+                <h3 class="font-semibold text-gray-900">List B Document</h3>
+              </div>
+              <span v-if="hasListB" class="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded">
+                (Uploaded)
+              </span>
+              <span v-else-if="hasListA" class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                (Not Required)
+              </span>
+              <span v-else-if="hasListC && !hasListB" class="text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded">
+                (Required)
+              </span>
+              <span v-else class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
+                (Required)
+              </span>
             </div>
             
-            <div v-if="getDocumentByCategory('listB')" class="space-y-3">
+            <div v-if="hasListB" class="space-y-3">
               <div>
                 <p class="text-sm text-gray-600 mb-1">
                   <strong>File:</strong> {{ getDocumentByCategory('listB').file_name }}
@@ -271,8 +499,14 @@
             </div>
             
             <div v-else>
-              <p class="text-sm text-yellow-800 mb-3 font-medium">
-                ⚠️ List B document is required. Please upload your document.
+              <p v-if="hasListA" class="text-sm text-gray-600 mb-3">
+                <span class="text-gray-500">ℹ️</span> {{ getListBStatus.message }}. List A document has been provided.
+              </p>
+              <p v-else-if="hasListC && !hasListB" class="text-sm text-red-800 mb-3 font-medium">
+                <span class="text-red-500">⚠️</span> {{ getListBStatus.message }}. Please upload your List B document first.
+              </p>
+              <p v-else class="text-sm text-yellow-800 mb-3 font-medium">
+                <span class="text-yellow-500">⚠️</span> {{ getListBStatus.message }}. Please upload your document.
               </p>
               <input
                 ref="listBFileInput"
@@ -283,8 +517,13 @@
               />
               <button
                 @click="$refs.listBFileInput.click()"
-                :disabled="uploading.listB"
-                class="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                :disabled="uploading.listB || hasListA"
+                :class="[
+                  'w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
+                  hasListA
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary-light'
+                ]"
               >
                 {{ uploading.listB ? 'Uploading...' : 'Upload Document' }}
               </button>
@@ -295,16 +534,34 @@
           <!-- List C Document -->
           <div :class="[
             'p-4 rounded-lg border-2',
-            getDocumentByCategory('listC')
+            hasListC
               ? 'border-purple-200 bg-purple-50'
-              : 'border-yellow-200 bg-yellow-50'
+              : hasListA
+                ? 'border-gray-200 bg-gray-50'
+                : (hasListB && !hasListC)
+                  ? 'border-yellow-200 bg-yellow-50'
+                  : 'border-yellow-200 bg-yellow-50'
           ]">
-            <div class="flex items-center mb-3">
-              <div class="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold mr-2">C</div>
-              <h3 class="font-semibold text-gray-900">List C Document</h3>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold mr-2">C</div>
+                <h3 class="font-semibold text-gray-900">List C Document</h3>
+              </div>
+              <span v-if="hasListC" class="text-xs font-medium text-purple-700 bg-purple-100 px-2 py-1 rounded">
+                (Uploaded)
+              </span>
+              <span v-else-if="hasListA" class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                (Not Required)
+              </span>
+              <span v-else-if="hasListB && !hasListC" class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
+                (Required)
+              </span>
+              <span v-else class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
+                (Required)
+              </span>
             </div>
             
-            <div v-if="getDocumentByCategory('listC')" class="space-y-3">
+            <div v-if="hasListC" class="space-y-3">
               <div>
                 <p class="text-sm text-gray-600 mb-1">
                   <strong>File:</strong> {{ getDocumentByCategory('listC').file_name }}
@@ -332,8 +589,14 @@
             </div>
             
             <div v-else>
-              <p class="text-sm text-yellow-800 mb-3 font-medium">
-                ⚠️ List C document is required. Please upload your document.
+              <p v-if="hasListA" class="text-sm text-gray-600 mb-3">
+                <span class="text-gray-500">ℹ️</span> {{ getListCStatus.message }}. List A document has been provided.
+              </p>
+              <p v-else-if="hasListB && !hasListC" class="text-sm text-yellow-800 mb-3 font-medium">
+                <span class="text-yellow-500">⚠️</span> {{ getListCStatus.message }}. Please upload your List C document.
+              </p>
+              <p v-else class="text-sm text-yellow-800 mb-3 font-medium">
+                <span class="text-yellow-500">⚠️</span> {{ getListCStatus.message }}. Please upload your document.
               </p>
               <input
                 ref="listCFileInput"
@@ -344,11 +607,19 @@
               />
               <button
                 @click="$refs.listCFileInput.click()"
-                :disabled="uploading.listC"
-                class="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                :disabled="uploading.listC || hasListA || !hasListB"
+                :class="[
+                  'w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
+                  (hasListA || !hasListB)
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary-light'
+                ]"
               >
                 {{ uploading.listC ? 'Uploading...' : 'Upload Document' }}
               </button>
+              <p v-if="!hasListB && !hasListA" class="mt-2 text-xs text-gray-600">
+                Note: List C requires List B. Please upload List B first.
+              </p>
               <p v-if="uploadError.listC" class="mt-2 text-xs text-red-600">{{ uploadError.listC }}</p>
             </div>
           </div>
@@ -540,6 +811,146 @@ const loadUploadedDocuments = async () => {
 const getDocumentByCategory = (category) => {
   return uploadedDocuments.value[category] || null
 }
+
+// Computed properties for summary
+const completedStepsCount = computed(() => completedSteps.value.size)
+
+const i9DocumentsCount = computed(() => {
+  let count = 0
+  if (hasListA.value) count++
+  if (hasListB.value) count++
+  if (hasListC.value) count++
+  return count
+})
+
+const i9DocumentsComplete = computed(() => {
+  // Complete if List A exists, OR both List B and List C exist
+  return hasListA.value || (hasListB.value && hasListC.value)
+})
+
+const i9DocumentsStatus = computed(() => {
+  if (i9DocumentsComplete.value) {
+    if (hasListA.value) {
+      return 'List A provided'
+    } else {
+      return 'List B+C provided'
+    }
+  }
+  const needed = []
+  if (!hasListA.value && !(hasListB.value && hasListC.value)) {
+    if (!hasListA.value && !hasListB.value && !hasListC.value) {
+      return 'Not started'
+    }
+    if (hasListB.value && !hasListC.value) {
+      return 'List C needed'
+    }
+    if (hasListC.value && !hasListB.value) {
+      return 'List B needed'
+    }
+    return 'Incomplete'
+  }
+  return 'Complete'
+})
+
+const currentStepName = computed(() => {
+  if (completedSteps.value.size === 6) {
+    return 'Complete!'
+  }
+  if (currentStep.value) {
+    return getStepName(currentStep.value)
+  }
+  return 'Not Started'
+})
+
+const currentStepStatus = computed(() => {
+  if (completedSteps.value.size === 6) {
+    return 'All steps completed'
+  }
+  if (currentStep.value) {
+    return `Step ${currentStep.value} of 6`
+  }
+  return 'Ready to begin'
+})
+
+// Scroll to documents section
+const scrollToDocuments = () => {
+  const element = document.getElementById('i9-documents')
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+// Computed properties for I-9 requirement dependencies
+const hasListA = computed(() => !!getDocumentByCategory('listA'))
+const hasListB = computed(() => !!getDocumentByCategory('listB'))
+const hasListC = computed(() => !!getDocumentByCategory('listC'))
+
+// Determine if List B is required
+const isListBRequired = computed(() => {
+  // If List A exists, List B is not required
+  if (hasListA.value) return false
+  // If List C exists, List B is required
+  if (hasListC.value) return true
+  // Otherwise, List B is required (as part of B+C option)
+  return true
+})
+
+// Determine if List C is required
+const isListCRequired = computed(() => {
+  // If List A exists, List C is not required
+  if (hasListA.value) return false
+  // If List B exists, List C is required
+  if (hasListB.value) return true
+  // Otherwise, List C is required (as part of B+C option)
+  return true
+})
+
+// Determine if List A is required
+const isListARequired = computed(() => {
+  // If List B and List C both exist, List A is not required
+  if (hasListB.value && hasListC.value) return false
+  // Otherwise, List A is an option (not strictly required if B+C is chosen)
+  return !(hasListB.value || hasListC.value)
+})
+
+// Get status message for List B
+const getListBStatus = computed(() => {
+  if (hasListA.value) {
+    return { message: 'Not required (List A provided)', type: 'info' }
+  }
+  if (hasListB.value) {
+    return { message: 'Uploaded', type: 'success' }
+  }
+  if (hasListC.value && !hasListB.value) {
+    return { message: 'Required (List C requires List B)', type: 'error' }
+  }
+  return { message: 'Required (must pair with List C)', type: 'warning' }
+})
+
+// Get status message for List C
+const getListCStatus = computed(() => {
+  if (hasListA.value) {
+    return { message: 'Not required (List A provided)', type: 'info' }
+  }
+  if (hasListC.value) {
+    return { message: 'Uploaded', type: 'success' }
+  }
+  if (hasListB.value && !hasListC.value) {
+    return { message: 'Required (List B requires List C)', type: 'warning' }
+  }
+  return { message: 'Required (must pair with List B)', type: 'warning' }
+})
+
+// Get status message for List A
+const getListAStatus = computed(() => {
+  if (hasListA.value) {
+    return { message: 'Uploaded', type: 'success' }
+  }
+  if (hasListB.value && hasListC.value) {
+    return { message: 'Not required (List B+C provided)', type: 'info' }
+  }
+  return { message: 'Required (or provide List B+C)', type: 'warning' }
+})
 
 const handleFileUpload = async (documentCategory, event) => {
   const file = event.target.files[0]

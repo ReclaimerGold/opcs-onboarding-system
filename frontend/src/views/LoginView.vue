@@ -1,52 +1,122 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-      <div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          OPCS Onboarding System
-        </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
-          {{ getModeDescription() }}
-        </p>
-      </div>
-      
-      <div class="flex justify-center space-x-2 mb-6">
-        <button
-          @click="switchToSignUp"
-          :class="[
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            mode === 'signup'
-              ? 'bg-primary text-white shadow-md'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          ]"
-        >
-          Sign Up
-        </button>
-        <button
-          @click="switchToSignIn"
-          :class="[
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            mode === 'signin'
-              ? 'bg-primary text-white shadow-md'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          ]"
-        >
-          Sign In
-        </button>
-        <button
-          @click="switchToManager"
-          :class="[
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            mode === 'manager'
-              ? 'bg-primary text-white shadow-md'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          ]"
-        >
-          Manager Login
-        </button>
-      </div>
+  <div class="min-h-screen flex flex-col bg-gray-50">
+    <!-- Main Content -->
+    <div class="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div class="max-w-4xl w-full space-y-8">
+        <!-- Header -->
+        <div class="text-center">
+          <div class="flex justify-center mb-6">
+            <img 
+              src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
+              alt="Optimal Prime Services Logo" 
+              class="h-20 w-auto"
+            />
+          </div>
+          <h1 class="text-4xl font-extrabold text-gray-900 mb-2">
+            Onboarding System
+          </h1>
+          <p class="text-lg text-gray-600">
+            Welcome! What would you like to do?
+          </p>
+        </div>
 
-      <form class="mt-8 space-y-6" @submit.prevent="handleSubmit">
+        <!-- Tile Selection -->
+        <div v-if="!mode || mode === 'selection'" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+          <!-- Sign Up Tile -->
+          <button
+            @click="switchToSignUp"
+            class="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          >
+            <div class="text-center">
+              <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 group-hover:bg-primary transition-colors mb-4">
+                <svg class="h-8 w-8 text-primary group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">Sign Up</h3>
+              <p class="text-sm text-gray-600">Start your onboarding process</p>
+            </div>
+          </button>
+
+          <!-- Sign In Tile -->
+          <button
+            @click="switchToSignIn"
+            class="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          >
+            <div class="text-center">
+              <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 group-hover:bg-primary transition-colors mb-4">
+                <svg class="h-8 w-8 text-primary group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">Sign In</h3>
+              <p class="text-sm text-gray-600">Continue your onboarding</p>
+            </div>
+          </button>
+
+          <!-- Manager Login Tile -->
+          <button
+            @click="switchToManager"
+            class="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          >
+            <div class="text-center">
+              <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-purple-100 group-hover:bg-primary transition-colors mb-4">
+                <svg class="h-8 w-8 text-primary group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">Manager Login</h3>
+              <p class="text-sm text-gray-600">Administrator access</p>
+            </div>
+          </button>
+        </div>
+
+        <!-- Form Section (shown when mode is selected) -->
+        <div v-if="mode && mode !== 'selection'" class="max-w-md mx-auto">
+          <div class="bg-white rounded-lg shadow-lg p-8">
+            <!-- Back Button -->
+            <button
+              @click="switchToSelection"
+              class="mb-6 flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span class="text-sm font-medium">Back to options</span>
+            </button>
+
+            <!-- Mode Header -->
+            <div class="text-center mb-6">
+              <h2 class="text-2xl font-bold text-gray-900 mb-2">
+                {{ getModeTitle() }}
+              </h2>
+              <p class="text-sm text-gray-600">
+                {{ getModeDescription() }}
+              </p>
+            </div>
+
+            <form class="mt-8 space-y-6" @submit.prevent="handleSubmit">
+        <!-- Step indicator -->
+        <div class="mb-4 text-center">
+          <p class="text-sm text-gray-600">
+            <span v-if="!requiresPassword">Step 1: Enter your information</span>
+            <span v-else>Step 2: Enter your password</span>
+          </p>
+        </div>
+
+        <!-- Instructions -->
+        <div v-if="!requiresPassword" class="mb-4 bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+          <p class="text-sm text-blue-800">
+            <strong>Getting Started:</strong> Enter your first name, last name, and email address to begin.
+          </p>
+        </div>
+
+        <div v-if="requiresPassword" class="mb-4 bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+          <p class="text-sm text-blue-800">
+            <strong>Administrator Access:</strong> This account requires a password for security.
+          </p>
+        </div>
+
         <div class="rounded-md shadow-sm -space-y-px">
           <div>
             <label for="firstName" class="sr-only">First Name</label>
@@ -55,7 +125,11 @@
               v-model="firstName"
               type="text"
               required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+              :disabled="requiresPassword"
+              :class="[
+                'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm',
+                requiresPassword ? 'rounded-t-md bg-gray-100 cursor-not-allowed' : 'rounded-t-md'
+              ]"
               placeholder="First Name"
             />
           </div>
@@ -66,7 +140,11 @@
               v-model="lastName"
               type="text"
               required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+              :disabled="requiresPassword"
+              :class="[
+                'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm',
+                requiresPassword ? 'bg-gray-100 cursor-not-allowed' : ''
+              ]"
               placeholder="Last Name"
             />
           </div>
@@ -77,8 +155,23 @@
               v-model="email"
               type="email"
               required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+              :disabled="requiresPassword"
+              :class="[
+                'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm',
+                requiresPassword ? 'bg-gray-100 cursor-not-allowed' : 'rounded-b-md'
+              ]"
               placeholder="Email address"
+            />
+          </div>
+          <div v-if="requiresPassword">
+            <label for="password" class="sr-only">Password</label>
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              required
+              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+              placeholder="Password"
             />
           </div>
         </div>
@@ -118,8 +211,28 @@
             <span v-else>{{ getButtonText() }}</span>
           </button>
         </div>
-      </form>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-6 px-4">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+        <div class="text-sm text-gray-600">
+          © {{ currentYear }} Optimal Prime Services. All rights reserved.
+        </div>
+        <div>
+          <button
+            @click="switchToManager"
+            class="text-sm text-primary hover:text-primary-light font-medium transition-colors"
+          >
+            Admin Access
+          </button>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -132,41 +245,80 @@ import api from '../services/api.js'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const mode = ref('signup') // 'signup', 'signin', or 'manager'
+const mode = ref('selection') // 'selection', 'signup', 'signin', or 'manager'
+const currentYear = new Date().getFullYear()
 const firstName = ref('')
 const lastName = ref('')
 const email = ref('')
+const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const requiresPassword = ref(false)
+const loginPhase = ref(1) // 1 = name/email, 2 = password
+
+// Get title based on current mode
+const getModeTitle = () => {
+  switch (mode.value) {
+    case 'signup':
+      return 'Create Your Account'
+    case 'signin':
+      return 'Welcome Back'
+    case 'manager':
+      return 'Manager Access'
+    default:
+      return ''
+  }
+}
 
 // Get description based on current mode
 const getModeDescription = () => {
   switch (mode.value) {
     case 'signup':
-      return 'Start your onboarding process'
+      return 'Enter your information to begin the onboarding process'
     case 'signin':
-      return 'Continue your onboarding process'
+      return 'Enter your information to continue where you left off'
     case 'manager':
-      return 'Manager and administrator access'
+      return 'Enter your credentials to access the admin dashboard'
     default:
-      return 'Start your onboarding process'
+      return ''
   }
+}
+
+// Switch to selection mode
+const switchToSelection = () => {
+  error.value = ''
+  mode.value = 'selection'
+  requiresPassword.value = false
+  loginPhase.value = 1
+  password.value = ''
+  firstName.value = ''
+  lastName.value = ''
+  email.value = ''
 }
 
 // Clear error when switching modes
 const switchToSignUp = () => {
   error.value = ''
   mode.value = 'signup'
+  requiresPassword.value = false
+  loginPhase.value = 1
+  password.value = ''
 }
 
 const switchToSignIn = () => {
   error.value = ''
   mode.value = 'signin'
+  requiresPassword.value = false
+  loginPhase.value = 1
+  password.value = ''
 }
 
 const switchToManager = () => {
   error.value = ''
   mode.value = 'manager'
+  requiresPassword.value = false
+  loginPhase.value = 1
+  password.value = ''
 }
 
 // Get button text based on mode
@@ -202,39 +354,96 @@ const handleSubmit = async () => {
   loading.value = true
   
   try {
-    // Manager login uses the same login endpoint
-    const endpoint = mode.value === 'signup' ? '/auth/signup' : '/auth/login'
-    const response = await api.post(endpoint, {
-      firstName: firstName.value,
-      lastName: lastName.value,
-      email: email.value
-    })
-    
-    if (response.data.success) {
-      // Update auth store (will set isAdmin automatically)
-      authStore.user = response.data.applicant
-      authStore.isAuthenticated = true
-      authStore.isAdmin = response.data.applicant?.isAdmin || false
-      localStorage.setItem('authToken', 'authenticated')
+    if (mode.value === 'signup') {
+      // Signup flow
+      const response = await api.post('/auth/signup', {
+        firstName: firstName.value,
+        lastName: lastName.value,
+        email: email.value
+      })
       
-      // Redirect based on user type and onboarding status
-      if (authStore.isAdmin) {
-        // Admin/Manager always goes to admin dashboard
-        router.push('/admin')
-      } else if (mode.value === 'manager') {
-        // User selected manager login but is not an admin
-        error.value = 'Access denied. This account does not have manager privileges.'
-        loading.value = false
-        return
-      } else if (response.data.isNewUser) {
-        router.push('/forms')
-      } else {
-        // Check if onboarding is complete
-        if (response.data.onboardingComplete) {
-          router.push('/dashboard')
+      if (response.data.success) {
+        // Update auth store
+        authStore.user = response.data.applicant
+        authStore.isAuthenticated = true
+        authStore.isAdmin = response.data.applicant?.isAdmin || false
+        localStorage.setItem('authToken', 'authenticated')
+        
+        // Check if admin and needs password setup
+        if (authStore.isAdmin) {
+          // Check password status
+          try {
+            const passwordStatus = await api.get('/auth/password-status')
+            if (passwordStatus.data.requiresPassword) {
+              router.push('/password-setup')
+              return
+            }
+          } catch (err) {
+            // If check fails, continue to admin dashboard
+          }
+          router.push('/admin')
         } else {
-          // Resume onboarding
           router.push('/forms')
+        }
+      }
+    } else {
+      // Login flow (signin or manager)
+      const loginData = {
+        firstName: firstName.value,
+        lastName: lastName.value,
+        email: email.value
+      }
+      
+      // If password is provided, include it
+      if (requiresPassword.value && password.value) {
+        loginData.password = password.value
+      }
+      
+      const response = await api.post('/auth/login', loginData)
+      
+      if (response.data.success) {
+        // Check if password is required (Phase 1 response)
+        if (response.data.requiresPassword !== undefined && !password.value) {
+          requiresPassword.value = response.data.requiresPassword
+          loginPhase.value = 2
+          loading.value = false
+          return
+        }
+        
+        // Login successful (Phase 2 or no password required)
+        authStore.user = response.data.applicant
+        authStore.isAuthenticated = true
+        authStore.isAdmin = response.data.applicant?.isAdmin || false
+        localStorage.setItem('authToken', 'authenticated')
+        
+        // Redirect based on user type and onboarding status
+        if (authStore.isAdmin) {
+          // Check if password setup is required
+          try {
+            const passwordStatus = await api.get('/auth/password-status')
+            if (passwordStatus.data.requiresPassword) {
+              router.push('/password-setup')
+              return
+            }
+          } catch (err) {
+            // If check fails, continue to admin dashboard
+          }
+          router.push('/admin')
+        } else if (mode.value === 'manager') {
+          // User selected manager login but is not an admin
+          error.value = 'Access denied. This account does not have manager privileges.'
+          loading.value = false
+          return
+        } else if (response.data.isNewUser) {
+          router.push('/forms')
+        } else {
+          // Check if onboarding is complete
+          if (response.data.onboardingComplete) {
+            router.push('/dashboard')
+          } else {
+            // Resume onboarding
+            router.push('/forms')
+          }
         }
       }
     }
