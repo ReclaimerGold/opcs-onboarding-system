@@ -480,7 +480,7 @@ export function checkEncryptedSettings() {
   // Settings that should be encrypted
   const sensitiveSettings = [
     'google_drive_credentials',
-    'google_maps_api_key'
+    'google_address_validation_api_key'
   ]
 
   for (const settingKey of sensitiveSettings) {

@@ -10,6 +10,7 @@ import formRoutes from './routes/forms.js'
 import settingsRoutes from './routes/settings.js'
 import adminRoutes from './routes/admin.js'
 import diagnosticsRoutes from './routes/diagnostics.js'
+import addressRoutes from './routes/address.js'
 import { initializeDatabase } from './database/init.js'
 import { startRetentionScheduler } from './services/retentionService.js'
 import { auditMiddleware } from './middleware/audit.js'
@@ -77,6 +78,7 @@ app.use('/api/forms', formRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/diagnostics', diagnosticsRoutes)
+app.use('/api/address', addressRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {
