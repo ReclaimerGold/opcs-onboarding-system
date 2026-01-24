@@ -14,7 +14,8 @@ export function isGoogleDriveConfigured() {
   const clientSecret = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_client_secret')
   const refreshToken = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_refresh_token')
   
-  return !!(clientId && clientSecret && refreshToken)
+  // Must check both that the row exists AND that the value is not empty
+  return !!(clientId?.value && clientSecret?.value && refreshToken?.value)
 }
 
 /**
@@ -93,7 +94,7 @@ async function getOrCreateEmployeeFolder(applicant) {
  * @param {string} filename - Name for the file in Drive
  * @param {Object} applicant - Applicant object with first_name and last_name
  * @param {string} mimeType - MIME type (default: 'application/pdf')
- * @returns {Promise<string>} Google Drive file ID
+ * @returns {Promise<{fileId: string, webViewLink: string}>} Google Drive file ID and web view link
  */
 export async function uploadToGoogleDrive(fileBuffer, filename, applicant, mimeType = 'application/pdf') {
   try {
@@ -113,7 +114,10 @@ export async function uploadToGoogleDrive(fileBuffer, filename, applicant, mimeT
       fields: 'id, name, webViewLink'
     })
     
-    return response.data.id
+    return {
+      fileId: response.data.id,
+      webViewLink: response.data.webViewLink || null
+    }
   } catch (error) {
     console.error('Google Drive upload error:', error)
     throw error
