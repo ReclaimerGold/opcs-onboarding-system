@@ -1,0 +1,11 @@
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.workingDirectories": ["frontend", "backend"],
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "tailwindCSS.experimental.classRegex": [
+    ["class=\"([^\"]*)", "([^\"]+)"]
+  ]
+}
