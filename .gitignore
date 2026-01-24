@@ -1,15 +1,59 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 build/
+.output/
+
+# Environment
 .env
-.env.local
+.env.*
+!.env.example
+
+# Database
 *.db
 *.db-journal
-uploads/
-.DS_Store
-*.log
+*.db-wal
+*.db-shm
 
-# Local storage for encrypted documents (when Google Drive not configured)
+# Uploads/Storage
+uploads/
 backend/storage/encrypted-pdfs/
 backend/storage/encrypted-i9-docs/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Package manager lockfiles (keep only bun.lockb)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Bun
+bun.lockb
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.local
+.cache/
 
