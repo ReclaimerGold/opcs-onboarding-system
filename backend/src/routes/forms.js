@@ -505,8 +505,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         applicant,
         req.file.mimetype || 'application/pdf'
       )
-      googleDriveId = uploadResult.fileId
-      webViewLink = uploadResult.webViewLink
+      ;({ fileId: googleDriveId, webViewLink } = uploadResult)
       console.log(`I-9 document uploaded to Google Drive: ${googleDriveId}`)
     } else {
       // Fallback to local storage

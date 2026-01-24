@@ -1,5 +1,5 @@
 import express from 'express'
-import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet, requireAuth } from '../middleware/auth.js'
+import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, requireAuth } from '../middleware/auth.js'
 import { auditLog } from '../services/auditService.js'
 import { getDatabase } from '../database/init.js'
 

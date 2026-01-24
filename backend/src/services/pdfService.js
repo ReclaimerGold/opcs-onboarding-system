@@ -2,7 +2,7 @@ import { PDFDocument } from 'pdf-lib'
 import { encryptBuffer } from './encryptionService.js'
 import { uploadToGoogleDrive, isGoogleDriveConfigured } from './googleDriveService.js'
 import { getDatabase } from '../database/init.js'
-import { getTemplate, hasTemplate } from './pdfTemplateService.js'
+import { getTemplate } from './pdfTemplateService.js'
 import {
   W4_FIELD_MAPPING,
   I9_FIELD_MAPPING,
@@ -100,7 +100,7 @@ export function calculateRetentionDate(formType, hireDate, terminationDate) {
 async function fillPDFTemplate(pdfDoc, fieldMapping, mappedData) {
   const form = pdfDoc.getForm()
   let filledCount = 0
-  let failedFields = []
+  const failedFields = []
   
   // Log all available fields for debugging (only in development)
   if (process.env.NODE_ENV === 'development') {
@@ -215,11 +215,11 @@ async function fillW4Template(templateBuffer, formData) {
 /**
  * Fallback W-4 PDF generation (basic text output)
  */
-async function generateW4PDFFallback(formData, applicantData) {
+async function generateW4PDFFallback(formData) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792]) // US Letter size
   
-  const { width, height } = page.getSize()
+  const { height } = page.getSize()
   const fontSize = 12
   
   const helveticaFont = await pdfDoc.embedFont('Helvetica')
@@ -378,11 +378,11 @@ async function fillI9Template(templateBuffer, formData) {
 /**
  * Fallback I-9 PDF generation (basic text output)
  */
-async function generateI9PDFFallback(formData, applicantData) {
+async function generateI9PDFFallback(formData) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792])
   
-  const { width, height } = page.getSize()
+  const { height } = page.getSize()
   const fontSize = 12
   const helveticaFont = await pdfDoc.embedFont('Helvetica')
   const helveticaBoldFont = await pdfDoc.embedFont('Helvetica-Bold')
@@ -561,11 +561,11 @@ async function fill8850Template(templateBuffer, formData) {
 /**
  * Fallback Form 8850 PDF generation (basic text output)
  */
-async function generate8850PDFFallback(formData, applicantData) {
+async function generate8850PDFFallback(formData) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792])
   
-  const { width, height } = page.getSize()
+  const { height } = page.getSize()
   const fontSize = 12
   const helveticaFont = await pdfDoc.embedFont('Helvetica')
   const helveticaBoldFont = await pdfDoc.embedFont('Helvetica-Bold')
@@ -651,12 +651,11 @@ async function generate8850PDFFallback(formData, applicantData) {
 /**
  * Generate other form PDFs (Background, Direct Deposit, Acknowledgements)
  */
-export async function generateGenericPDF(formData, formType, applicantData) {
+export async function generateGenericPDF(formData, formType) {
   const pdfDoc = await PDFDocument.create()
   const page = pdfDoc.addPage([612, 792])
   
-  const { width, height } = page.getSize()
-  const fontSize = 12
+  const { height } = page.getSize()
   const helveticaFont = await pdfDoc.embedFont('Helvetica')
   const helveticaBoldFont = await pdfDoc.embedFont('Helvetica-Bold')
   
@@ -773,8 +772,7 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
       applicant,
       'application/pdf'
     )
-    googleDriveId = uploadResult.fileId
-    webViewLink = uploadResult.webViewLink
+    ;({ fileId: googleDriveId, webViewLink } = uploadResult)
     console.log(`PDF uploaded to Google Drive: ${googleDriveId}`)
   } else {
     // Fallback to local storage

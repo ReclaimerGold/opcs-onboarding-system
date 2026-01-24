@@ -435,7 +435,7 @@ import AddressSearch from '../ui/AddressSearch.vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
-import { formatPhoneNumber, validatePhoneNumber, validateEmail as validateEmailUtil, formatEmail } from '../../utils/validation.js'
+import { formatPhoneNumber, validatePhoneNumber, validateEmail as validateEmailUtil } from '../../utils/validation.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 
 const emit = defineEmits(['submitted', 'form-data-change'])
@@ -602,20 +602,6 @@ const validatePhone = () => {
     phoneError.value = validation.message
   } else {
     phoneError.value = ''
-  }
-}
-
-const validateEmail = () => {
-  if (!formData.value.email) {
-    emailError.value = ''
-    return
-  }
-  const validation = validateEmailUtil(formData.value.email)
-  if (!validation.valid) {
-    emailError.value = validation.message
-  } else {
-    emailError.value = ''
-    formData.value.email = formatEmail(formData.value.email)
   }
 }
 

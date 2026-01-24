@@ -39,9 +39,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.0",
     "concurrently": "^9.2.1",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^9.21.1",
     "husky": "^9.1.7",
-    "lint-staged": "^16.2.7"
+    "lint-staged": "^16.2.7",
+    "vitest": "^4.0.0",
+    "vue-eslint-parser": "^10.2.0"
   },
   "lint-staged": {
     "frontend/src/**/*.{js,vue}": [

@@ -108,7 +108,7 @@ export async function uploadToGoogleDrive(fileBuffer, filename, applicant, mimeT
         parents: [employeeFolderId]
       },
       media: {
-        mimeType: mimeType,
+        mimeType,
         body: fileBuffer
       },
       fields: 'id, name, webViewLink'
@@ -134,7 +134,7 @@ export async function downloadFromGoogleDrive(fileId) {
     const { driveClient } = await initializeDriveClient()
     
     const response = await driveClient.files.get({
-      fileId: fileId,
+      fileId,
       alt: 'media'
     }, {
       responseType: 'arraybuffer'
@@ -157,7 +157,7 @@ export async function getFileMetadata(fileId) {
     const { driveClient } = await initializeDriveClient()
     
     const response = await driveClient.files.get({
-      fileId: fileId,
+      fileId,
       fields: 'id, name, mimeType, size, createdTime, modifiedTime, webViewLink'
     })
     

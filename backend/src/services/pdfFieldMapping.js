@@ -256,7 +256,7 @@ export function trySetTextField(form, fieldNames, value) {
       const field = form.getTextField(fieldName)
       field.setText(String(value))
       return true
-    } catch (error) {
+    } catch {
       // Field not found with this name, try next
       continue
     }
@@ -282,7 +282,7 @@ export function trySetCheckbox(form, fieldNames, checked = true) {
         field.uncheck()
       }
       return true
-    } catch (error) {
+    } catch {
       // Field not found with this name, try next
       continue
     }
@@ -303,7 +303,7 @@ export function trySetRadioGroup(form, groupName, optionValue) {
     const radioGroup = form.getRadioGroup(groupName)
     radioGroup.select(optionValue)
     return true
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -325,7 +325,7 @@ export function trySetDropdown(form, fieldNames, value) {
       try {
         field.select(value)
         return true
-      } catch (e) {
+      } catch {
         // If direct selection fails, try to find matching option
         const options = field.getOptions()
         const matchingOption = options.find(opt => 
@@ -336,7 +336,7 @@ export function trySetDropdown(form, fieldNames, value) {
           return true
         }
       }
-    } catch (error) {
+    } catch {
       // Field not found with this name, try next
       continue
     }

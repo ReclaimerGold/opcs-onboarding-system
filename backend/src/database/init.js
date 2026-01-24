@@ -43,14 +43,14 @@ export function initializeDatabase() {
   // Add is_admin column if it doesn't exist (for existing databases)
   try {
     db.exec(`ALTER TABLE applicants ADD COLUMN is_admin INTEGER DEFAULT 0`)
-  } catch (error) {
+  } catch {
     // Column already exists, ignore
   }
 
   // Add password_hash column if it doesn't exist (for existing databases)
   try {
     db.exec(`ALTER TABLE applicants ADD COLUMN password_hash TEXT`)
-  } catch (error) {
+  } catch {
     // Column already exists, ignore
   }
 
@@ -74,7 +74,7 @@ export function initializeDatabase() {
   // Add google_drive_id column if it doesn't exist (migration)
   try {
     db.exec(`ALTER TABLE form_submissions ADD COLUMN google_drive_id TEXT`)
-  } catch (error) {
+  } catch {
     // Column already exists, ignore
   }
   
@@ -82,14 +82,14 @@ export function initializeDatabase() {
   try {
     // Update any null google_drive_id values (migration)
     db.exec(`UPDATE form_submissions SET google_drive_id = '' WHERE google_drive_id IS NULL`)
-  } catch (error) {
+  } catch {
     // Ignore if column doesn't exist yet
   }
 
   // Add web_view_link column if it doesn't exist (migration for Google Drive direct links)
   try {
     db.exec(`ALTER TABLE form_submissions ADD COLUMN web_view_link TEXT`)
-  } catch (error) {
+  } catch {
     // Column already exists, ignore
   }
 
@@ -183,7 +183,7 @@ export function initializeDatabase() {
   // Add google_drive_id column if it doesn't exist (migration)
   try {
     db.exec(`ALTER TABLE i9_documents ADD COLUMN google_drive_id TEXT`)
-  } catch (error) {
+  } catch {
     // Column already exists, ignore
   }
   
@@ -191,14 +191,14 @@ export function initializeDatabase() {
   try {
     // Update any null google_drive_id values (migration)
     db.exec(`UPDATE i9_documents SET google_drive_id = '' WHERE google_drive_id IS NULL`)
-  } catch (error) {
+  } catch {
     // Ignore if column doesn't exist yet
   }
 
   // Add web_view_link column if it doesn't exist (migration for Google Drive direct links)
   try {
     db.exec(`ALTER TABLE i9_documents ADD COLUMN web_view_link TEXT`)
-  } catch (error) {
+  } catch {
     // Column already exists, ignore
   }
 

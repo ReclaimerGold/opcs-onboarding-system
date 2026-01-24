@@ -1,11 +1,7 @@
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { getDatabase } from '../database/init.js'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
@@ -33,7 +29,7 @@ function getEncryptionKey() {
   // Otherwise, get or create from database
   try {
     const db = getDatabase()
-    let keyRecord = db.prepare('SELECT value FROM settings WHERE key = ?').get('encryption_key')
+    const keyRecord = db.prepare('SELECT value FROM settings WHERE key = ?').get('encryption_key')
     
     if (!keyRecord) {
       // Generate new key and store it
@@ -48,7 +44,7 @@ function getEncryptionKey() {
     
     cachedEncryptionKey = keyRecord.value
     return keyRecord.value
-  } catch (error) {
+  } catch {
     // Database not initialized yet, generate temporary key
     // This will be replaced with a persistent key once DB is initialized
     console.warn('Database not initialized, using temporary encryption key. This will cause decryption issues if server restarts.')
@@ -206,7 +202,7 @@ export async function secureDelete(filePath) {
     // Fallback to regular delete
     try {
       await fs.unlink(filePath)
-    } catch (e) {
+    } catch {
       // File may not exist
     }
     return false

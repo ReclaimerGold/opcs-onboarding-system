@@ -787,8 +787,8 @@ const uploading = ref({
   listC: false
 })
 
-// Draft functionality
-const { isSaving, lastSaved, saveDraft } = useFormDraft(2, formData)
+// Draft functionality (values available from useFormDraft if needed)
+useFormDraft(2, formData)
 
 // Emit form data changes for real-time preview (debounced)
 let emitDebounceTimer = null
