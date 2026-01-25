@@ -218,7 +218,7 @@
                 :class="[
                   'p-4 border-2 rounded-lg text-left transition-all cursor-pointer',
                   documentOption === 'listA'
-                    ? 'border-primary bg-primary bg-opacity-5 shadow-md'
+                    ? 'border-primary bg-primary/5 shadow-md'
                     : 'border-gray-300 hover:border-primary hover:bg-gray-50'
                 ]"
               >
@@ -257,7 +257,7 @@
                 :class="[
                   'p-4 border-2 rounded-lg text-left transition-all cursor-pointer',
                   documentOption === 'listBC'
-                    ? 'border-primary bg-primary bg-opacity-5 shadow-md'
+                    ? 'border-primary bg-primary/5 shadow-md'
                     : 'border-gray-300 hover:border-primary hover:bg-gray-50'
                 ]"
               >
@@ -787,8 +787,8 @@ const uploading = ref({
   listC: false
 })
 
-// Draft functionality
-const { isSaving, lastSaved, saveDraft } = useFormDraft(2, formData)
+// Draft functionality (values available from useFormDraft if needed)
+useFormDraft(2, formData)
 
 // Emit form data changes for real-time preview (debounced)
 let emitDebounceTimer = null

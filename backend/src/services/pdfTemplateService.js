@@ -133,7 +133,7 @@ async function extractPDFInfo(pdfBuffer) {
       const fields = form.getFields()
       formFieldCount = fields.length
       formFieldNames = fields.slice(0, 20).map(f => f.getName()) // First 20 field names
-    } catch (e) {
+    } catch {
       // Form might not have fillable fields
     }
     
@@ -264,7 +264,7 @@ export async function getArchivedVersions(formType) {
       try {
         const data = await fs.readFile(metadataPath, 'utf-8')
         metadata = JSON.parse(data)
-      } catch (e) {
+      } catch {
         // Metadata file might not exist for old archives
       }
       
@@ -539,7 +539,7 @@ export async function getTemplate(formType) {
           const buffer = await fs.readFile(templatePath)
           templateCache.set(formType, buffer)
           return buffer
-        } catch (retryError) {
+        } catch {
           return null
         }
       }

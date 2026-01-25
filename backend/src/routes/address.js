@@ -82,7 +82,7 @@ router.post('/validate', async (req, res) => {
       })
     }
     
-    const result = data.result
+    const {result} = data
     const verdict = result.verdict || {}
     const addressData = result.address || {}
     const postalAddress = addressData.postalAddress || {}

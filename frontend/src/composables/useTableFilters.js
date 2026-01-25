@@ -7,7 +7,6 @@ import { useRoute, useRouter } from 'vue-router'
 export function useTableFilters(options = {}) {
   const {
     defaultFilters = {},
-    columns = [],
     storageKey = null,
     syncToUrl = true
   } = options

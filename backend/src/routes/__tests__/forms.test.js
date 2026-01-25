@@ -23,7 +23,6 @@ app.use('/api/auth', authRoutes)
 app.use('/api/forms', formRoutes)
 
 describe('Form Routes', () => {
-  let testUser = null
   let sessionCookie = null
 
   beforeEach(async () => {
@@ -38,7 +37,6 @@ describe('Form Routes', () => {
         email: 'test@example.com'
       })
     
-    testUser = signupResponse.body.applicant
     sessionCookie = signupResponse.headers['set-cookie']
   })
 

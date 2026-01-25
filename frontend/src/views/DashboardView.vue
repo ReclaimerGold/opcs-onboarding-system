@@ -140,9 +140,9 @@
                   getStepStatus(step).status === 'completed'
                     ? 'bg-green-500 text-white shadow-md'
                     : getStepStatus(step).status === 'current' && completedStepsCount < 6
-                    ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30 animate-pulse'
+                    ? 'bg-primary text-white ring-4 ring-primary/30 animate-pulse'
                     : getStepStatus(step).status === 'current'
-                    ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
+                    ? 'bg-primary text-white ring-4 ring-primary/30'
                     : canAccessStep(step)
                     ? 'bg-gray-200 text-gray-600 group-hover:bg-gray-300'
                     : 'bg-gray-200 text-gray-600'
@@ -845,7 +845,6 @@ const i9DocumentsStatus = computed(() => {
       return 'List B+C provided'
     }
   }
-  const needed = []
   if (!hasListA.value && !(hasListB.value && hasListC.value)) {
     if (!hasListA.value && !hasListB.value && !hasListC.value) {
       return 'Not started'
@@ -893,34 +892,6 @@ const scrollToDocuments = () => {
 const hasListA = computed(() => !!getDocumentByCategory('listA'))
 const hasListB = computed(() => !!getDocumentByCategory('listB'))
 const hasListC = computed(() => !!getDocumentByCategory('listC'))
-
-// Determine if List B is required
-const isListBRequired = computed(() => {
-  // If List A exists, List B is not required
-  if (hasListA.value) return false
-  // If List C exists, List B is required
-  if (hasListC.value) return true
-  // Otherwise, List B is required (as part of B+C option)
-  return true
-})
-
-// Determine if List C is required
-const isListCRequired = computed(() => {
-  // If List A exists, List C is not required
-  if (hasListA.value) return false
-  // If List B exists, List C is required
-  if (hasListB.value) return true
-  // Otherwise, List C is required (as part of B+C option)
-  return true
-})
-
-// Determine if List A is required
-const isListARequired = computed(() => {
-  // If List B and List C both exist, List A is not required
-  if (hasListB.value && hasListC.value) return false
-  // Otherwise, List A is an option (not strictly required if B+C is chosen)
-  return !(hasListB.value || hasListC.value)
-})
 
 // Get status message for List B
 const getListBStatus = computed(() => {
@@ -988,7 +959,7 @@ const handleFileUpload = async (documentCategory, event) => {
     formData.append('documentCategory', documentCategory)
     formData.append('documentName', file.name)
 
-    const response = await api.post('/forms/i9/upload-document', formData, {
+    await api.post('/forms/i9/upload-document', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }

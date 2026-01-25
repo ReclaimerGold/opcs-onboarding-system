@@ -48,9 +48,9 @@
 </template>
 
 <script setup>
-import { ref, defineModel } from 'vue'
+import { defineModel } from 'vue'
 
-const props = defineProps({
+defineProps({
   showConsent: {
     type: Boolean,
     default: false

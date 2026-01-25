@@ -48,14 +48,8 @@ const REQUIRED_AUDIT_ACTIONS = [
 ]
 
 // Retention periods by form type (in years)
-const RETENTION_PERIODS = {
-  'W4': 4,
-  '8850': 4,
-  'I9': 3, // or 1 year after termination, whichever is later
-  'BACKGROUND': 5,
-  'DIRECT_DEPOSIT': 3,
-  'ACKNOWLEDGEMENTS': 1
-}
+// Note: These values are defined in retentionService.js
+// const RETENTION_PERIODS = { 'W4': 4, '8850': 4, 'I9': 3, 'BACKGROUND': 5, 'DIRECT_DEPOSIT': 3, 'ACKNOWLEDGEMENTS': 1 }
 
 /**
  * Check if database schema contains any SSN-related columns
@@ -167,7 +161,7 @@ export function checkSSNInFormData() {
           }
         }
       }
-    } catch (e) {
+    } catch {
       // Invalid JSON - note but continue
       findings.push({
         severity: 'warning',
@@ -567,7 +561,7 @@ export function checkI9DocumentsEncryption() {
         message: 'No I-9 identity documents uploaded yet'
       })
     }
-  } catch (e) {
+  } catch {
     findings.push({
       severity: 'info',
       message: `I-9 documents table exists with ${i9Docs.count} records`
@@ -593,7 +587,7 @@ export function checkI9DocumentsEncryption() {
 export function checkAuditLogCompleteness() {
   const db = getDatabase()
   const findings = []
-  let passed = true
+  const passed = true
 
   // Check for presence of required audit actions
   const auditActions = db.prepare(`

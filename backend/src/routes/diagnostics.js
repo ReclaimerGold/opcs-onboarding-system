@@ -32,7 +32,7 @@ router.get('/export', async (req, res) => {
       if (req.query.testResults) {
         try {
           testResults = JSON.parse(req.query.testResults)
-        } catch (e) {
+        } catch {
           // Ignore parse errors
         }
       }
@@ -110,7 +110,7 @@ router.get('/export', async (req, res) => {
         const stats = fs.statSync(dbPath)
         dbSize = stats.size
       }
-    } catch (error) {
+    } catch {
       // Ignore file size errors
     }
     

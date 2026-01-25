@@ -369,7 +369,7 @@
                   <span class="text-xs text-green-600 font-medium">Complete</span>
                 </div>
               </template>
-              <template #cell-status="{ row }">
+              <template #cell-status>
                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                   Completed
                 </span>
@@ -687,9 +687,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { useAdminDashboard } from '../composables/useAdminDashboard.js'
-import { useTableFilters } from '../composables/useTableFilters.js'
 import api from '../services/api.js'
-import { exportToCSV } from '../utils/exportUtils.js'
 
 // Components
 import AlertsPanel from '../components/admin/AlertsPanel.vue'

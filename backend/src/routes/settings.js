@@ -47,7 +47,7 @@ router.get('/', requireAuth, (req, res) => {
         if (setting.is_encrypted) {
           try {
             decryptedSettings[setting.key] = decryptText(setting.value)
-          } catch (error) {
+          } catch {
             decryptedSettings[setting.key] = ''
           }
         } else {
@@ -59,7 +59,7 @@ router.get('/', requireAuth, (req, res) => {
         if (setting.is_encrypted) {
           try {
             decryptedSettings[setting.key] = decryptText(setting.value)
-          } catch (error) {
+          } catch {
             decryptedSettings[setting.key] = ''
           }
         } else {
@@ -328,7 +328,7 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
           fields: 'id, name, parents'
         })
         parentInfo = parentResponse.data
-      } catch (e) {
+      } catch {
         // Parent info not critical
       }
     }

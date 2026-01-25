@@ -13,8 +13,7 @@ import {
   getSupportedFormTypes,
   getTemplate,
   getArchivedTemplate,
-  getArchivedVersions,
-  getTemplateDirectory
+  getArchivedVersions
 } from '../services/pdfTemplateService.js'
 import { runAllComplianceChecks } from '../services/complianceService.js'
 
@@ -171,7 +170,7 @@ router.get('/login-attempts', async (req, res) => {
       LEFT JOIN applicants a ON la.applicant_id = a.id
       ${whereClause}
     `
-    const total = db.prepare(countQuery).get(...params).total
+    const {total} = db.prepare(countQuery).get(...params)
 
     // Get paginated results
     const dataQuery = `
@@ -236,7 +235,7 @@ router.get('/onboarding-status', async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit)
 
     // First, get all applicants with their submission counts (we need to filter after aggregation for status)
-    let baseQuery = `
+    const baseQuery = `
       SELECT 
         a.id,
         a.first_name,
@@ -434,7 +433,7 @@ router.get('/audit-logs', async (req, res) => {
       LEFT JOIN applicants a ON al.user_id = a.id
       ${whereClause}
     `
-    const total = db.prepare(countQuery).get(...params).total
+    const {total} = db.prepare(countQuery).get(...params)
 
     // Get paginated results
     const dataQuery = `
@@ -514,14 +513,13 @@ router.get('/system-health', async (req, res) => {
     // Database file size
     const dbPath = db.prepare('PRAGMA database_list').all()[0]?.file
     const fs = await import('fs')
-    const path = await import('path')
     let dbSize = 0
     try {
       if (dbPath) {
         const stats = fs.statSync(dbPath)
         dbSize = stats.size
       }
-    } catch (error) {
+    } catch {
       // Ignore file size errors
     }
 
@@ -706,7 +704,7 @@ router.get('/submissions', async (req, res) => {
       JOIN applicants a ON fs.applicant_id = a.id
       ${whereClause}
     `
-    const total = db.prepare(countQuery).get(...params).total
+    const {total} = db.prepare(countQuery).get(...params)
 
     // Get paginated results
     const dataQuery = `
@@ -840,7 +838,7 @@ router.get('/i9-documents', async (req, res) => {
       JOIN applicants a ON d.applicant_id = a.id
       ${whereClause}
     `
-    const total = db.prepare(countQuery).get(...params).total
+    const {total} = db.prepare(countQuery).get(...params)
 
     // Get paginated results
     const dataQuery = `
@@ -1539,7 +1537,7 @@ router.get('/onboarding-status/export', async (req, res) => {
     const db = getDatabase()
     const { search, status, isAdmin, startDate, endDate } = req.query
 
-    let baseQuery = `
+    const baseQuery = `
       SELECT 
         a.id,
         a.first_name,
