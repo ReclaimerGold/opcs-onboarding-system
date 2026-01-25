@@ -56,6 +56,10 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 
 ```
 opcs-onboarding-system/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml               # Continuous integration workflow
+│       └── release.yml          # Release and Docker publish workflow
 ├── backend/
 │   ├── src/
 │   │   ├── database/
@@ -81,6 +85,8 @@ opcs-onboarding-system/
 │   │   ├── encrypted-pdfs/      # Form submission PDFs
 │   │   ├── encrypted-i9-docs/   # I-9 identity documents
 │   │   └── pdf-templates/       # Cached IRS/USCIS fillable PDF templates
+│   ├── Dockerfile               # Backend-only Docker image
+│   ├── .dockerignore            # Docker build exclusions
 │   └── package.json
 ├── frontend/
 │   ├── src/
@@ -116,7 +122,13 @@ opcs-onboarding-system/
 │   │   │   └── SettingsView.vue    # Admin-only settings page
 │   │   └── router/
 │   │       └── index.js
+│   ├── nginx.conf               # Nginx config for production
+│   ├── Dockerfile               # Frontend-only Docker image
 │   └── package.json
+├── Dockerfile                    # Combined full-stack Docker image
+├── docker-compose.yml            # Production Docker Compose
+├── docker-compose.dev.yml        # Development Docker Compose
+├── .dockerignore                 # Root Docker build exclusions
 └── package.json                  # Root package.json with dev scripts
 ```
 
@@ -154,25 +166,110 @@ This will start:
 
 ### Google APIs Setup
 
-1. **Google Drive API:**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select existing
-   - Enable Google Drive API
-   - Create OAuth 2.0 credentials (Web application type)
-   - Add `http://localhost:3000/oauth2callback` as an authorized redirect URI
-   - Use the [OAuth Playground](https://developers.google.com/oauthplayground/) to generate a refresh token
-   - Add credentials in Settings page (Admin → Settings):
-     - **Google OAuth Client ID**: Your OAuth client ID
-     - **Google OAuth Client Secret**: Your OAuth client secret
-     - **Google OAuth Refresh Token**: Token from OAuth Playground
-     - **Google Drive Base Folder ID** (optional): Click "Browse..." to browse and select a folder from your Google Drive, or leave empty to use root
-   - **Test Connection**: Click "Test Connection" to verify your Google Drive credentials are working
+#### Google Drive API (Required for Document Storage)
 
-2. **Google Address Validation API (Optional but recommended):**
-   - In same Google Cloud project, enable Address Validation API
-   - Create API key (restrict to your domain for security)
-   - Add API key in Settings page (Admin → Settings → Google Address Validation API Key)
-   - **Test Connection**: Click "Test Connection" to verify your API key is working (tests with a sample US address)
+**Step 1: Create a Google Cloud Project**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Click the project dropdown at the top → **New Project**
+3. Enter a project name (e.g., "OPCS Onboarding") → **Create**
+4. Wait for the project to be created, then select it from the dropdown
+
+**Step 2: Enable Google Drive API**
+
+1. Go to [APIs & Services → Library](https://console.cloud.google.com/apis/library)
+2. Search for "Google Drive API"
+3. Click on **Google Drive API** → **Enable**
+
+**Step 3: Configure OAuth Consent Screen**
+
+1. Go to [APIs & Services → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+2. Select **Internal** (for Google Workspace) or **External** (for personal accounts)
+3. Fill in required fields:
+   - **App name**: OPCS Onboarding System
+   - **User support email**: Your email
+   - **Developer contact email**: Your email
+4. Click **Save and Continue**
+5. On Scopes page, click **Add or Remove Scopes**
+   - Add: `https://www.googleapis.com/auth/drive.file`
+   - This allows the app to access only files it creates
+6. Click **Save and Continue** through remaining steps
+
+**Step 4: Create OAuth 2.0 Credentials**
+
+1. Go to [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+2. Click **+ Create Credentials** → **OAuth client ID**
+3. Select **Web application**
+4. Configure:
+   - **Name**: OPCS Onboarding
+   - **Authorized redirect URIs**: Add `https://developers.google.com/oauthplayground`
+5. Click **Create**
+6. **Save your Client ID and Client Secret** - you'll need these!
+
+**Step 5: Generate a Refresh Token**
+
+1. Go to [Google OAuth Playground](https://developers.google.com/oauthplayground/)
+2. Click the **gear icon** (⚙️) in the top right
+3. Check **"Use your own OAuth credentials"**
+4. Enter your **Client ID** and **Client Secret** from Step 4
+5. Close settings
+6. In the left panel under "Step 1", find **Drive API v3**
+7. Select `https://www.googleapis.com/auth/drive.file`
+8. Click **Authorize APIs**
+9. Sign in with your Google account and grant permissions
+10. In "Step 2", click **Exchange authorization code for tokens**
+11. **Copy the Refresh Token** - this is what you need!
+
+**Step 6: Add Credentials to OPCS**
+
+1. Log in to OPCS as an admin
+2. Go to **Settings** (Admin → Settings)
+3. Enter your credentials:
+   - **Google OAuth Client ID**: From Step 4
+   - **Google OAuth Client Secret**: From Step 4
+   - **Google OAuth Refresh Token**: From Step 5
+   - **Google Drive Base Folder ID**: (Optional) Click "Browse..." to select a folder, or leave empty to use Drive root
+4. Click **Test Connection** to verify everything works
+
+**Troubleshooting Google Drive:**
+- **"Invalid grant"**: Your refresh token expired. Repeat Step 5 to generate a new one.
+- **"Access denied"**: Ensure you selected the correct scopes in Step 5.
+- **Files not appearing**: Check that the folder ID is correct and you have access.
+
+---
+
+#### Google Address Validation API (Optional)
+
+This API provides address verification and auto-fill for city, state, and ZIP code. Without it, users can manually enter addresses.
+
+**Note:** This API requires billing to be enabled in your Google Cloud project.
+
+**Step 1: Enable the API**
+
+1. Go to [APIs & Services → Library](https://console.cloud.google.com/apis/library)
+2. Search for "Address Validation API"
+3. Click on **Address Validation API** → **Enable**
+
+**Step 2: Create an API Key**
+
+1. Go to [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+2. Click **+ Create Credentials** → **API key**
+3. **Copy the API key**
+4. (Recommended) Click **Edit API key** to add restrictions:
+   - **Application restrictions**: HTTP referrers
+   - Add your domain (e.g., `https://yourdomain.com/*`)
+   - **API restrictions**: Restrict to "Address Validation API"
+
+**Step 3: Add API Key to OPCS**
+
+1. Go to **Settings** (Admin → Settings)
+2. Enter your API key in **Google Address Validation API Key**
+3. Click **Test Connection** to verify it works
+
+**Troubleshooting Address Validation:**
+- **"API key not valid"**: Ensure the key has access to Address Validation API
+- **"Billing not enabled"**: Enable billing in Google Cloud Console
+- **API not working**: Falls back to manual address entry automatically
 
 ## Usage
 

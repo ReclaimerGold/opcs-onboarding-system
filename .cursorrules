@@ -141,6 +141,14 @@ All form fields must follow the standardized labeling pattern established in Ste
 - `frontend/src/composables/useApplicantData.js` - Applicant data loading
 - `frontend/src/utils/validation.js` - Phone/email validation
 
+### Docker
+- `Dockerfile` - Combined multi-stage build (frontend + backend in single container)
+- `backend/Dockerfile` - Backend-only service image
+- `frontend/Dockerfile` - Frontend-only nginx image
+- `docker-compose.yml` - Production deployment configuration
+- `docker-compose.dev.yml` - Development with hot reload
+- `frontend/nginx.conf` - Nginx configuration for frontend and API proxy
+
 ## Documentation Requirements
 
 ### ALWAYS Update Documentation
@@ -256,6 +264,32 @@ All form fields must follow the standardized labeling pattern established in Ste
 - Test Google Drive upload (or local storage fallback)
 - Verify encryption is working
 - Check test coverage meets minimum (80% for critical paths)
+- Test Docker build: `docker build -t test .`
+- Test Docker container runs: `docker run --rm -p 8888:80 -e SESSION_SECRET=test test`
+
+## CI/CD (GitHub Actions)
+
+### Workflow Files
+- `.github/workflows/ci.yml` - Continuous integration (lint, test, build)
+- `.github/workflows/release.yml` - Release workflow (test, build, publish images)
+
+### CI Pipeline
+1. **Lint**: Run ESLint on frontend and backend
+2. **Test Backend**: Jest tests with coverage
+3. **Test Frontend**: Vitest tests with coverage
+4. **Build Docker**: Build all three image variants
+
+### Release Pipeline
+1. Triggered by version tags (`v*`)
+2. Runs full test suite
+3. Builds and pushes Docker images to GitHub Container Registry
+4. Creates GitHub release with Docker pull instructions
+
+### Docker Image Tags
+- `ghcr.io/{repo}:latest` - Combined image (latest)
+- `ghcr.io/{repo}:v*` - Combined image (version tagged)
+- `ghcr.io/{repo}-backend:latest` - Backend only
+- `ghcr.io/{repo}-frontend:latest` - Frontend only
 
 ## Common Pitfalls to Avoid
 
@@ -279,8 +313,54 @@ Use Tailwind config colors from `frontend/tailwind.config.js`:
 ## Port Configuration
 
 - Backend: 3000 (configurable via `PORT` env var)
-- Frontend: 8080 (configurable in `vite.config.js`)
+- Frontend: 9999 (configurable in `vite.config.js`)
+- Docker combined image: 80 (nginx) + 3000 (backend)
 - Check for port conflicts before starting
+
+## Docker Development
+
+### Docker Setup
+- **Combined image** (`Dockerfile`): Full-stack in single container (nginx + backend)
+- **Backend image** (`backend/Dockerfile`): API-only for microservices
+- **Frontend image** (`frontend/Dockerfile`): nginx serving Vue app
+- **Docker Compose**: Use for multi-service deployment
+
+### Docker Files
+- `Dockerfile` - Root combined image
+- `backend/Dockerfile` - Backend service
+- `frontend/Dockerfile` - Frontend service
+- `docker-compose.yml` - Production multi-service
+- `docker-compose.dev.yml` - Development with hot reload
+- `.dockerignore` - Files to exclude from builds
+
+### Building Images
+```bash
+# Combined image
+docker build -t opcs-onboarding .
+
+# Backend only
+docker build -t opcs-backend -f backend/Dockerfile backend/
+
+# Frontend only
+docker build -t opcs-frontend -f frontend/Dockerfile frontend/
+```
+
+### Running with Docker Compose
+```bash
+# Production
+docker-compose up -d
+
+# Development (with hot reload)
+docker-compose -f docker-compose.dev.yml up
+```
+
+### Environment Variables for Docker
+- `SESSION_SECRET` - **Required** - Session encryption key
+- `ENCRYPTION_KEY` - AES-256 key for data encryption
+- `NODE_ENV` - Environment mode (production/development)
+- `PORT` - Backend server port (default: 3000)
+- `FRONTEND_URL` - Frontend URL for CORS
+- Google API credentials (configured via Settings page)
 
 ## Git Workflow
 

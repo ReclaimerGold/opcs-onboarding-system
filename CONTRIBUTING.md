@@ -34,6 +34,7 @@ npm install
 3. Set up environment variables:
    - Create `.env` file in the `backend/` directory
    - Add required environment variables (see README.md for details)
+   - For Google APIs setup (Drive and Address Validation), see the comprehensive guide in README.md under "Google APIs Setup"
 
 4. Initialize the database:
    - The database will be created automatically on first run
@@ -47,7 +48,29 @@ npm run dev
 
 This will start:
 - Backend server on `http://localhost:3000`
-- Frontend dev server on `http://localhost:8080`
+- Frontend dev server on `http://localhost:9999`
+
+### Docker Development Setup
+
+Alternatively, you can use Docker for development:
+
+```bash
+# Development with hot reload
+docker-compose -f docker-compose.dev.yml up
+
+# This starts:
+# - Frontend on http://localhost:9999 (with hot reload)
+# - Backend on http://localhost:3000 (with file watching)
+```
+
+For production-like testing:
+```bash
+# Build and run combined image
+docker build -t opcs-test .
+docker run -p 8888:80 -e SESSION_SECRET=test-secret opcs-test
+
+# Access at http://localhost:8888
+```
 
 ## Code Style
 
@@ -139,8 +162,17 @@ This will start:
 - Don't commit database files (`*.db`)
 - Don't commit `dist/` or build artifacts
 - Do commit all source code changes
+- Do commit Docker files (Dockerfile, docker-compose.yml, .dockerignore)
 - Ensure README.md is updated if needed
 - Ensure CONTRIBUTING.md is updated if needed
+
+### Docker Changes
+When modifying Docker-related files:
+- Test the build locally: `docker build -t test-image .`
+- Test the container runs: `docker run --rm -p 8888:80 test-image`
+- Verify health check passes: `curl http://localhost:8888/api/health`
+- Update README.md Docker section if configuration changes
+- Ensure `.dockerignore` excludes appropriate files
 
 ## Adding New Features
 
