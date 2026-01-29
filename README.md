@@ -5,7 +5,10 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 ## Features
 
 ### User Experience
-- **Sign Up / Sign In**: Start new onboarding or continue existing process
+- **Unified Login System**: Single sign-in flow for both applicants and administrators
+  - Sign Up: Create new account to start onboarding
+  - Sign In: Continue onboarding or access admin dashboard (password required for admins)
+  - Two-phase authentication: Admin users prompted for password after credential verification
 - **Clickable Breadcrumb Navigation**: Navigate between steps with visual progress indicators
 - **Smart Step Validation**: Warnings when navigating to steps with missing prerequisites
 - **Auto-save drafts**: Progress is automatically saved as you fill out forms (2-second debounce)
@@ -275,8 +278,9 @@ This API provides address verification and auto-fill for city, state, and ZIP co
 
 ### For Applicants
 
-1. **Sign Up**: Enter first name, last name, and email to start onboarding
-2. **Complete Forms**: Fill out each step of the onboarding process
+1. **Sign Up**: Click "Sign Up" and enter first name, last name, and email to start onboarding
+2. **Sign In**: Click "Sign In" to continue where you left off (no password required for regular applicants)
+3. **Complete Forms**: Fill out each step of the onboarding process
    - Fields auto-populate from signup where applicable
    - Progress is auto-saved every 2 seconds
    - Use "Save Draft" button for manual saves
@@ -333,6 +337,11 @@ All admin tables support:
 - **Settings Encryption**: API keys and credentials encrypted at rest
 - **Audit Logging**: All document access and form submissions logged
 - **Session Security**: HTTP-only cookies, secure in production
+- **Login Security**: 
+  - All login attempts logged with IP address and user agent
+  - Rate limiting (50 auth requests per 15 minutes per IP)
+  - Admin users require password authentication (bcrypt hashed)
+  - Two-phase login prevents admin enumeration
 
 ## Compliance
 
@@ -349,7 +358,9 @@ This system is designed to comply with:
 
 ### Authentication
 - `POST /api/auth/signup` - Create new applicant account
-- `POST /api/auth/login` - Login to existing account
+- `POST /api/auth/login` - Login to existing account (two-phase for admins)
+  - Phase 1: Submit credentials (firstName, lastName, email) → returns `requiresPassword: true/false`
+  - Phase 2 (admin only): Submit credentials + password → completes authentication
 - `POST /api/auth/logout` - Logout
 - `POST /api/auth/keepalive` - Refresh session expiration for active users
 - `GET /api/auth/me` - Get current user info
