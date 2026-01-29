@@ -29,7 +29,7 @@ export const W4_FIELD_MAPPING = {
   // Step 3: Dependents
   qualifyingChildrenAmount: ['topmostSubform[0].Page1[0].Step3_ReadOrder[0].f1_06[0]', 'f1_06[0]', 'f1_6'],
   otherDependentsAmount: ['topmostSubform[0].Page1[0].Step3_ReadOrder[0].f1_07[0]', 'f1_07[0]', 'f1_7'],
-  totalCreditsStep3: ['topmostSubform[0].Page1[0].Step3_ReadOrder[0].f1_08[0]', 'f1_08[0]', 'f1_8'],
+  totalCreditsStep3: ['topmostSubform[0].Page1[0].f1_08[0]', 'f1_08[0]', 'f1_8'],  // Note: f1_08 is outside Step3_ReadOrder
   
   // Step 4: Other Adjustments
   otherIncome: ['topmostSubform[0].Page1[0].Step4a[0].f1_09[0]', 'f1_09[0]', 'f1_9'],
@@ -105,6 +105,10 @@ export const I9_FIELD_MAPPING = {
 /**
  * Form 8850 Field Mappings (IRS Form 8850)
  * Pre-Screening Notice and Certification Request for WOTC
+ * 
+ * Note: The actual IRS 8850 form has 7 text fields on Page 1:
+ * f1_1: First name, f1_2: Middle initial, f1_3: Last name, f1_4: SSN
+ * f1_5: Street address, f1_6: City/State/ZIP (combined), f1_7: County
  */
 export const F8850_FIELD_MAPPING = {
   // Applicant Information
@@ -113,16 +117,10 @@ export const F8850_FIELD_MAPPING = {
   lastName: ['topmostSubform[0].Page1[0].f1_3[0]', 'f1_3[0]', 'f1_3'],
   ssn: ['topmostSubform[0].Page1[0].f1_4[0]', 'f1_4[0]', 'f1_4'],
   
-  // Address
+  // Address - Note: IRS form combines city/state/zip in f1_6
   streetAddress: ['topmostSubform[0].Page1[0].f1_5[0]', 'f1_5[0]', 'f1_5'],
-  city: ['topmostSubform[0].Page1[0].f1_6[0]', 'f1_6[0]', 'f1_6'],
+  cityStateZip: ['topmostSubform[0].Page1[0].f1_6[0]', 'f1_6[0]', 'f1_6'],
   county: ['topmostSubform[0].Page1[0].f1_7[0]', 'f1_7[0]', 'f1_7'],
-  state: ['topmostSubform[0].Page1[0].f1_8[0]', 'f1_8[0]', 'f1_8'],
-  zipCode: ['topmostSubform[0].Page1[0].f1_9[0]', 'f1_9[0]', 'f1_9'],
-  
-  // Contact and DOB
-  telephone: ['topmostSubform[0].Page1[0].f1_10[0]', 'f1_10[0]', 'f1_10'],
-  dateOfBirth: ['topmostSubform[0].Page1[0].f1_11[0]', 'f1_11[0]', 'f1_11'],
   
   // Target Group checkboxes (lines 1-8)
   targetGroup1: ['topmostSubform[0].Page1[0].c1_1[0]', 'c1_1[0]', 'c1_1'], // TANF recipient
@@ -135,13 +133,9 @@ export const F8850_FIELD_MAPPING = {
   targetGroup8: ['topmostSubform[0].Page1[0].c1_8[0]', 'c1_8[0]', 'c1_8'], // SSI recipient
   targetGroup9: ['topmostSubform[0].Page1[0].c1_9[0]', 'c1_9[0]', 'c1_9'], // Long-term unemployment
   
-  // Additional fields for specific target groups
-  dateReceivedTANF: ['topmostSubform[0].Page1[0].f1_12[0]', 'f1_12[0]', 'f1_12'],
-  dateReleasedConfinement: ['topmostSubform[0].Page1[0].f1_13[0]', 'f1_13[0]', 'f1_13'],
-  
-  // Signature
-  signature: ['topmostSubform[0].Page1[0].f1_14[0]', 'f1_14[0]', 'f1_14'],
-  signatureDate: ['topmostSubform[0].Page1[0].f1_15[0]', 'f1_15[0]', 'f1_15'],
+  // Note: IRS Form 8850 Page 1 only has f1_1 through f1_7 as fillable fields
+  // The signature area on Page 1 is for manual signature, not a fillable field
+  // dateReceivedTANF and dateReleasedConfinement fields don't exist in current template
   
   // Employer section (Page 2)
   employerName: ['topmostSubform[0].Page2[0].f2_1[0]', 'f2_1[0]', 'f2_1'],
@@ -381,12 +375,13 @@ export function mapW4FormData(formData) {
     // Multiple jobs
     multipleJobsCheckbox: formData.multipleJobs === true,
     
-    // Dependents - calculate amounts
+    // Dependents - calculate amounts (leave blank if no dependents per IRS instructions)
     qualifyingChildrenAmount: formData.qualifyingChildren ? formatCurrencyForPDF(formData.qualifyingChildren * 2000) : '',
     otherDependentsAmount: formData.dependents ? formatCurrencyForPDF(formData.dependents * 500) : '',
-    totalCreditsStep3: formatCurrencyForPDF(
-      ((formData.qualifyingChildren || 0) * 2000) + ((formData.dependents || 0) * 500)
-    ),
+    // Step 3 total should be blank if no dependents (value of 0 means leave blank)
+    totalCreditsStep3: (formData.qualifyingChildren || formData.dependents) 
+      ? formatCurrencyForPDF(((formData.qualifyingChildren || 0) * 2000) + ((formData.dependents || 0) * 500))
+      : '',
     
     // Step 4 adjustments
     otherIncome: formatCurrencyForPDF(formData.otherIncome),
@@ -453,20 +448,23 @@ export function mapI9FormData(formData) {
  * @returns {Object} Mapped field values
  */
 export function map8850FormData(formData) {
+  // Build combined city/state/zip field for the IRS 8850 form format
+  const cityStateZip = [
+    formData.city || '',
+    formData.state || '',
+    formData.zip || formData.zipCode || ''
+  ].filter(Boolean).join(', ')
+  
   return {
     firstName: formData.firstName || '',
     middleInitial: formData.middle ? formData.middle.charAt(0) : '',
     lastName: formData.lastName || '',
     ssn: formatSSNForPDF(formData.ssn),
     
+    // Address fields - IRS 8850 combines city/state/zip
     streetAddress: formData.address || '',
-    city: formData.city || '',
+    cityStateZip: cityStateZip,
     county: formData.county || '',
-    state: formData.state || '',
-    zipCode: formData.zip || formData.zipCode || '',
-    
-    telephone: formatPhoneForPDF(formData.phone),
-    dateOfBirth: formatDateForPDF(formData.dateOfBirth),
     
     // Target group checkboxes based on form data
     targetGroup1: formData.targetGroups?.includes('tanf') || false,
@@ -477,14 +475,10 @@ export function map8850FormData(formData) {
     targetGroup6: formData.targetGroups?.includes('summerYouth') || false,
     targetGroup7: formData.targetGroups?.includes('snap') || false,
     targetGroup8: formData.targetGroups?.includes('ssi') || false,
-    targetGroup9: formData.targetGroups?.includes('longTermUnemployed') || false,
+    targetGroup9: formData.targetGroups?.includes('longTermUnemployed') || false
     
-    // Additional dates
-    dateReceivedTANF: formatDateForPDF(formData.tanfDate),
-    dateReleasedConfinement: formatDateForPDF(formData.releaseDate),
-    
-    // Signature date
-    signatureDate: formatDateForPDF(new Date())
+    // Note: IRS Form 8850 Page 1 signature is manual (not a fillable field)
+    // Employer section (Page 2) fields are filled separately if needed
   }
 }
 

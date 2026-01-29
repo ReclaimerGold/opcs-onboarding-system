@@ -318,6 +318,20 @@ async function generateW4PDFFallback(formData, applicantData) {
  * Falls back to basic generation only if template is completely unavailable
  */
 export async function generateI9PDF(formData, applicantData) {
+  // Merge applicant data into form data for I-9 (which needs address, DOB, SSN, etc.)
+  const mergedFormData = {
+    ...formData,
+    // Add applicant data that may not be in the I-9 form submission
+    address: formData.address || applicantData?.address || '',
+    city: formData.city || applicantData?.city || '',
+    state: formData.state || applicantData?.state || '',
+    zipCode: formData.zipCode || applicantData?.zip_code || applicantData?.zipCode || '',
+    dateOfBirth: formData.dateOfBirth || applicantData?.date_of_birth || applicantData?.dateOfBirth || '',
+    ssn: formData.ssn || applicantData?.ssn || '',
+    email: formData.email || applicantData?.email || '',
+    phone: formData.phone || applicantData?.phone || ''
+  }
+  
   // Try to use official template
   const templateBuffer = await getTemplate('I9')
   
@@ -331,20 +345,20 @@ export async function generateI9PDF(formData, applicantData) {
       const retryBuffer = await getTemplate('I9')
       if (retryBuffer) {
         console.log('I-9 template downloaded successfully, using template')
-        return await fillI9Template(retryBuffer, formData)
+        return await fillI9Template(retryBuffer, mergedFormData)
       }
     }
     
     console.error('I-9 template unavailable after download attempt, using fallback')
-    return generateI9PDFFallback(formData, applicantData)
+    return generateI9PDFFallback(mergedFormData, applicantData)
   }
   
   // Use template
   try {
-    return await fillI9Template(templateBuffer, formData)
+    return await fillI9Template(templateBuffer, mergedFormData)
   } catch (error) {
     console.error('Failed to fill I-9 template, using fallback:', error.message)
-    return generateI9PDFFallback(formData, applicantData)
+    return generateI9PDFFallback(mergedFormData, applicantData)
   }
 }
 
@@ -743,9 +757,6 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     formType
   )
   
-  // Encrypt the PDF in memory
-  const encryptedBuffer = encryptBuffer(pdfBytes)
-  
   // Get applicant data for folder creation
   const db = getDatabase()
   const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(applicantId)
@@ -766,9 +777,11 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
   
   // Check if Google Drive is configured
   if (isGoogleDriveConfigured()) {
-    // Upload encrypted PDF directly to Google Drive
+    // Upload raw PDF to Google Drive (Google handles its own encryption)
+    // Convert Uint8Array to Buffer for upload
+    const pdfBuffer = Buffer.from(pdfBytes)
     const uploadResult = await uploadToGoogleDrive(
-      encryptedBuffer,
+      pdfBuffer,
       filename,
       applicant,
       'application/pdf'
@@ -777,9 +790,10 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     webViewLink = uploadResult.webViewLink
     console.log(`PDF uploaded to Google Drive: ${googleDriveId}`)
   } else {
-    // Fallback to local storage
+    // Encrypt the PDF for local storage only
+    const encryptedBuffer = encryptBuffer(pdfBytes)
     localPath = await saveToLocalStorage(encryptedBuffer, filename, applicant)
-    console.log(`PDF saved to local storage: ${localPath} (Google Drive not configured)`)
+    console.log(`PDF saved to local storage (encrypted): ${localPath} (Google Drive not configured)`)
   }
   
   // Save form submission record
