@@ -17,6 +17,8 @@ import {
   getTemplateDirectory
 } from '../services/pdfTemplateService.js'
 import { runAllComplianceChecks } from '../services/complianceService.js'
+import { fixAllFilePermissions, isGoogleDriveConfigured, deleteFromGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.js'
+import { generateW4PDF, generateI9PDF, generate8850PDF, generateGenericPDF, generateFilename, calculateRetentionDate } from '../services/pdfService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -717,6 +719,8 @@ router.get('/submissions', async (req, res) => {
         fs.pdf_filename,
         fs.submitted_at,
         fs.retention_until,
+        fs.google_drive_id,
+        fs.web_view_link,
         a.id as applicant_id,
         a.first_name,
         a.last_name,
@@ -852,6 +856,8 @@ router.get('/i9-documents', async (req, res) => {
         d.file_name,
         d.file_size,
         d.uploaded_at,
+        d.google_drive_id,
+        d.web_view_link,
         a.id as applicant_id,
         a.first_name,
         a.last_name,
@@ -1996,6 +2002,221 @@ router.get('/login-attempts/export', async (req, res) => {
   } catch (error) {
     console.error('Export login attempts error:', error)
     res.status(500).json({ error: 'Failed to export data' })
+  }
+})
+
+/**
+ * POST /api/admin/regenerate-pdfs
+ * Regenerate all corrupted PDFs in Google Drive
+ * Deletes old files and uploads new unencrypted versions
+ */
+router.post('/regenerate-pdfs', async (req, res) => {
+  try {
+    // Check if Google Drive is configured
+    if (!isGoogleDriveConfigured()) {
+      return res.status(400).json({ 
+        error: 'Google Drive is not configured. Please configure credentials in Settings first.' 
+      })
+    }
+
+    const db = getDatabase()
+    
+    // Get all submissions with Google Drive IDs
+    // Include all applicant fields needed for PDF generation
+    const submissions = db.prepare(`
+      SELECT fs.id, fs.applicant_id, fs.step_number, fs.form_type, fs.google_drive_id, fs.form_data,
+             a.id as a_id, a.first_name, a.last_name, a.email, a.phone, a.hire_date, a.termination_date,
+             a.address, a.city, a.state, a.zip_code, a.date_of_birth
+      FROM form_submissions fs
+      JOIN applicants a ON fs.applicant_id = a.id
+      WHERE fs.google_drive_id IS NOT NULL AND fs.google_drive_id != ''
+      ORDER BY fs.applicant_id, fs.step_number
+    `).all()
+
+    console.log(`Starting PDF regeneration for ${submissions.length} submissions...`)
+
+    const results = {
+      total: submissions.length,
+      success: 0,
+      failed: 0,
+      details: []
+    }
+
+    for (const sub of submissions) {
+      const applicantName = `${sub.first_name} ${sub.last_name}`
+      console.log(`Processing: ${applicantName} - ${sub.form_type} (Step ${sub.step_number})`)
+
+      try {
+        // 1. Delete old file from Google Drive (don't fail if delete fails)
+        if (sub.google_drive_id) {
+          try {
+            await deleteFromGoogleDrive(sub.google_drive_id)
+            console.log(`  Deleted old file: ${sub.google_drive_id}`)
+          } catch (deleteError) {
+            console.warn(`  Could not delete old file (may already be deleted): ${deleteError.message}`)
+          }
+        }
+
+        // 2. Parse stored form data and build applicant data with all needed fields
+        const formData = JSON.parse(sub.form_data)
+        
+        // For I-9 forms, we need SSN which is stored in the W-4 submission (not in applicants table)
+        let ssn = formData.ssn || ''
+        if (!ssn && sub.form_type === 'I9') {
+          // Try to get SSN from the W-4 form submission for this applicant
+          const w4Submission = db.prepare(`
+            SELECT form_data FROM form_submissions 
+            WHERE applicant_id = ? AND form_type = 'W4'
+            ORDER BY submitted_at DESC LIMIT 1
+          `).get(sub.applicant_id)
+          if (w4Submission) {
+            try {
+              const w4Data = JSON.parse(w4Submission.form_data)
+              ssn = w4Data.ssn || ''
+            } catch (e) { /* ignore parse errors */ }
+          }
+        }
+        
+        const applicantData = {
+          first_name: sub.first_name,
+          last_name: sub.last_name,
+          email: sub.email,
+          phone: sub.phone,
+          address: sub.address,
+          city: sub.city,
+          state: sub.state,
+          zip_code: sub.zip_code,
+          date_of_birth: sub.date_of_birth,
+          ssn: ssn
+        }
+
+        // 3. Generate new PDF
+        let pdfBytes
+        switch (sub.form_type) {
+          case 'W4':
+            pdfBytes = await generateW4PDF(formData, applicantData)
+            break
+          case 'I9':
+            pdfBytes = await generateI9PDF(formData, applicantData)
+            break
+          case '8850':
+            pdfBytes = await generate8850PDF(formData, applicantData)
+            break
+          default:
+            pdfBytes = await generateGenericPDF(formData, sub.form_type, applicantData)
+        }
+
+        // 4. Generate new filename
+        const filename = generateFilename(sub.first_name, sub.last_name, sub.form_type)
+
+        // 5. Upload to Google Drive (unencrypted)
+        const pdfBuffer = Buffer.from(pdfBytes)
+        const uploadResult = await uploadToGoogleDrive(
+          pdfBuffer,
+          filename,
+          { first_name: sub.first_name, last_name: sub.last_name },
+          'application/pdf'
+        )
+
+        console.log(`  Uploaded new file: ${uploadResult.fileId}`)
+
+        // 6. Calculate retention date
+        const retentionUntil = calculateRetentionDate(
+          sub.form_type,
+          sub.hire_date,
+          sub.termination_date
+        )
+
+        // 7. Update database record
+        db.prepare(`
+          UPDATE form_submissions 
+          SET google_drive_id = ?, web_view_link = ?, pdf_filename = ?, retention_until = ?
+          WHERE id = ?
+        `).run(uploadResult.fileId, uploadResult.webViewLink, filename, retentionUntil, sub.id)
+
+        console.log(`  ✓ Success`)
+        results.success++
+        results.details.push({
+          applicant: applicantName,
+          formType: sub.form_type,
+          status: 'success',
+          newFileId: uploadResult.fileId
+        })
+
+      } catch (error) {
+        console.error(`  ✗ Error: ${error.message}`)
+        results.failed++
+        results.details.push({
+          applicant: applicantName,
+          formType: sub.form_type,
+          status: 'error',
+          error: error.message
+        })
+      }
+    }
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'REGENERATE_PDFS',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { total: results.total, success: results.success, failed: results.failed }
+    })
+
+    res.json({
+      success: true,
+      message: `Regenerated ${results.success} of ${results.total} PDFs`,
+      results
+    })
+  } catch (error) {
+    console.error('Regenerate PDFs error:', error)
+    res.status(500).json({ 
+      error: 'Failed to regenerate PDFs', 
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * POST /api/admin/fix-gdrive-permissions
+ * Fix permissions on all existing Google Drive files
+ * Makes all files viewable by anyone with the link
+ */
+router.post('/fix-gdrive-permissions', async (req, res) => {
+  try {
+    // Check if Google Drive is configured
+    if (!isGoogleDriveConfigured()) {
+      return res.status(400).json({ 
+        error: 'Google Drive is not configured. Please configure credentials in Settings first.' 
+      })
+    }
+
+    console.log('Starting to fix Google Drive file permissions...')
+    const results = await fixAllFilePermissions()
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'FIX_GDRIVE_PERMISSIONS',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: results
+    })
+
+    res.json({
+      success: true,
+      message: `Fixed permissions on ${results.success} of ${results.total} files`,
+      results
+    })
+  } catch (error) {
+    console.error('Fix GDrive permissions error:', error)
+    res.status(500).json({ 
+      error: 'Failed to fix Google Drive permissions', 
+      details: error.message 
+    })
   }
 })
 
