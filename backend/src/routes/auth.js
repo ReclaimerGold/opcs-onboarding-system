@@ -14,14 +14,14 @@ const router = express.Router()
 router.post('/signup', async (req, res) => {
   try {
     const { firstName, lastName, email } = req.body
-    
+
     if (!firstName || !lastName || !email) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'First name, last name, and email are required',
         code: 'MISSING_FIELDS'
       })
     }
-    
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
@@ -30,7 +30,7 @@ router.post('/signup', async (req, res) => {
         code: 'INVALID_EMAIL'
       })
     }
-    
+
     // Check if applicant already exists
     const existingApplicant = findApplicantByCredentials(firstName, lastName, email)
     if (existingApplicant) {
@@ -42,12 +42,12 @@ router.post('/signup', async (req, res) => {
         FROM form_submissions 
         WHERE applicant_id = ?
       `).get(existingApplicant.id)
-      
+
       const completedSteps = submissions.count || 0
       const isOnboardingComplete = completedSteps >= 6
-      
-      return res.status(400).json({ 
-        error: isOnboardingComplete 
+
+      return res.status(400).json({
+        error: isOnboardingComplete
           ? 'An account with this information already exists and onboarding is complete. Please sign in to access your dashboard.'
           : 'An account with this information already exists. Please sign in to continue your onboarding.',
         code: 'ACCOUNT_EXISTS',
@@ -56,15 +56,15 @@ router.post('/signup', async (req, res) => {
         completedSteps
       })
     }
-    
+
     // Create new applicant (first user automatically becomes admin)
     const applicant = createApplicant(firstName, lastName, email)
-    
+
     // Set session
     req.session.applicantId = applicant.id
     req.session.applicantEmail = applicant.email
     req.session.isAdmin = applicant.is_admin === 1
-    
+
     // Audit log
     await auditLog({
       userId: applicant.id,
@@ -75,11 +75,11 @@ router.post('/signup', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { email: applicant.email, isAdmin: applicant.is_admin === 1, isFirstUser: isFirstUser() }
     })
-    
+
     // Reload applicant to ensure we have the latest data including is_admin
     const db = getDatabase()
     const fullApplicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(applicant.id)
-    
+
     res.json({
       success: true,
       applicant: {
@@ -93,7 +93,7 @@ router.post('/signup', async (req, res) => {
     })
   } catch (error) {
     console.error('Signup error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'An unexpected error occurred during signup. Please try again.',
       code: 'SIGNUP_ERROR',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -109,16 +109,16 @@ router.post('/signup', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body
-    
+
     if (!firstName || !lastName || !email) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'First name, last name, and email are required',
         code: 'MISSING_FIELDS'
       })
     }
-    
+
     const applicant = findApplicantByCredentials(firstName, lastName, email)
-    
+
     if (!applicant) {
       // Track login attempt (before checking if user exists)
       const db = getDatabase()
@@ -136,20 +136,20 @@ router.post('/login', async (req, res) => {
         'Account not found',
         null // no applicant_id for failed attempts
       )
-      
-      return res.status(404).json({ 
+
+      return res.status(404).json({
         error: 'No account found with this information. Please sign up to get started.',
         code: 'ACCOUNT_NOT_FOUND',
         notFound: true
       })
     }
-    
+
     const isAdmin = applicant.is_admin === 1
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
     // Require password for anyone who has set one (admins and applicants)
     const requiresPassword = passwordSet
     const shouldCompleteLogin = !requiresPassword || password !== undefined
-    
+
     if (!shouldCompleteLogin) {
       // Phase 1: Return whether password is required or needs setup
       // If admin doesn't have password set, they need to set it up first
@@ -158,7 +158,7 @@ router.post('/login', async (req, res) => {
         req.session.applicantId = applicant.id
         req.session.isAdmin = true
         req.session.needsPasswordSetup = true
-        
+
         return res.json({
           success: true,
           requiresPasswordSetup: true,
@@ -172,7 +172,7 @@ router.post('/login', async (req, res) => {
           }
         })
       }
-      
+
       return res.json({
         success: true,
         requiresPassword,
@@ -186,7 +186,7 @@ router.post('/login', async (req, res) => {
         }
       })
     }
-    
+
     if (requiresPassword) {
       if (!passwordSet) {
         // Password not set yet - admin must set up their password first
@@ -194,7 +194,7 @@ router.post('/login', async (req, res) => {
         req.session.applicantId = applicant.id
         req.session.isAdmin = true
         req.session.needsPasswordSetup = true
-        
+
         return res.json({
           success: true,
           requiresPasswordSetup: true,
@@ -208,10 +208,10 @@ router.post('/login', async (req, res) => {
           }
         })
       }
-      
+
       // Verify against stored hash
       const isValid = await verifyPassword(password, applicant.password_hash)
-      
+
       if (!isValid) {
         const db = getDatabase()
         db.prepare(`
@@ -227,7 +227,7 @@ router.post('/login', async (req, res) => {
           'Invalid password',
           applicant.id
         )
-        
+
         return res.status(401).json({
           error: 'Invalid password',
           code: 'INVALID_PASSWORD',
@@ -235,10 +235,10 @@ router.post('/login', async (req, res) => {
         })
       }
     }
-    
+
     // Login successful (password verified or not required)
     const db = getDatabase()
-    
+
     db.prepare(`
       INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -252,22 +252,22 @@ router.post('/login', async (req, res) => {
       null,
       applicant.id
     )
-    
+
     // Check onboarding completion status
     const submissions = db.prepare(`
       SELECT COUNT(*) as count 
       FROM form_submissions 
       WHERE applicant_id = ?
     `).get(applicant.id)
-    
+
     const completedSteps = submissions.count || 0
     const isOnboardingComplete = completedSteps >= 6
-    
+
     // Set session
     req.session.applicantId = applicant.id
     req.session.applicantEmail = applicant.email
     req.session.isAdmin = applicant.is_admin === 1
-    
+
     // Audit log
     await auditLog({
       userId: applicant.id,
@@ -278,7 +278,7 @@ router.post('/login', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { email: applicant.email, completedSteps }
     })
-    
+
     return res.json({
       success: true,
       applicant: {
@@ -295,7 +295,7 @@ router.post('/login', async (req, res) => {
     })
   } catch (error) {
     console.error('Login error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'An unexpected error occurred during login. Please try again.',
       code: 'LOGIN_ERROR',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -316,7 +316,7 @@ router.post('/logout', async (req, res) => {
       userAgent: req.get('user-agent')
     })
   }
-  
+
   req.session.destroy((err) => {
     if (err) {
       return res.status(500).json({ error: 'Logout failed' })
@@ -351,7 +351,7 @@ router.get('/me', async (req, res) => {
       const db = getDatabase()
       const applicant = db.prepare('SELECT id, first_name, last_name, email, is_admin FROM applicants WHERE id = ?')
         .get(req.session.applicantId)
-      
+
       if (applicant) {
         res.json({
           id: applicant.id,
@@ -381,19 +381,19 @@ router.get('/password-status', async (req, res) => {
     if (!req.session || !req.session.applicantId) {
       return res.status(401).json({ error: 'Not authenticated' })
     }
-    
+
     const db = getDatabase()
     const applicant = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?')
       .get(req.session.applicantId)
-    
+
     if (!applicant) {
       return res.status(404).json({ error: 'User not found' })
     }
-    
+
     const isAdmin = applicant.is_admin === 1
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
     const requiresPassword = isAdmin && !passwordSet
-    
+
     res.json({
       passwordSet,
       requiresPassword,
@@ -415,38 +415,38 @@ router.post('/set-password', async (req, res) => {
     if (!req.session || !req.session.applicantId) {
       return res.status(401).json({ error: 'Not authenticated' })
     }
-    
+
     const { password, confirmPassword } = req.body
-    
+
     if (!password || !confirmPassword) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Password and confirmation are required',
         code: 'MISSING_FIELDS'
       })
     }
-    
+
     if (password !== confirmPassword) {
       return res.status(400).json({
         error: 'Passwords do not match',
         code: 'PASSWORD_MISMATCH'
       })
     }
-    
+
     if (password.length < 8) {
       return res.status(400).json({
         error: 'Password must be at least 8 characters long',
         code: 'PASSWORD_TOO_SHORT'
       })
     }
-    
+
     const db = getDatabase()
     const applicant = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?')
       .get(req.session.applicantId)
-    
+
     if (!applicant) {
       return res.status(404).json({ error: 'User not found' })
     }
-    
+
     // Check if password already set (unless force flag - admin only for force)
     if (applicant.password_hash && !req.body.force) {
       return res.status(400).json({
@@ -454,20 +454,20 @@ router.post('/set-password', async (req, res) => {
         code: 'PASSWORD_ALREADY_SET'
       })
     }
-    
+
     // Force flag requires admin
     if (req.body.force && !applicant.is_admin) {
       return res.status(403).json({ error: 'Only administrators can force password reset' })
     }
-    
+
     // Hash password
     const { hashPassword } = await import('../middleware/auth.js')
     const passwordHash = await hashPassword(password)
-    
+
     // Update password
     db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
       .run(passwordHash, req.session.applicantId)
-    
+
     // Audit log
     await auditLog({
       userId: req.session.applicantId,
@@ -478,14 +478,14 @@ router.post('/set-password', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { isInitialSetup: !applicant.password_hash, isAdmin: applicant.is_admin === 1 }
     })
-    
+
     res.json({
       success: true,
       message: 'Password set successfully'
     })
   } catch (error) {
     console.error('Set password error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to set password',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     })
@@ -501,69 +501,69 @@ router.post('/change-password', async (req, res) => {
     if (!req.session || !req.session.applicantId) {
       return res.status(401).json({ error: 'Not authenticated' })
     }
-    
+
     const { currentPassword, newPassword, confirmPassword } = req.body
-    
+
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Current password, new password, and confirmation are required',
         code: 'MISSING_FIELDS'
       })
     }
-    
+
     if (newPassword !== confirmPassword) {
       return res.status(400).json({
         error: 'New passwords do not match',
         code: 'PASSWORD_MISMATCH'
       })
     }
-    
+
     if (newPassword.length < 8) {
       return res.status(400).json({
         error: 'Password must be at least 8 characters long',
         code: 'PASSWORD_TOO_SHORT'
       })
     }
-    
+
     const db = getDatabase()
     const applicant = db.prepare('SELECT is_admin, password_hash FROM applicants WHERE id = ?')
       .get(req.session.applicantId)
-    
+
     if (!applicant) {
       return res.status(404).json({ error: 'User not found' })
     }
-    
+
     if (!applicant.is_admin) {
       return res.status(403).json({ error: 'Only administrators can change passwords' })
     }
-    
+
     // Verify current password
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
-    
+
     if (!passwordSet) {
       return res.status(400).json({
         error: 'Password not set yet. Use set-password endpoint first.',
         code: 'PASSWORD_NOT_SET'
       })
     }
-    
+
     const currentPasswordValid = await verifyPassword(currentPassword, applicant.password_hash)
-    
+
     if (!currentPasswordValid) {
       return res.status(401).json({
         error: 'Current password is incorrect',
         code: 'INVALID_CURRENT_PASSWORD'
       })
     }
-    
+
     // Hash new password
     const { hashPassword } = await import('../middleware/auth.js')
     const passwordHash = await hashPassword(newPassword)
-    
+
     // Update password
     db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
       .run(passwordHash, req.session.applicantId)
-    
+
     // Audit log
     await auditLog({
       userId: req.session.applicantId,
@@ -573,14 +573,14 @@ router.post('/change-password', async (req, res) => {
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
     })
-    
+
     res.json({
       success: true,
       message: 'Password changed successfully'
     })
   } catch (error) {
     console.error('Change password error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to change password',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     })
@@ -594,17 +594,17 @@ router.post('/change-password', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body
-    
+
     if (!email) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Email is required',
         code: 'MISSING_EMAIL'
       })
     }
-    
+
     // Normalize email
     const normalizedEmail = email.trim().toLowerCase()
-    
+
     // Check if Mailgun is configured
     if (!isMailgunConfigured()) {
       return res.status(503).json({
@@ -612,19 +612,19 @@ router.post('/forgot-password', async (req, res) => {
         code: 'EMAIL_NOT_CONFIGURED'
       })
     }
-    
+
     const db = getDatabase()
-    
+
     // Look up applicant by email only
     const applicant = db.prepare(`
       SELECT id, first_name, email 
       FROM applicants 
       WHERE LOWER(TRIM(email)) = ?
     `).get(normalizedEmail)
-    
+
     // Always return success message to prevent user enumeration
     const genericSuccessMessage = 'If an account exists with this email, we have sent password reset instructions.'
-    
+
     if (!applicant) {
       // Log the attempt but don't reveal if account exists
       console.log('Password reset requested for non-existent email:', normalizedEmail)
@@ -633,33 +633,33 @@ router.post('/forgot-password', async (req, res) => {
         message: genericSuccessMessage
       })
     }
-    
+
     // Generate secure random token
     const token = crypto.randomBytes(32).toString('hex')
-    
+
     // Hash the token for storage (don't store plaintext)
     const tokenHash = await hashPassword(token)
-    
+
     // Set expiration to 1 hour from now
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    
+
     // Delete any existing tokens for this applicant
     db.prepare('DELETE FROM password_reset_tokens WHERE applicant_id = ?').run(applicant.id)
-    
+
     // Insert new token
     db.prepare(`
       INSERT INTO password_reset_tokens (applicant_id, token_hash, expires_at)
       VALUES (?, ?, ?)
     `).run(applicant.id, tokenHash, expiresAt)
-    
+
     // Build reset URL
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:9999'
     const resetLink = `${frontendUrl}/reset-password?token=${token}`
-    
+
     // Send email
     try {
       await sendPasswordResetEmail(applicant.email, applicant.first_name, resetLink)
-      
+
       // Audit log
       await auditLog({
         userId: applicant.id,
@@ -674,20 +674,20 @@ router.post('/forgot-password', async (req, res) => {
       console.error('Failed to send password reset email:', emailError)
       // Clean up token if email failed
       db.prepare('DELETE FROM password_reset_tokens WHERE applicant_id = ?').run(applicant.id)
-      
+
       return res.status(503).json({
         error: 'Failed to send email. Please try again later or contact support.',
         code: 'EMAIL_SEND_FAILED'
       })
     }
-    
+
     res.json({
       success: true,
       message: genericSuccessMessage
     })
   } catch (error) {
     console.error('Forgot password error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'An error occurred. Please try again later.',
       code: 'FORGOT_PASSWORD_ERROR'
     })
@@ -701,23 +701,23 @@ router.post('/forgot-password', async (req, res) => {
 router.get('/verify-reset-token', async (req, res) => {
   try {
     const { token } = req.query
-    
+
     if (!token) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         valid: false,
         error: 'Token is required'
       })
     }
-    
+
     const db = getDatabase()
-    
+
     // Get all non-expired tokens
     const tokens = db.prepare(`
       SELECT id, applicant_id, token_hash, expires_at
       FROM password_reset_tokens
       WHERE expires_at > datetime('now')
     `).all()
-    
+
     // Check if any token matches
     for (const row of tokens) {
       const isMatch = await verifyPassword(token, row.token_hash)
@@ -725,14 +725,14 @@ router.get('/verify-reset-token', async (req, res) => {
         return res.json({ valid: true })
       }
     }
-    
-    res.status(400).json({ 
+
+    res.status(400).json({
       valid: false,
       error: 'Invalid or expired token'
     })
   } catch (error) {
     console.error('Verify reset token error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       valid: false,
       error: 'Failed to verify token'
     })
@@ -746,44 +746,44 @@ router.get('/verify-reset-token', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, password, confirmPassword } = req.body
-    
+
     if (!token) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Reset token is required',
         code: 'MISSING_TOKEN'
       })
     }
-    
+
     if (!password || !confirmPassword) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Password and confirmation are required',
         code: 'MISSING_FIELDS'
       })
     }
-    
+
     if (password !== confirmPassword) {
       return res.status(400).json({
         error: 'Passwords do not match',
         code: 'PASSWORD_MISMATCH'
       })
     }
-    
+
     if (password.length < 8) {
       return res.status(400).json({
         error: 'Password must be at least 8 characters long',
         code: 'PASSWORD_TOO_SHORT'
       })
     }
-    
+
     const db = getDatabase()
-    
+
     // Get all non-expired tokens
     const tokens = db.prepare(`
       SELECT id, applicant_id, token_hash, expires_at
       FROM password_reset_tokens
       WHERE expires_at > datetime('now')
     `).all()
-    
+
     // Find matching token
     let matchedToken = null
     for (const row of tokens) {
@@ -793,25 +793,25 @@ router.post('/reset-password', async (req, res) => {
         break
       }
     }
-    
+
     if (!matchedToken) {
       return res.status(400).json({
         error: 'Invalid or expired reset link. Please request a new password reset.',
         code: 'INVALID_TOKEN'
       })
     }
-    
+
     // Hash new password
     const passwordHash = await hashPassword(password)
-    
+
     // Update applicant password
     db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
       .run(passwordHash, matchedToken.applicant_id)
-    
+
     // Delete all tokens for this applicant
     db.prepare('DELETE FROM password_reset_tokens WHERE applicant_id = ?')
       .run(matchedToken.applicant_id)
-    
+
     // Audit log
     await auditLog({
       userId: matchedToken.applicant_id,
@@ -821,14 +821,14 @@ router.post('/reset-password', async (req, res) => {
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
     })
-    
+
     res.json({
       success: true,
       message: 'Password reset successfully. You can now log in with your new password.'
     })
   } catch (error) {
     console.error('Reset password error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to reset password. Please try again.',
       code: 'RESET_PASSWORD_ERROR'
     })

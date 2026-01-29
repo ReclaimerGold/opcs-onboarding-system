@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const router = express.Router()
-const upload = multer({ 
+const upload = multer({
   dest: 'uploads/temp/',
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 })
@@ -35,6 +35,110 @@ const FORM_TYPES = {
 }
 
 /**
+ * Validate that all legally required form fields are present for preview (no upload check).
+ * Returns { valid: true } or { valid: false, error: string }.
+ */
+function validatePreviewFormData(formData, step) {
+  if (!formData) return { valid: false, error: 'Form data is required' }
+  switch (step) {
+    case 1: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      const stateValid = formData.state && formData.state.length === 2
+      const zipValid = formData.zipCode && /^\d{5}(-\d{4})?$/.test(formData.zipCode)
+      if (!formData.firstName || !formData.lastName || !formData.email || !ssnValid || !formData.dateOfBirth ||
+          !formData.address || !formData.city || !stateValid || !zipValid || !formData.filingStatus) {
+        return { valid: false, error: 'Complete all required W-4 fields before viewing preview' }
+      }
+      return { valid: true }
+    }
+    case 2: {
+      if (!formData.firstName || !formData.lastName || !formData.authorizationType) {
+        return { valid: false, error: 'Complete name and employment authorization before viewing preview' }
+      }
+      if (formData.listADocument) return { valid: true }
+      if (formData.listBDocument && formData.listCDocument) {
+        if (!formData.listBDocumentNumber || !formData.listBIssuingAuthority || !formData.listCDocumentNumber) {
+          return { valid: false, error: 'Complete all List B and List C document fields before viewing preview' }
+        }
+        return { valid: true }
+      }
+      return { valid: false, error: 'Select and complete identity document (List A or List B + List C) before viewing preview' }
+    }
+    case 6: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      if (!formData.firstName || !formData.lastName || !ssnValid || !formData.email || !formData.county) {
+        return { valid: false, error: 'Complete all required Form 8850 fields before viewing preview' }
+      }
+      return { valid: true }
+    }
+    default:
+      return { valid: true }
+  }
+}
+
+/**
+ * Validate that all legally required form fields (and I-9 document uploads) are present for submission.
+ * Returns { valid: true } or { valid: false, error: string }.
+ */
+function validateSubmitFormData(formData, step, applicantId, db) {
+  if (!formData) return { valid: false, error: 'Form data is required' }
+  switch (step) {
+    case 1: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      const stateValid = formData.state && formData.state.length === 2
+      const zipValid = formData.zipCode && /^\d{5}(-\d{4})?$/.test(formData.zipCode)
+      if (!formData.firstName || !formData.lastName || !formData.email || !ssnValid || !formData.dateOfBirth ||
+          !formData.address || !formData.city || !stateValid || !zipValid || !formData.filingStatus) {
+        return { valid: false, error: 'Complete all required W-4 fields before submitting' }
+      }
+      return { valid: true }
+    }
+    case 2: {
+      if (!formData.firstName || !formData.lastName || !formData.authorizationType) {
+        return { valid: false, error: 'Complete name and employment authorization before submitting' }
+      }
+      if (formData.listADocument) {
+        const listA = db.prepare(`
+          SELECT id FROM i9_documents WHERE applicant_id = ? AND document_category = 'listA'
+        `).get(applicantId)
+        if (!listA) {
+          return { valid: false, error: 'Upload your List A identity document before submitting' }
+        }
+        return { valid: true }
+      }
+      if (formData.listBDocument && formData.listCDocument) {
+        if (!formData.listBDocumentNumber || !formData.listBIssuingAuthority || !formData.listCDocumentNumber) {
+          return { valid: false, error: 'Complete all List B and List C document number and issuing authority fields before submitting' }
+        }
+        const listB = db.prepare(`
+          SELECT id FROM i9_documents WHERE applicant_id = ? AND document_category = 'listB'
+        `).get(applicantId)
+        const listC = db.prepare(`
+          SELECT id FROM i9_documents WHERE applicant_id = ? AND document_category = 'listC'
+        `).get(applicantId)
+        if (!listB) {
+          return { valid: false, error: 'Upload your List B identity document before submitting' }
+        }
+        if (!listC) {
+          return { valid: false, error: 'Upload your List C work authorization document before submitting' }
+        }
+        return { valid: true }
+      }
+      return { valid: false, error: 'Select identity documents (List A or List B + List C) and upload them before submitting' }
+    }
+    case 6: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      if (!formData.firstName || !formData.lastName || !ssnValid || !formData.email || !formData.county) {
+        return { valid: false, error: 'Complete all required Form 8850 fields before submitting' }
+      }
+      return { valid: true }
+    }
+    default:
+      return { valid: true }
+  }
+}
+
+/**
  * POST /api/forms/submit/:step
  * Submit a form step
  */
@@ -44,30 +148,38 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     if (step < 1 || step > 6) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
-    
+
     const formType = FORM_TYPES[step]
     let formData
-    
+
     // Parse form data (could be JSON string or object)
     if (typeof req.body.formData === 'string') {
       formData = JSON.parse(req.body.formData)
     } else {
       formData = req.body.formData || req.body
     }
-    
+
     // Get applicant data
     const db = getDatabase()
     const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
-    
+
     if (!applicant) {
       return res.status(404).json({ error: 'Applicant not found' })
     }
-    
+
     // Check if SSN consent was provided for forms that need it
     if ((formType === 'W4' || formType === '8850') && !req.body.ssnConsented) {
       return res.status(400).json({ error: 'SSN collection consent required' })
     }
-    
+
+    // Validate all legally required fields (and I-9 uploads) before generating PDF
+    if (['W4', 'I9', '8850'].includes(formType)) {
+      const validation = validateSubmitFormData(formData, step, req.applicantId, db)
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error })
+      }
+    }
+
     // Log privacy consent if provided
     if (req.body.ssnConsented) {
       db.prepare(`
@@ -80,7 +192,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         req.ip
       )
     }
-    
+
     // Update applicant record with data from Step 1 (W-4) - date of birth, phone, and address
     // Address is also collected in W-4 and needed for I-9 (Step 2)
     if (step === 1 && formData) {
@@ -98,7 +210,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         req.applicantId
       )
     }
-    
+
     // Update applicant record with address data from Step 3 (Background Check)
     if (step === 3 && formData) {
       db.prepare(`
@@ -113,7 +225,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         req.applicantId
       )
     }
-    
+
     // Generate PDF and upload directly to Google Drive (SSN is included here but never stored in DB)
     const pdfResult = await generateAndSavePDF(
       req.applicantId,
@@ -122,17 +234,17 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       formData,
       applicant
     )
-    
+
     // Check if onboarding is complete (6 steps) and if user is admin
     const submissions = db.prepare(`
       SELECT COUNT(*) as count 
       FROM form_submissions 
       WHERE applicant_id = ?
     `).get(req.applicantId)
-    
+
     const completedSteps = submissions.count || 0
     const isOnboardingComplete = completedSteps >= 6
-    
+
     // Check if admin and password setup required
     let requiresPasswordSetup = false
     if (isOnboardingComplete) {
@@ -141,7 +253,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         requiresPasswordSetup = !adminCheck.password_hash || adminCheck.password_hash === ''
       }
     }
-    
+
     // Audit log
     await auditLog({
       userId: req.applicantId,
@@ -158,7 +270,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         requiresPasswordSetup
       }
     })
-    
+
     res.json({
       success: true,
       submissionId: pdfResult.submissionId,
@@ -186,7 +298,7 @@ router.get('/submissions', async (req, res) => {
       WHERE applicant_id = ?
       ORDER BY step_number
     `).all(req.applicantId)
-    
+
     res.json(submissions)
   } catch (error) {
     console.error('Get submissions error:', error)
@@ -204,17 +316,17 @@ router.post('/preview/:step', async (req, res) => {
     if (step < 1 || step > 6) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
-    
+
     const formType = FORM_TYPES[step]
     if (!formType) {
       return res.status(400).json({ error: 'Invalid form type' })
     }
-    
+
     // Only allow preview for forms that generate PDFs (W-4, I-9, 8850)
     if (!['W4', 'I9', '8850'].includes(formType)) {
       return res.status(400).json({ error: 'Preview not available for this form type' })
     }
-    
+
     // Parse form data
     let formData
     if (typeof req.body.formData === 'string') {
@@ -222,18 +334,24 @@ router.post('/preview/:step', async (req, res) => {
     } else {
       formData = req.body.formData || req.body
     }
-    
+
     // Get applicant data
     const db = getDatabase()
     const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
-    
+
     if (!applicant) {
       return res.status(404).json({ error: 'Applicant not found' })
     }
-    
+
+    // Don't generate preview until all legally required fields are filled
+    const previewValidation = validatePreviewFormData(formData, step)
+    if (!previewValidation.valid) {
+      return res.status(400).json({ error: previewValidation.error })
+    }
+
     // Generate PDF preview (without saving)
     const { generateW4PDF, generateI9PDF, generate8850PDF } = await import('../services/pdfService.js')
-    
+
     let pdfBytes
     const applicantData = {
       first_name: applicant.first_name,
@@ -246,7 +364,7 @@ router.post('/preview/:step', async (req, res) => {
       state: applicant.state,
       zip_code: applicant.zip_code
     }
-    
+
     switch (formType) {
       case 'W4':
         pdfBytes = await generateW4PDF(formData, applicantData)
@@ -260,7 +378,7 @@ router.post('/preview/:step', async (req, res) => {
       default:
         return res.status(400).json({ error: 'Preview not available for this form type' })
     }
-    
+
     // Return PDF as response with appropriate headers
     // Convert Uint8Array to Buffer for Express to send as binary data
     res.setHeader('Content-Type', 'application/pdf')
@@ -307,13 +425,13 @@ router.get('/submissions/:id/view', async (req, res) => {
     }
 
     let decryptedBuffer
-    
+
     // Check if document is in Google Drive or local storage
     if (submission.google_drive_id) {
       // Download and decrypt file from Google Drive
       const { downloadFromGoogleDrive } = await import('../services/googleDriveService.js')
       const { decryptBuffer } = await import('../services/encryptionService.js')
-      
+
       try {
         const encryptedBuffer = await downloadFromGoogleDrive(submission.google_drive_id)
         decryptedBuffer = decryptBuffer(encryptedBuffer)
@@ -325,7 +443,7 @@ router.get('/submissions/:id/view', async (req, res) => {
       // Read from local storage
       const { decryptBuffer } = await import('../services/encryptionService.js')
       const localPath = path.join(__dirname, '../../storage/encrypted-pdfs', submission.pdf_encrypted_path)
-      
+
       try {
         const encryptedBuffer = await fs.readFile(localPath)
         decryptedBuffer = decryptBuffer(encryptedBuffer)
@@ -366,10 +484,10 @@ router.post('/draft/:step', async (req, res) => {
     if (step < 1 || step > 6) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
-    
+
     const db = getDatabase()
     const formData = req.body.formData || req.body
-    
+
     // Save or update draft
     db.prepare(`
       INSERT INTO form_drafts (applicant_id, step_number, form_data, updated_at)
@@ -383,7 +501,7 @@ router.post('/draft/:step', async (req, res) => {
       JSON.stringify(formData),
       JSON.stringify(formData)
     )
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'SAVE_DRAFT',
@@ -393,7 +511,7 @@ router.post('/draft/:step', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { step }
     })
-    
+
     res.json({ success: true, message: 'Draft saved successfully' })
   } catch (error) {
     console.error('Save draft error:', error)
@@ -411,14 +529,14 @@ router.get('/draft/:step', async (req, res) => {
     if (step < 1 || step > 6) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
-    
+
     const db = getDatabase()
     const draft = db.prepare(`
       SELECT form_data, updated_at
       FROM form_drafts
       WHERE applicant_id = ? AND step_number = ?
     `).get(req.applicantId, step)
-    
+
     if (draft) {
       res.json({
         success: true,
@@ -447,7 +565,7 @@ router.get('/drafts', async (req, res) => {
       WHERE applicant_id = ?
       ORDER BY step_number
     `).all(req.applicantId)
-    
+
     res.json(drafts.map(d => ({
       stepNumber: d.step_number,
       updatedAt: d.updated_at
@@ -469,7 +587,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     }
 
     const { documentType, documentCategory, documentName } = req.body
-    
+
     if (!documentType || !documentCategory) {
       // Clean up uploaded file
       await fs.unlink(req.file.path)
@@ -479,7 +597,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     // Get applicant data
     const db = getDatabase()
     const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
-    
+
     if (!applicant) {
       await fs.unlink(req.file.path)
       return res.status(404).json({ error: 'Applicant not found' })
@@ -487,7 +605,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
 
     // Read uploaded file into buffer
     const fileBuffer = await fs.readFile(req.file.path)
-    
+
     // Clean up temporary file immediately
     await fs.unlink(req.file.path)
 
@@ -505,7 +623,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     let googleDriveId = null
     let webViewLink = null
     let localFilePath = null
-    
+
     // Check if Google Drive is configured
     if (isGoogleDriveConfigured()) {
       // Upload encrypted document directly to Google Drive
@@ -523,7 +641,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       const applicantFolder = `${applicant.first_name}${applicant.last_name}`.replace(/\s/g, '')
       const folderPath = path.join(LOCAL_I9_STORAGE_DIR, applicantFolder)
       await fs.mkdir(folderPath, { recursive: true })
-      
+
       localFilePath = path.join(applicantFolder, filename)
       await fs.writeFile(path.join(LOCAL_I9_STORAGE_DIR, localFilePath), encryptedBuffer)
       console.log(`I-9 document saved to local storage: ${localFilePath} (Google Drive not configured)`)
@@ -551,7 +669,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
           console.error('Error deleting old document from local storage:', error)
         }
       }
-      
+
       // Update record
       db.prepare(`
         UPDATE i9_documents 
@@ -671,7 +789,7 @@ router.get('/i9/documents/:id/view', async (req, res) => {
     }
 
     let decryptedBuffer
-    
+
     // Check if document is in Google Drive or local storage
     if (document.google_drive_id) {
       // Download and decrypt file from Google Drive

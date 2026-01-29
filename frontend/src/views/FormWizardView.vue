@@ -366,14 +366,14 @@
                 </div>
               </div>
               
-              <!-- Default placeholder state -->
+              <!-- Default placeholder state (shown until all required fields are filled) -->
               <div v-else class="w-full h-full flex items-center justify-center bg-gray-100">
                 <div class="text-center p-6">
                   <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p class="text-sm text-gray-500">PDF preview will appear here</p>
-                  <p class="text-xs text-gray-400 mt-1">as you fill out the form</p>
+                  <p class="text-xs text-gray-400 mt-1">after you complete all required fields</p>
                 </div>
               </div>
             </div>
@@ -381,7 +381,7 @@
               <p v-if="pdfPreviewUrl && !previewError">This is a <strong>live preview</strong> of your {{ getStepLabel(currentStep) }} form.</p>
               <p v-else-if="generatingPreview" class="text-gray-400 italic">Generating preview...</p>
               <p v-else-if="previewError" class="text-red-500 italic">Preview generation failed</p>
-              <p v-else class="text-gray-400 italic">Start filling out the form to see a live preview.</p>
+              <p v-else class="text-gray-400 italic">Complete all required fields to see a live preview.</p>
               <a 
                 v-if="pdfPreviewUrl && !previewError"
                 :href="pdfPreviewUrl" 
@@ -776,11 +776,10 @@ const generatePreview = async (formData) => {
     return
   }
   
-  // Validate that we have minimum required data before generating preview
-  // This prevents errors when form is first loaded with empty data
-  const hasMinimumData = validateMinimumFormData(formData, currentStep.value)
-  if (!hasMinimumData) {
-    // Don't generate preview if we don't have minimum required fields
+  // Don't generate preview until ALL legally required fields are filled
+  const allRequiredFilled = validateAllRequiredFieldsForPreview(formData, currentStep.value)
+  if (!allRequiredFilled) {
+    // Don't generate preview until required fields are complete
     // Clear any existing preview
     if (pdfPreviewUrl.value && pdfPreviewUrl.value.startsWith('blob:')) {
       URL.revokeObjectURL(pdfPreviewUrl.value)
@@ -911,20 +910,47 @@ const generatePreview = async (formData) => {
   }
 }
 
-// Validate that form has minimum required data for preview generation
-const validateMinimumFormData = (formData, step) => {
+// Validate that ALL legally required fields are filled before showing document preview
+const validateAllRequiredFieldsForPreview = (formData, step) => {
   if (!formData) return false
-  
+
   switch (step) {
-    case 1: // W-4
-      // Need at least name for W-4 preview (SSN can be added later)
-      return !!(formData.firstName && formData.lastName)
-    case 2: // I-9
-      // Need at least name for I-9 preview
-      return !!(formData.firstName && formData.lastName)
-    case 6: // 8850
-      // Need at least name for 8850 preview (SSN can be added later)
-      return !!(formData.firstName && formData.lastName)
+    case 1: { // W-4 - all required fields for PDF
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      const stateValid = formData.state && formData.state.length === 2
+      const zipValid = formData.zipCode && /^\d{5}(-\d{4})?$/.test(formData.zipCode)
+      return !!(
+        formData.firstName &&
+        formData.lastName &&
+        formData.email &&
+        ssnValid &&
+        formData.dateOfBirth &&
+        formData.address &&
+        formData.city &&
+        stateValid &&
+        zipValid &&
+        formData.filingStatus
+      )
+    }
+    case 2: { // I-9 - document choice + all required fields
+      if (!formData.firstName || !formData.lastName || !formData.authorizationType) return false
+      // List A path
+      if (formData.listADocument) {
+        return true
+      }
+      // List B + List C path
+      if (formData.listBDocument && formData.listCDocument) {
+        const hasListBNumber = !!formData.listBDocumentNumber
+        const hasListBAuthority = !!formData.listBIssuingAuthority
+        const hasListCNumber = !!formData.listCDocumentNumber
+        return hasListBNumber && hasListBAuthority && hasListCNumber
+      }
+      return false
+    }
+    case 6: { // 8850 - SSN, email, county
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      return !!(formData.firstName && formData.lastName && ssnValid && formData.email && formData.county)
+    }
     default:
       return false
   }

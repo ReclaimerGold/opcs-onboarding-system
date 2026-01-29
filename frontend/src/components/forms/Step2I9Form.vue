@@ -1265,52 +1265,46 @@ const validateDocuments = () => {
     return true
   }
   
-  // If List A option is selected, must have a List A document selected
-  // (List B/C are not required when List A is selected)
-  // NOTE: Upload validation temporarily disabled for testing PDF generation
+  // If List A option is selected, must have a List A document selected and uploaded
   if (documentOption.value === 'listA') {
     if (!formData.value.listADocument) {
       documentValidationError.value = 'Please select your List A document.'
       return false
     }
-    // TODO: Re-enable upload validation after PDF testing
-    // if (!uploadedDocuments.value.listA) {
-    //   documentValidationError.value = 'Please upload your List A document.'
-    //   return false
-    // }
+    if (!uploadedDocuments.value.listA) {
+      documentValidationError.value = 'Please upload your List A document.'
+      return false
+    }
     return true
   }
-  
-  // If List B+C option is selected, need both
-  // (List A is not required when List B+C is selected)
+
+  // If List B+C option is selected, need both documents selected and uploaded
   if (documentOption.value === 'listBC') {
     if (!formData.value.listBDocument && !formData.value.listCDocument) {
       documentValidationError.value = 'Please select both a List B document (identity) and a List C document (work authorization).'
       return false
     }
-    
+
     if (formData.value.listBDocument && !formData.value.listCDocument) {
       documentValidationError.value = 'List C document is required when List B is provided. Please select your work authorization document (List C).'
       return false
     }
-    
+
     if (formData.value.listCDocument && !formData.value.listBDocument) {
-      documentValidationError.value = 'List B document is required when List C is provided. Please select your identity document (List B) first.'
+      documentValidationError.value = 'List B document is required when List C is provided. Select your identity document (List B) first.'
       return false
     }
-    
-    // TODO: Re-enable upload validation after PDF testing
-    // Check uploads - temporarily disabled for testing PDF generation
-    // if (formData.value.listBDocument && !uploadedDocuments.value.listB) {
-    //   documentValidationError.value = 'Please upload your List B document.'
-    //   return false
-    // }
-    // 
-    // if (formData.value.listCDocument && !uploadedDocuments.value.listC) {
-    //   documentValidationError.value = 'Please upload your List C document.'
-    //   return false
-    // }
-    
+
+    if (formData.value.listBDocument && !uploadedDocuments.value.listB) {
+      documentValidationError.value = 'Please upload your List B document.'
+      return false
+    }
+
+    if (formData.value.listCDocument && !uploadedDocuments.value.listC) {
+      documentValidationError.value = 'Please upload your List C document.'
+      return false
+    }
+
     return true
   }
   

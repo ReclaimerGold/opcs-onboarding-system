@@ -7,19 +7,19 @@ import { decryptText } from './encryptionService.js'
  */
 export function getMailgunConfig() {
   const db = getDatabase()
-  
+
   const apiKeyRow = db.prepare('SELECT value, is_encrypted FROM settings WHERE key = ?').get('mailgun_api_key')
   const domainRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('mailgun_domain')
   const fromEmailRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('mailgun_from_email')
-  
+
   if (!apiKeyRow?.value || !domainRow?.value) {
     return null
   }
-  
+
   const apiKey = apiKeyRow.is_encrypted ? decryptText(apiKeyRow.value) : apiKeyRow.value
   const domain = domainRow.value
   const fromEmail = fromEmailRow?.value || `noreply@${domain}`
-  
+
   return { apiKey, domain, fromEmail }
 }
 
@@ -41,13 +41,13 @@ export function isMailgunConfigured() {
  */
 export async function sendEmail({ to, subject, text, html }) {
   const config = getMailgunConfig()
-  
+
   if (!config) {
     throw new Error('Mailgun is not configured. Please configure Mailgun settings in the admin panel.')
   }
-  
+
   const { apiKey, domain, fromEmail } = config
-  
+
   // Build form data for Mailgun API
   const formData = new URLSearchParams()
   formData.append('from', fromEmail)
@@ -57,10 +57,10 @@ export async function sendEmail({ to, subject, text, html }) {
   if (html) {
     formData.append('html', html)
   }
-  
+
   // Mailgun API endpoint
   const url = `https://api.mailgun.net/v3/${domain}/messages`
-  
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -69,13 +69,13 @@ export async function sendEmail({ to, subject, text, html }) {
     },
     body: formData.toString()
   })
-  
+
   if (!response.ok) {
     const errorText = await response.text()
     console.error('Mailgun API error:', response.status, errorText)
     throw new Error(`Failed to send email: ${response.status} ${errorText}`)
   }
-  
+
   const result = await response.json()
   return result
 }
@@ -88,7 +88,7 @@ export async function sendEmail({ to, subject, text, html }) {
  */
 export async function sendPasswordResetEmail(toEmail, firstName, resetLink) {
   const subject = 'Reset Your Password - Optimal Prime Services'
-  
+
   const text = `Hello ${firstName},
 
 You requested to reset your password for your Optimal Prime Services onboarding account.
@@ -149,7 +149,7 @@ Optimal Prime Services Team`
  */
 export async function sendTestEmail(toEmail) {
   const subject = 'Test Email - Optimal Prime Services'
-  
+
   const text = `This is a test email from your Optimal Prime Services onboarding system.
 
 If you received this email, your Mailgun configuration is working correctly!
