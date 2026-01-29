@@ -21,8 +21,8 @@
         </div>
 
         <!-- Tile Selection -->
-        <div v-if="!mode || mode === 'selection'" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-          <!-- Sign Up Tile -->
+        <div v-if="!mode || mode === 'selection'" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-2xl mx-auto">
+          <!-- Complete Onboarding Tile -->
           <button
             @click="switchToSignUp"
             class="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -30,15 +30,15 @@
             <div class="text-center">
               <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 group-hover:bg-primary transition-colors mb-4">
                 <svg class="h-8 w-8 text-primary group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 class="text-xl font-semibold text-gray-900 mb-2">Sign Up</h3>
-              <p class="text-sm text-gray-600">Start your onboarding process</p>
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">Complete Onboarding</h3>
+              <p class="text-sm text-gray-600">New employees start here</p>
             </div>
           </button>
 
-          <!-- Sign In Tile -->
+          <!-- Employee/Applicant Login Tile -->
           <button
             @click="switchToSignIn"
             class="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -46,27 +46,11 @@
             <div class="text-center">
               <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 group-hover:bg-primary transition-colors mb-4">
                 <svg class="h-8 w-8 text-primary group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-              <h3 class="text-xl font-semibold text-gray-900 mb-2">Sign In</h3>
-              <p class="text-sm text-gray-600">Continue your onboarding</p>
-            </div>
-          </button>
-
-          <!-- Manager Login Tile -->
-          <button
-            @click="switchToManager"
-            class="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-          >
-            <div class="text-center">
-              <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-purple-100 group-hover:bg-primary transition-colors mb-4">
-                <svg class="h-8 w-8 text-primary group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <h3 class="text-xl font-semibold text-gray-900 mb-2">Manager Login</h3>
-              <p class="text-sm text-gray-600">Administrator access</p>
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">Employee/Applicant Login</h3>
+              <p class="text-sm text-gray-600">Continue your onboarding or access your account</p>
             </div>
           </button>
         </div>
@@ -186,16 +170,13 @@
                 {{ error }}
               </h3>
               <div v-if="error.includes('already exists') && mode === 'signup'" class="mt-2 text-sm text-red-700">
-                <p>Click "Sign In" above to access your account.</p>
+                <p>Click "Employee/Applicant Login" above to access your account.</p>
               </div>
               <div v-if="error.includes('No account found') && mode !== 'signup'" class="mt-2 text-sm text-red-700">
-                <p>Click "Sign Up" above to create a new account.</p>
+                <p>Click "Complete Onboarding" above to create a new account.</p>
               </div>
               <div v-if="error.includes('Unable to create account') && mode === 'signup'" class="mt-2 text-sm text-red-700">
-                <p>If you already have an account, try clicking "Sign In" above.</p>
-              </div>
-              <div v-if="error.includes('Access denied') || error.includes('manager privileges')" class="mt-2 text-sm text-red-700">
-                <p>Please contact your administrator if you believe you should have manager access.</p>
+                <p>If you already have an account, try clicking "Employee/Applicant Login" above.</p>
               </div>
             </div>
           </div>
@@ -225,7 +206,7 @@
         </div>
         <div>
           <button
-            @click="switchToManager"
+            @click="switchToSignIn"
             class="text-sm text-primary hover:text-primary-light font-medium transition-colors"
           >
             Admin Access
@@ -245,7 +226,7 @@ import api from '../services/api.js'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const mode = ref('selection') // 'selection', 'signup', 'signin', or 'manager'
+const mode = ref('selection') // 'selection', 'signup', or 'signin'
 const currentYear = new Date().getFullYear()
 const firstName = ref('')
 const lastName = ref('')
@@ -263,8 +244,6 @@ const getModeTitle = () => {
       return 'Create Your Account'
     case 'signin':
       return 'Welcome Back'
-    case 'manager':
-      return 'Manager Access'
     default:
       return ''
   }
@@ -276,9 +255,7 @@ const getModeDescription = () => {
     case 'signup':
       return 'Enter your information to begin the onboarding process'
     case 'signin':
-      return 'Enter your information to continue where you left off'
-    case 'manager':
-      return 'Enter your credentials to access the admin dashboard'
+      return 'Enter your information to continue where you left off or access admin'
     default:
       return ''
   }
@@ -313,14 +290,6 @@ const switchToSignIn = () => {
   password.value = ''
 }
 
-const switchToManager = () => {
-  error.value = ''
-  mode.value = 'manager'
-  requiresPassword.value = false
-  loginPhase.value = 1
-  password.value = ''
-}
-
 // Get button text based on mode
 const getButtonText = () => {
   switch (mode.value) {
@@ -328,8 +297,6 @@ const getButtonText = () => {
       return 'Get Started'
     case 'signin':
       return 'Continue'
-    case 'manager':
-      return 'Login as Manager'
     default:
       return 'Get Started'
   }
@@ -342,8 +309,6 @@ const getButtonLoadingText = () => {
       return 'Creating account...'
     case 'signin':
       return 'Signing in...'
-    case 'manager':
-      return 'Logging in...'
     default:
       return 'Processing...'
   }
@@ -402,6 +367,16 @@ const handleSubmit = async () => {
       const response = await api.post('/auth/login', loginData)
       
       if (response.data.success) {
+        // Check if admin needs to set up password first
+        if (response.data.requiresPasswordSetup) {
+          authStore.user = response.data.applicant
+          authStore.isAuthenticated = true
+          authStore.isAdmin = true
+          localStorage.setItem('authToken', 'authenticated')
+          router.push('/password-setup')
+          return
+        }
+        
         // Check if password is required (Phase 1 response)
         if (response.data.requiresPassword !== undefined && !password.value) {
           requiresPassword.value = response.data.requiresPassword
@@ -418,22 +393,7 @@ const handleSubmit = async () => {
         
         // Redirect based on user type and onboarding status
         if (authStore.isAdmin) {
-          // Check if password setup is required
-          try {
-            const passwordStatus = await api.get('/auth/password-status')
-            if (passwordStatus.data.requiresPassword) {
-              router.push('/password-setup')
-              return
-            }
-          } catch (err) {
-            // If check fails, continue to admin dashboard
-          }
           router.push('/admin')
-        } else if (mode.value === 'manager') {
-          // User selected manager login but is not an admin
-          error.value = 'Access denied. This account does not have manager privileges.'
-          loading.value = false
-          return
         } else if (response.data.isNewUser) {
           router.push('/forms')
         } else {
@@ -483,13 +443,9 @@ const handleSubmit = async () => {
             : 'Account already exists. Please sign in to continue.'
           break
         case 'ACCOUNT_NOT_FOUND':
-          // Only show this error on login/manager, not signup
+          // Only show this error on login, not signup
           if (mode.value !== 'signup') {
-            if (mode.value === 'manager') {
-              error.value = 'No manager account found with this information. Please verify your credentials or contact your administrator.'
-            } else {
-              error.value = 'No account found with this information. Please sign up to get started.'
-            }
+            error.value = 'No account found with this information. Please sign up to get started.'
           } else {
             // This shouldn't happen on signup, but if it does, show generic error
             error.value = 'Unable to create account. Please try again.'
@@ -504,8 +460,6 @@ const handleSubmit = async () => {
           if (statusCode === 400) {
             if (mode.value === 'signup') {
               error.value = 'Unable to create account. Please check your information and try again.'
-            } else if (mode.value === 'manager') {
-              error.value = 'Unable to sign in as manager. Please check your information and try again.'
             } else {
               error.value = 'Unable to sign in. Please check your information and try again.'
             }
@@ -513,8 +467,6 @@ const handleSubmit = async () => {
             // 404 on signup shouldn't happen, but if it does, show appropriate message
             if (mode.value === 'signup') {
               error.value = 'Unable to create account. Please try again.'
-            } else if (mode.value === 'manager') {
-              error.value = 'No manager account found. Please verify your credentials or contact your administrator.'
             } else {
               error.value = 'No account found with this information. Please sign up to create a new account.'
             }
@@ -523,8 +475,6 @@ const handleSubmit = async () => {
           } else {
             if (mode.value === 'signup') {
               error.value = 'Failed to create account. Please check your information and try again.'
-            } else if (mode.value === 'manager') {
-              error.value = 'Failed to sign in as manager. Please check your information and try again.'
             } else {
               error.value = 'Failed to sign in. Please check your information and try again.'
             }
@@ -539,7 +489,7 @@ const handleSubmit = async () => {
         switchToSignIn()
       }, 3000)
     }
-    if (errorData.notFound && mode.value !== 'signup' && mode.value !== 'manager') {
+    if (errorData.notFound && mode.value !== 'signup') {
       // User tried to sign in but account doesn't exist - switch to sign up
       setTimeout(() => {
         switchToSignUp()
