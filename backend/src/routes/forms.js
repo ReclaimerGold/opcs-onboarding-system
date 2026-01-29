@@ -81,15 +81,20 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       )
     }
     
-    // Update applicant record with data from Step 1 (W-4) - date of birth and phone
+    // Update applicant record with data from Step 1 (W-4) - date of birth, phone, and address
+    // Address is also collected in W-4 and needed for I-9 (Step 2)
     if (step === 1 && formData) {
       db.prepare(`
         UPDATE applicants 
-        SET date_of_birth = ?, phone = ?
+        SET date_of_birth = ?, phone = ?, address = ?, city = ?, state = ?, zip_code = ?
         WHERE id = ?
       `).run(
         formData.dateOfBirth || null,
         formData.phone || null,
+        formData.address || null,
+        formData.city || null,
+        formData.state || null,
+        formData.zipCode || null,
         req.applicantId
       )
     }
@@ -277,6 +282,7 @@ router.post('/preview/:step', async (req, res) => {
 /**
  * GET /api/forms/submissions/:id/view
  * View/download a form submission PDF
+ * Admins can view all submissions, regular users can only view their own
  */
 router.get('/submissions/:id/view', async (req, res) => {
   try {
@@ -291,8 +297,12 @@ router.get('/submissions/:id/view', async (req, res) => {
       return res.status(404).json({ error: 'Submission not found' })
     }
 
-    // Verify ownership
-    if (submission.applicant_id !== req.applicantId) {
+    // Check if user is admin
+    const currentUser = db.prepare('SELECT is_admin FROM applicants WHERE id = ?').get(req.applicantId)
+    const isAdmin = currentUser && currentUser.is_admin === 1
+
+    // Verify ownership (admins can view all documents)
+    if (submission.applicant_id !== req.applicantId && !isAdmin) {
       return res.status(403).json({ error: 'Access denied' })
     }
 
@@ -636,6 +646,7 @@ router.get('/i9/documents', async (req, res) => {
 /**
  * GET /api/forms/i9/documents/:id/view
  * View/download an I-9 document
+ * Admins can view all documents, regular users can only view their own
  */
 router.get('/i9/documents/:id/view', async (req, res) => {
   try {
@@ -650,8 +661,12 @@ router.get('/i9/documents/:id/view', async (req, res) => {
       return res.status(404).json({ error: 'Document not found' })
     }
 
-    // Verify ownership
-    if (document.applicant_id !== req.applicantId) {
+    // Check if user is admin
+    const currentUser = db.prepare('SELECT is_admin FROM applicants WHERE id = ?').get(req.applicantId)
+    const isAdmin = currentUser && currentUser.is_admin === 1
+
+    // Verify ownership (admins can view all documents)
+    if (document.applicant_id !== req.applicantId && !isAdmin) {
       return res.status(403).json({ error: 'Access denied' })
     }
 
