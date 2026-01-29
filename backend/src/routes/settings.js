@@ -226,7 +226,8 @@ router.post('/', requireAdmin, (req, res) => {
       'google_client_id',
       'google_client_secret',
       'google_refresh_token',
-      'google_address_validation_api_key'
+      'google_address_validation_api_key',
+      'mailgun_api_key'
     ]
     
     for (const [key, value] of Object.entries(settings)) {
@@ -563,6 +564,51 @@ router.get('/google-drive/shared-drive/:id', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Get shared drive info error:', error)
     res.status(500).json({ error: 'Failed to get shared drive information', details: error.message })
+  }
+})
+
+/**
+ * POST /api/settings/test/mailgun
+ * Test Mailgun email configuration
+ * Requires admin access
+ */
+router.post('/test/mailgun', requireAdmin, async (req, res) => {
+  try {
+    const { testEmail } = req.body
+    
+    if (!testEmail) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Test email address is required' 
+      })
+    }
+    
+    // Import Mailgun service
+    const { sendTestEmail, isMailgunConfigured } = await import('../services/mailgunService.js')
+    
+    if (!isMailgunConfigured()) {
+      return res.json({ 
+        success: false, 
+        error: 'Mailgun is not configured. Please enter your API key and domain first.' 
+      })
+    }
+    
+    try {
+      await sendTestEmail(testEmail)
+      res.json({ 
+        success: true, 
+        message: `Test email sent successfully to ${testEmail}!`
+      })
+    } catch (mailError) {
+      console.error('Mailgun test error:', mailError)
+      res.json({ 
+        success: false, 
+        error: `Failed to send email: ${mailError.message}` 
+      })
+    }
+  } catch (error) {
+    console.error('Mailgun test error:', error)
+    res.json({ success: false, error: 'Test failed: ' + error.message })
   }
 })
 

@@ -35,7 +35,7 @@
     
     <div class="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
       <!-- Configuration Status Overview -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Google Drive Status -->
         <div class="bg-white shadow rounded-lg p-6">
           <div class="flex items-center justify-between">
@@ -101,6 +101,40 @@
             {{ googleAddressValidationConfigured 
               ? 'Address validation and auto-population is enabled for forms.' 
               : 'Address fields will use manual entry. Add an API key below to enable validation.' 
+            }}
+          </p>
+        </div>
+
+        <!-- Mailgun Status -->
+        <div class="bg-white shadow rounded-lg p-6">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <div :class="[
+                'w-10 h-10 rounded-full flex items-center justify-center',
+                mailgunConfigured ? 'bg-green-100' : 'bg-yellow-100'
+              ]">
+                <svg v-if="mailgunConfigured" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <svg v-else class="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-medium text-gray-900">Password Reset Emails</h3>
+                <p :class="[
+                  'text-sm',
+                  mailgunConfigured ? 'text-green-600' : 'text-yellow-600'
+                ]">
+                  {{ mailgunConfigured ? 'Configured' : 'Not Configured' }}
+                </p>
+              </div>
+            </div>
+          </div>
+          <p class="mt-3 text-sm text-gray-500">
+            {{ mailgunConfigured 
+              ? 'Password reset emails are enabled via Mailgun.' 
+              : 'Configure Mailgun below to enable password reset emails.' 
             }}
           </p>
         </div>
@@ -464,6 +498,171 @@
           </p>
         </div>
       </div>
+
+      <!-- Mailgun Configuration (Password Reset Emails) -->
+      <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">Mailgun Configuration</h2>
+          <div class="flex items-center space-x-3">
+            <button
+              @click="testMailgun"
+              :disabled="testingMailgun || !mailgunConfigured"
+              class="px-4 py-2 text-sm border border-primary text-primary rounded-md hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <span v-if="testingMailgun" class="flex items-center">
+                <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Sending Test...
+              </span>
+              <span v-else>Send Test Email</span>
+            </button>
+            <a 
+              href="https://app.mailgun.com/mg/dashboard" 
+              target="_blank" 
+              class="text-primary hover:underline text-sm flex items-center"
+            >
+              <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Open Mailgun Dashboard
+            </a>
+          </div>
+        </div>
+
+        <!-- Configuration Status -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="flex items-center p-4 rounded-lg" :class="mailgunConfigured ? 'bg-green-50' : 'bg-yellow-50'">
+            <div :class="[
+              'w-10 h-10 rounded-full flex items-center justify-center',
+              mailgunConfigured ? 'bg-green-100' : 'bg-yellow-100'
+            ]">
+              <svg v-if="mailgunConfigured" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              <svg v-else class="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium" :class="mailgunConfigured ? 'text-green-800' : 'text-yellow-800'">
+                {{ mailgunConfigured ? 'Mailgun Configured' : 'Not Configured' }}
+              </p>
+              <p class="text-xs" :class="mailgunConfigured ? 'text-green-600' : 'text-yellow-600'">
+                {{ mailgunConfigured ? 'Password reset emails are enabled' : 'Enter API key and domain to enable password reset emails' }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Test Result -->
+        <div v-if="mailgunTestResult" :class="[
+          'rounded-md p-4 mb-6',
+          mailgunTestResult.success ? 'bg-green-50' : 'bg-red-50'
+        ]">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg v-if="mailgunTestResult.success" class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              <svg v-else class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <p :class="['text-sm', mailgunTestResult.success ? 'text-green-800' : 'text-red-800']">
+                {{ mailgunTestResult.message || mailgunTestResult.error }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Setup Instructions -->
+        <div class="bg-blue-50 border-l-4 border-blue-400 rounded-md p-4 mb-6">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800">What is Mailgun?</h3>
+              <div class="mt-2 text-sm text-blue-700">
+                <p class="mb-2">Mailgun is used to send password reset emails to applicants and admins who forget their passwords.</p>
+                <ol class="list-decimal list-inside space-y-1">
+                  <li>Sign up at <a href="https://www.mailgun.com" target="_blank" class="underline">mailgun.com</a></li>
+                  <li>Add and verify your domain</li>
+                  <li>Get your API key from Settings → API Keys</li>
+                  <li>Enter your credentials below</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <form class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Mailgun API Key <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="settings.mailgun_api_key"
+              type="password"
+              placeholder="Enter your Mailgun API key"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">
+              Found in your Mailgun dashboard under Settings → API Keys. The key is encrypted before storage.
+            </p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Mailgun Domain <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="settings.mailgun_domain"
+              type="text"
+              placeholder="e.g., mg.yourdomain.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">
+              Your verified sending domain in Mailgun (e.g., mg.yourdomain.com or sandbox domain for testing).
+            </p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              From Email Address
+            </label>
+            <input
+              v-model="settings.mailgun_from_email"
+              type="text"
+              placeholder="e.g., OPCS Onboarding <noreply@yourdomain.com>"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">
+              The sender address for password reset emails. Format: "Name &lt;email@domain.com&gt;" or just the email address.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Test Email Address
+            </label>
+            <input
+              v-model="mailgunTestEmail"
+              type="email"
+              placeholder="Enter your email to receive test"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">
+              Enter an email address and click "Send Test Email" to verify your configuration.
+            </p>
+          </div>
+        </form>
+      </div>
       
       <!-- Save Button and Status Messages -->
       <div class="bg-white shadow rounded-lg p-6">
@@ -665,7 +864,10 @@ const settings = ref({
   google_client_id: '',
   google_client_secret: '',
   google_refresh_token: '',
-  google_address_validation_api_key: ''
+  google_address_validation_api_key: '',
+  mailgun_api_key: '',
+  mailgun_domain: '',
+  mailgun_from_email: ''
 })
 
 const loading = ref(false)
@@ -676,8 +878,11 @@ const success = ref(false)
 // Test states
 const testingDrive = ref(false)
 const testingAddress = ref(false)
+const testingMailgun = ref(false)
 const driveTestResult = ref(null)
 const addressTestResult = ref(null)
+const mailgunTestResult = ref(null)
+const mailgunTestEmail = ref('')
 
 // Folder browser states
 const showFolderBrowser = ref(false)
@@ -709,6 +914,10 @@ const googleDriveConfigured = computed(() => {
 
 const googleAddressValidationConfigured = computed(() => {
   return !!settings.value.google_address_validation_api_key
+})
+
+const mailgunConfigured = computed(() => {
+  return !!(settings.value.mailgun_api_key && settings.value.mailgun_domain)
 })
 
 onMounted(async () => {
@@ -861,6 +1070,37 @@ const testAddressValidation = async () => {
     }
   } finally {
     testingAddress.value = false
+  }
+}
+
+const testMailgun = async () => {
+  if (!mailgunTestEmail.value) {
+    mailgunTestResult.value = {
+      success: false,
+      error: 'Please enter a test email address'
+    }
+    return
+  }
+  
+  testingMailgun.value = true
+  mailgunTestResult.value = null
+  
+  try {
+    // First save current settings
+    await api.post('/settings', { settings: settings.value })
+    
+    // Then test connection
+    const response = await api.post('/settings/test/mailgun', {
+      testEmail: mailgunTestEmail.value
+    })
+    mailgunTestResult.value = response.data
+  } catch (err) {
+    mailgunTestResult.value = {
+      success: false,
+      error: err.response?.data?.error || 'Test failed: ' + err.message
+    }
+  } finally {
+    testingMailgun.value = false
   }
 }
 

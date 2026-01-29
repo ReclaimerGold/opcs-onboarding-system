@@ -160,6 +160,16 @@
           </div>
         </div>
 
+        <!-- Forgot Password Link -->
+        <div v-if="requiresPassword" class="text-right">
+          <router-link
+            to="/forgot-password"
+            class="text-sm text-primary hover:text-primary-light"
+          >
+            Forgot your password?
+          </router-link>
+        </div>
+
         <div v-if="error" class="rounded-md bg-red-50 border border-red-200 p-4">
           <div class="flex items-start">
             <svg class="h-5 w-5 text-red-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">

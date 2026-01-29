@@ -1,7 +1,9 @@
 import express from 'express'
-import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet, requireAuth } from '../middleware/auth.js'
+import crypto from 'crypto'
+import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet, requireAuth, hashPassword } from '../middleware/auth.js'
 import { auditLog } from '../services/auditService.js'
 import { getDatabase } from '../database/init.js'
+import { sendPasswordResetEmail, isMailgunConfigured } from '../services/mailgunService.js'
 
 const router = express.Router()
 
@@ -144,7 +146,8 @@ router.post('/login', async (req, res) => {
     
     const isAdmin = applicant.is_admin === 1
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
-    const requiresPassword = isAdmin // All admins require password
+    // Require password for anyone who has set one (admins and applicants)
+    const requiresPassword = passwordSet
     const shouldCompleteLogin = !requiresPassword || password !== undefined
     
     if (!shouldCompleteLogin) {
@@ -404,7 +407,8 @@ router.get('/password-status', async (req, res) => {
 
 /**
  * POST /api/auth/set-password
- * Set password for admin user (initial setup)
+ * Set password for any authenticated user (initial setup)
+ * Both admins and applicants can set their initial password
  */
 router.post('/set-password', async (req, res) => {
   try {
@@ -443,16 +447,17 @@ router.post('/set-password', async (req, res) => {
       return res.status(404).json({ error: 'User not found' })
     }
     
-    if (!applicant.is_admin) {
-      return res.status(403).json({ error: 'Only administrators can set passwords' })
-    }
-    
-    // Check if password already set (unless force flag)
+    // Check if password already set (unless force flag - admin only for force)
     if (applicant.password_hash && !req.body.force) {
       return res.status(400).json({
         error: 'Password already set. Use change-password endpoint to update it.',
         code: 'PASSWORD_ALREADY_SET'
       })
+    }
+    
+    // Force flag requires admin
+    if (req.body.force && !applicant.is_admin) {
+      return res.status(403).json({ error: 'Only administrators can force password reset' })
     }
     
     // Hash password
@@ -471,7 +476,7 @@ router.post('/set-password', async (req, res) => {
       resourceId: req.session.applicantId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      details: { isInitialSetup: !applicant.password_hash }
+      details: { isInitialSetup: !applicant.password_hash, isAdmin: applicant.is_admin === 1 }
     })
     
     res.json({
@@ -578,6 +583,254 @@ router.post('/change-password', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to change password',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
+  }
+})
+
+/**
+ * POST /api/auth/forgot-password
+ * Request password reset email (no auth required)
+ */
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+    
+    if (!email) {
+      return res.status(400).json({ 
+        error: 'Email is required',
+        code: 'MISSING_EMAIL'
+      })
+    }
+    
+    // Normalize email
+    const normalizedEmail = email.trim().toLowerCase()
+    
+    // Check if Mailgun is configured
+    if (!isMailgunConfigured()) {
+      return res.status(503).json({
+        error: 'Email service is not configured. Please contact an administrator.',
+        code: 'EMAIL_NOT_CONFIGURED'
+      })
+    }
+    
+    const db = getDatabase()
+    
+    // Look up applicant by email only
+    const applicant = db.prepare(`
+      SELECT id, first_name, email 
+      FROM applicants 
+      WHERE LOWER(TRIM(email)) = ?
+    `).get(normalizedEmail)
+    
+    // Always return success message to prevent user enumeration
+    const genericSuccessMessage = 'If an account exists with this email, we have sent password reset instructions.'
+    
+    if (!applicant) {
+      // Log the attempt but don't reveal if account exists
+      console.log('Password reset requested for non-existent email:', normalizedEmail)
+      return res.json({
+        success: true,
+        message: genericSuccessMessage
+      })
+    }
+    
+    // Generate secure random token
+    const token = crypto.randomBytes(32).toString('hex')
+    
+    // Hash the token for storage (don't store plaintext)
+    const tokenHash = await hashPassword(token)
+    
+    // Set expiration to 1 hour from now
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    
+    // Delete any existing tokens for this applicant
+    db.prepare('DELETE FROM password_reset_tokens WHERE applicant_id = ?').run(applicant.id)
+    
+    // Insert new token
+    db.prepare(`
+      INSERT INTO password_reset_tokens (applicant_id, token_hash, expires_at)
+      VALUES (?, ?, ?)
+    `).run(applicant.id, tokenHash, expiresAt)
+    
+    // Build reset URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:9999'
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`
+    
+    // Send email
+    try {
+      await sendPasswordResetEmail(applicant.email, applicant.first_name, resetLink)
+      
+      // Audit log
+      await auditLog({
+        userId: applicant.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        resourceType: 'AUTH',
+        resourceId: applicant.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email: applicant.email }
+      })
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError)
+      // Clean up token if email failed
+      db.prepare('DELETE FROM password_reset_tokens WHERE applicant_id = ?').run(applicant.id)
+      
+      return res.status(503).json({
+        error: 'Failed to send email. Please try again later or contact support.',
+        code: 'EMAIL_SEND_FAILED'
+      })
+    }
+    
+    res.json({
+      success: true,
+      message: genericSuccessMessage
+    })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    res.status(500).json({ 
+      error: 'An error occurred. Please try again later.',
+      code: 'FORGOT_PASSWORD_ERROR'
+    })
+  }
+})
+
+/**
+ * GET /api/auth/verify-reset-token
+ * Verify if a reset token is valid (no auth required)
+ */
+router.get('/verify-reset-token', async (req, res) => {
+  try {
+    const { token } = req.query
+    
+    if (!token) {
+      return res.status(400).json({ 
+        valid: false,
+        error: 'Token is required'
+      })
+    }
+    
+    const db = getDatabase()
+    
+    // Get all non-expired tokens
+    const tokens = db.prepare(`
+      SELECT id, applicant_id, token_hash, expires_at
+      FROM password_reset_tokens
+      WHERE expires_at > datetime('now')
+    `).all()
+    
+    // Check if any token matches
+    for (const row of tokens) {
+      const isMatch = await verifyPassword(token, row.token_hash)
+      if (isMatch) {
+        return res.json({ valid: true })
+      }
+    }
+    
+    res.status(400).json({ 
+      valid: false,
+      error: 'Invalid or expired token'
+    })
+  } catch (error) {
+    console.error('Verify reset token error:', error)
+    res.status(500).json({ 
+      valid: false,
+      error: 'Failed to verify token'
+    })
+  }
+})
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password using token (no auth required)
+ */
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body
+    
+    if (!token) {
+      return res.status(400).json({ 
+        error: 'Reset token is required',
+        code: 'MISSING_TOKEN'
+      })
+    }
+    
+    if (!password || !confirmPassword) {
+      return res.status(400).json({ 
+        error: 'Password and confirmation are required',
+        code: 'MISSING_FIELDS'
+      })
+    }
+    
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        error: 'Passwords do not match',
+        code: 'PASSWORD_MISMATCH'
+      })
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long',
+        code: 'PASSWORD_TOO_SHORT'
+      })
+    }
+    
+    const db = getDatabase()
+    
+    // Get all non-expired tokens
+    const tokens = db.prepare(`
+      SELECT id, applicant_id, token_hash, expires_at
+      FROM password_reset_tokens
+      WHERE expires_at > datetime('now')
+    `).all()
+    
+    // Find matching token
+    let matchedToken = null
+    for (const row of tokens) {
+      const isMatch = await verifyPassword(token, row.token_hash)
+      if (isMatch) {
+        matchedToken = row
+        break
+      }
+    }
+    
+    if (!matchedToken) {
+      return res.status(400).json({
+        error: 'Invalid or expired reset link. Please request a new password reset.',
+        code: 'INVALID_TOKEN'
+      })
+    }
+    
+    // Hash new password
+    const passwordHash = await hashPassword(password)
+    
+    // Update applicant password
+    db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
+      .run(passwordHash, matchedToken.applicant_id)
+    
+    // Delete all tokens for this applicant
+    db.prepare('DELETE FROM password_reset_tokens WHERE applicant_id = ?')
+      .run(matchedToken.applicant_id)
+    
+    // Audit log
+    await auditLog({
+      userId: matchedToken.applicant_id,
+      action: 'PASSWORD_RESET_COMPLETED',
+      resourceType: 'AUTH',
+      resourceId: matchedToken.applicant_id,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    })
+    
+    res.json({
+      success: true,
+      message: 'Password reset successfully. You can now log in with your new password.'
+    })
+  } catch (error) {
+    console.error('Reset password error:', error)
+    res.status(500).json({ 
+      error: 'Failed to reset password. Please try again.',
+      code: 'RESET_PASSWORD_ERROR'
     })
   }
 })

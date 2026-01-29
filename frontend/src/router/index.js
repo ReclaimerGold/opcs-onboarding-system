@@ -5,6 +5,8 @@ import FormWizardView from '../views/FormWizardView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import AdminDashboardView from '../views/AdminDashboardView.vue'
 import PasswordSetupView from '../views/PasswordSetupView.vue'
+import ForgotPasswordView from '../views/ForgotPasswordView.vue'
+import ResetPasswordView from '../views/ResetPasswordView.vue'
 
 const routes = [
   {
@@ -15,6 +17,16 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: LoginView
+  },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: ForgotPasswordView
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: ResetPasswordView
   },
   {
     path: '/dashboard',

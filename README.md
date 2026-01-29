@@ -7,8 +7,9 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 ### User Experience
 - **Unified Login System**: Single sign-in flow for both applicants and administrators
   - Sign Up: Create new account to start onboarding
-  - Sign In: Continue onboarding or access admin dashboard (password required for admins)
-  - Two-phase authentication: Admin users prompted for password after credential verification
+  - Sign In: Continue onboarding or access admin dashboard (password required if set)
+  - Two-phase authentication: Users with passwords prompted after credential verification
+  - Password Reset: "Forgot password?" link sends reset email via Mailgun
 - **Clickable Breadcrumb Navigation**: Navigate between steps with visual progress indicators
 - **Smart Step Validation**: Warnings when navigating to steps with missing prerequisites
 - **Auto-save drafts**: Progress is automatically saved as you fill out forms (2-second debounce)
@@ -19,7 +20,9 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 - **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
-- **SSN Consent Modal**: Non-dismissable SSN consent modal required before W-4 and 8850 forms (employment cannot continue without consent)
+- **SSN Consent Modal**: Two-slide modal flow:
+  - Slide 1: Non-dismissable SSN consent required before W-4 and 8850 forms
+  - Slide 2: Password setup required after consent (secures account for future logins)
 
 ### Form Features
 - **6-step form workflow**: W-4, I-9, Background Check, Direct Deposit, Acknowledgements, Form 8850
@@ -53,6 +56,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **PDF**: pdf-lib
 - **Storage**: Google Drive API
 - **Address Validation**: Google Address Validation API (optional - for address verification and auto-fill with fallback to manual entry)
+- **Email**: Mailgun API (optional - for password reset emails, configurable in Settings)
 - **Encryption**: AES-256-GCM
 
 ## Project Structure
@@ -79,6 +83,7 @@ opcs-onboarding-system/
 │   │   │   ├── auditService.js      # Audit logging service
 │   │   │   ├── encryptionService.js # AES-256-GCM encryption
 │   │   │   ├── googleDriveService.js # Google Drive integration
+│   │   │   ├── mailgunService.js    # Mailgun email service (password reset)
 │   │   │   ├── pdfService.js        # PDF generation
 │   │   │   ├── pdfTemplateService.js # IRS/USCIS PDF template download & caching
 │   │   │   ├── pdfFieldMapping.js   # PDF form field mappings
@@ -119,6 +124,8 @@ opcs-onboarding-system/
 │   │   │   └── exportUtils.js   # CSV/data export utilities
 │   │   ├── views/
 │   │   │   ├── LoginView.vue
+│   │   │   ├── ForgotPasswordView.vue  # Password reset request
+│   │   │   ├── ResetPasswordView.vue   # Password reset form
 │   │   │   ├── FormWizardView.vue
 │   │   │   ├── DashboardView.vue
 │   │   │   ├── AdminDashboardView.vue
@@ -358,12 +365,21 @@ This system is designed to comply with:
 
 ### Authentication
 - `POST /api/auth/signup` - Create new applicant account
-- `POST /api/auth/login` - Login to existing account (two-phase for admins)
+- `POST /api/auth/login` - Login to existing account (two-phase for users with passwords)
   - Phase 1: Submit credentials (firstName, lastName, email) → returns `requiresPassword: true/false`
-  - Phase 2 (admin only): Submit credentials + password → completes authentication
+  - Phase 2 (if password required): Submit credentials + password → completes authentication
 - `POST /api/auth/logout` - Logout
 - `POST /api/auth/keepalive` - Refresh session expiration for active users
 - `GET /api/auth/me` - Get current user info
+- `GET /api/auth/password-status` - Check if password is set for current user
+- `POST /api/auth/set-password` - Set initial password (any authenticated user, first-time only)
+- `POST /api/auth/change-password` - Change existing password (admins only)
+- `POST /api/auth/forgot-password` - Request password reset email (no auth required)
+  - Body: `{ email }` → sends reset link via Mailgun if configured
+- `GET /api/auth/verify-reset-token` - Verify if reset token is valid (no auth required)
+  - Query: `?token=xxx` → returns `{ valid: true/false }`
+- `POST /api/auth/reset-password` - Reset password using token (no auth required)
+  - Body: `{ token, password, confirmPassword }` → sets new password
 
 ### Forms
 - `POST /api/forms/submit/:step` - Submit form step (1-6)
@@ -385,13 +401,15 @@ This system is designed to comply with:
 - `GET /api/settings` - Get all settings (authenticated)
 - `GET /api/settings/google-address-validation-key` - Get Google Address Validation API key (authenticated)
 - `POST /api/settings` - Update settings (admin only)
-  - Settings keys: `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`
+  - Settings keys: `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`, `mailgun_api_key`, `mailgun_domain`, `mailgun_from_email`
 - `GET /api/settings/google-drive/folders` - List Google Drive folders (admin only)
 - `GET /api/settings/google-drive/folder/:id` - Get folder info (admin only)
 - `GET /api/settings/google-drive/browse` - Browse Google Drive folders with search (admin only)
   - Query params: `parentId` (folder to browse, default: 'root'), `search` (search folders by name)
 - `POST /api/settings/test/google-drive` - Test Google Drive API connection (admin only)
 - `POST /api/settings/test/address-validation` - Test Google Address Validation API connection (admin only)
+- `POST /api/settings/test/mailgun` - Test Mailgun email configuration (admin only)
+  - Body: `{ testEmail }` → sends test email to specified address
 
 ### Address Validation
 - `POST /api/address/validate` - Validate an address using Google Address Validation API (authenticated)

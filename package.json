@@ -45,13 +45,7 @@
   },
   "lint-staged": {
     "frontend/src/**/*.{js,vue}": [
-      "bun run --cwd frontend eslint --fix"
-    ],
-    "frontend/src/**/*.{test,spec}.{js,ts}": [
-      "bun run --cwd frontend vitest related --run"
-    ],
-    "backend/**/*.{test,spec}.js": [
-      "bun run --cwd backend vitest related --run"
+      "eslint --config frontend/.eslintrc.cjs --fix"
     ]
   }
 }

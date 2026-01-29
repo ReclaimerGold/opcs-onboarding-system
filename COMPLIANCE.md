@@ -285,12 +285,27 @@ This document outlines all compliance requirements for the OPCS Onboarding Syste
   - Secure: `SameSite=Strict`, `Secure` in production
   - Cleared on logout
 
+### Password Reset Security
+
+- **Reset Tokens**:
+  - Generated using cryptographically secure random bytes
+  - Stored as bcrypt hash in database (never plaintext)
+  - Expiration: 1 hour
+  - Single use: Deleted after successful reset
+  - All tokens for user invalidated on successful reset
+- **Email Delivery**:
+  - Sent via Mailgun API (configurable in Settings)
+  - Reset link includes one-time token
+  - Generic success message prevents email enumeration
+
 **Compliance Checklist:**
 - [ ] All sensitive documents encrypted
 - [ ] Encryption keys secured
 - [ ] SSN not in database
 - [ ] Cookies use secure settings
 - [ ] Cookies cleared on logout
+- [ ] Password reset tokens hashed
+- [ ] Password reset tokens expire
 
 ---
 

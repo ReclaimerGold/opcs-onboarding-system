@@ -161,6 +161,18 @@ export function initializeDatabase() {
     )
   `)
 
+  // Password reset tokens for forgot password functionality
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      applicant_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
+    )
+  `)
+
   // I-9 Identity Documents storage
   db.exec(`
     CREATE TABLE IF NOT EXISTS i9_documents (
@@ -229,6 +241,8 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_i9_documents_type ON i9_documents(document_type, document_category);
     CREATE INDEX IF NOT EXISTS idx_i9_documents_uploaded_at ON i9_documents(uploaded_at);
     CREATE INDEX IF NOT EXISTS idx_i9_documents_category ON i9_documents(document_category);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_applicant ON password_reset_tokens(applicant_id);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires ON password_reset_tokens(expires_at);
   `)
 
   console.log('Database initialized successfully')
