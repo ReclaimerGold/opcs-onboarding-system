@@ -399,7 +399,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import Step1W4Form from '../components/forms/Step1W4Form.vue'
@@ -460,6 +460,13 @@ const stepDependencies = {
     message: 'Please complete Step 5 (Acknowledgements) first.'
   }
 }
+
+// Scroll to top whenever the step changes (Next, breadcrumb, or dependency redirect)
+watch(currentStep, () => {
+  nextTick(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  })
+})
 
 onMounted(async () => {
   await loadProgress()
@@ -693,12 +700,9 @@ const navigateToStep = async (step) => {
   // Navigate to step
   currentStep.value = step
   validateCurrentStep()
-  
+
   // Update PDF preview for new step
   updatePreviewForStep(step)
-  
-  // Scroll to top of form
-  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 const updatePreviewForStep = (step) => {
@@ -728,7 +732,6 @@ const navigateToRequiredStep = () => {
     currentStep.value = 1
   }
   validateCurrentStep()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 const handleFormDataChange = (formData) => {
