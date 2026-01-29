@@ -9,6 +9,9 @@
             Please Note: If You Falsify Data You Will Be Terminated. 
             It is Better to Be Upfront and Honest. A Criminal conviction does not necessarily disqualify you from employment.
           </p>
+          <p class="text-sm text-red-800 font-semibold mt-2">
+            <strong>Under penalty of perjury:</strong> Lying on this form is perjury and may result in criminal prosecution.
+          </p>
         </div>
         
         <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
@@ -151,28 +154,33 @@
         </div>
         
         <div class="mt-6 space-y-4">
+          <p class="text-sm text-gray-600 mb-4">
+            You must manually check one box per question to confirm your answer. Do not leave any question unanswered.
+          </p>
+
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               Have you ever been convicted of a crime resulting in your classification as a sex offender in any state? <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required — check one)</span>
             </label>
             <div class="space-y-2">
               <label class="flex items-center">
                 <input
-                  v-model="formData.sexOffender"
-                  type="radio"
-                  value="yes"
-                  class="mr-2 text-primary focus:ring-primary"
+                  type="checkbox"
+                  :checked="formData.sexOffender === 'yes'"
+                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+                  @change="onSexOffenderChange($event, 'yes')"
                 />
-                <span>Yes</span>
+                <span>I confirm: Yes, I have been convicted of a crime resulting in sex offender classification.</span>
               </label>
               <label class="flex items-center">
                 <input
-                  v-model="formData.sexOffender"
-                  type="radio"
-                  value="no"
-                  class="mr-2 text-primary focus:ring-primary"
+                  type="checkbox"
+                  :checked="formData.sexOffender === 'no'"
+                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+                  @change="onSexOffenderChange($event, 'no')"
                 />
-                <span>No</span>
+                <span>I confirm: No, I have not been convicted of a crime resulting in sex offender classification.</span>
               </label>
             </div>
           </div>
@@ -180,25 +188,26 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               Have you been convicted of any crimes in the past 7 years? <span class="text-red-500">*</span>
+              <span class="ml-1 text-xs text-red-600">(Required — check one)</span>
             </label>
             <div class="space-y-2">
               <label class="flex items-center">
                 <input
-                  v-model="formData.crimesPast7Years"
-                  type="radio"
-                  value="yes"
-                  class="mr-2 text-primary focus:ring-primary"
+                  type="checkbox"
+                  :checked="formData.crimesPast7Years === 'yes'"
+                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+                  @change="onCrimesPast7YearsChange($event, 'yes')"
                 />
-                <span>Yes</span>
+                <span>I confirm: Yes, I have been convicted of crimes in the past 7 years.</span>
               </label>
               <label class="flex items-center">
                 <input
-                  v-model="formData.crimesPast7Years"
-                  type="radio"
-                  value="no"
-                  class="mr-2 text-primary focus:ring-primary"
+                  type="checkbox"
+                  :checked="formData.crimesPast7Years === 'no'"
+                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+                  @change="onCrimesPast7YearsChange($event, 'no')"
                 />
-                <span>No</span>
+                <span>I confirm: No, I have not been convicted of any crimes in the past 7 years.</span>
               </label>
             </div>
             <div v-if="formData.crimesPast7Years === 'yes'" class="mt-2">
@@ -209,6 +218,34 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
               />
             </div>
+          </div>
+
+          <div class="mt-4 p-3 bg-amber-50 border-l-4 border-amber-400 rounded-md">
+            <label class="flex items-start cursor-pointer">
+              <input
+                v-model="formData.perjuryCertified"
+                type="checkbox"
+                required
+                class="mt-1 mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span class="text-sm text-amber-900">
+                I certify under penalty of perjury that the information I have provided on this form is true and correct. I understand that lying on this form is perjury and may result in criminal prosecution.
+              </span>
+            </label>
+          </div>
+
+          <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
+            <label class="flex items-start cursor-pointer">
+              <input
+                v-model="formData.sdBackgroundCheckAuthorized"
+                type="checkbox"
+                required
+                class="mt-1 mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span class="text-sm text-blue-800">
+                I authorize that the information on this form will be sent to the State of South Dakota to run a background check, and I authorize the submission of this background check request on my behalf using my email address.
+              </span>
+            </label>
           </div>
         </div>
         
@@ -231,10 +268,12 @@
       <div class="flex justify-end">
         <button
           type="submit"
-          :disabled="loading"
+          :disabled="loading || !formData.sexOffender || !formData.crimesPast7Years || !formData.perjuryCertified || !formData.sdBackgroundCheckAuthorized"
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
         >
           <span v-if="loading">Submitting...</span>
+          <span v-else-if="!formData.sexOffender || !formData.crimesPast7Years">Check one option per question to continue</span>
+          <span v-else-if="!formData.perjuryCertified || !formData.sdBackgroundCheckAuthorized">Complete the certification and authorization checkboxes to continue</span>
           <span v-else>Continue to Step 4</span>
         </button>
       </div>
@@ -260,9 +299,11 @@ const formData = ref({
   city: '',
   state: '',
   zipCode: '',
-  sexOffender: 'no',
-  crimesPast7Years: 'no',
+  sexOffender: '',
+  crimesPast7Years: '',
   crimeDetails: '',
+  perjuryCertified: false,
+  sdBackgroundCheckAuthorized: false,
   photoIdFile: null
 })
 
@@ -325,6 +366,23 @@ onMounted(async () => {
     console.error('Error loading Step 1 draft:', error)
   }
 })
+
+// Mutually exclusive checkbox: checking one sets value, unchecks the other
+const onSexOffenderChange = (e, value) => {
+  if (e.target.checked) {
+    formData.value.sexOffender = value
+  } else {
+    formData.value.sexOffender = ''
+  }
+}
+
+const onCrimesPast7YearsChange = (e, value) => {
+  if (e.target.checked) {
+    formData.value.crimesPast7Years = value
+  } else {
+    formData.value.crimesPast7Years = ''
+  }
+}
 
 const handleFileUpload = (e) => {
   formData.value.photoIdFile = e.target.files[0]
