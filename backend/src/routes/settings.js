@@ -2,9 +2,145 @@ import express from 'express'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
 import { encryptText, decryptText } from '../services/encryptionService.js'
-import { listFolders, getFolderInfo } from '../services/googleDriveService.js'
+import { listFolders, getFolderInfo, listSharedDrives, getSharedDriveInfo } from '../services/googleDriveService.js'
 
 const router = express.Router()
+
+/**
+ * Parse Google API errors and return user-friendly messages with fix instructions
+ * @param {Error} error - The error from Google API
+ * @returns {Object} - { message: string, instructions: string[], helpUrl: string }
+ */
+function parseGoogleDriveError(error) {
+  const errorMessage = error.message || ''
+  const errorCode = error.code || error.response?.data?.error || ''
+  const errorDescription = error.response?.data?.error_description || ''
+  
+  // Common OAuth errors
+  if (errorMessage.includes('unauthorized_client') || errorCode === 'unauthorized_client') {
+    return {
+      message: 'Unauthorized client - OAuth credentials are not properly configured.',
+      instructions: [
+        '1. Go to Google Cloud Console → APIs & Services → Credentials',
+        '2. Click on your OAuth 2.0 Client ID',
+        '3. Verify the Client ID matches exactly what you entered',
+        '4. Check that "https://developers.google.com/oauthplayground" is listed under "Authorized redirect URIs"',
+        '5. If you just created the credentials, wait 5-10 minutes for Google to propagate the changes',
+        '6. Try generating a new refresh token using the OAuth Playground'
+      ],
+      helpUrl: 'https://console.cloud.google.com/apis/credentials'
+    }
+  }
+  
+  if (errorMessage.includes('invalid_client') || errorCode === 'invalid_client') {
+    return {
+      message: 'Invalid client - The Client ID or Client Secret is incorrect.',
+      instructions: [
+        '1. Go to Google Cloud Console → APIs & Services → Credentials',
+        '2. Click on your OAuth 2.0 Client ID',
+        '3. Copy the Client ID exactly (including ".apps.googleusercontent.com")',
+        '4. Copy the Client Secret exactly',
+        '5. Paste them in the Settings page and save',
+        '6. Generate a new refresh token using the OAuth Playground with these credentials'
+      ],
+      helpUrl: 'https://console.cloud.google.com/apis/credentials'
+    }
+  }
+  
+  if (errorMessage.includes('invalid_grant') || errorCode === 'invalid_grant') {
+    return {
+      message: 'Invalid grant - The refresh token has expired or been revoked.',
+      instructions: [
+        '1. Go to OAuth Playground: https://developers.google.com/oauthplayground',
+        '2. Click the gear icon (⚙️) → Check "Use your own OAuth credentials"',
+        '3. Enter your Client ID and Client Secret',
+        '4. In Step 1, select "Drive API v3" → "https://www.googleapis.com/auth/drive.file"',
+        '5. Click "Authorize APIs" and sign in with your Google account',
+        '6. In Step 2, click "Exchange authorization code for tokens"',
+        '7. Copy the new Refresh Token and paste it in Settings'
+      ],
+      helpUrl: 'https://developers.google.com/oauthplayground'
+    }
+  }
+  
+  if (errorMessage.includes('access_denied') || errorCode === 'access_denied') {
+    return {
+      message: 'Access denied - The user denied the authorization request.',
+      instructions: [
+        '1. Go to OAuth Playground and try authorizing again',
+        '2. Make sure to click "Allow" when Google asks for permissions',
+        '3. If using a Google Workspace account, check with your admin that the app is allowed',
+        '4. Verify the OAuth consent screen is properly configured in Google Cloud Console'
+      ],
+      helpUrl: 'https://console.cloud.google.com/apis/credentials/consent'
+    }
+  }
+  
+  if (errorMessage.includes('API has not been enabled') || errorMessage.includes('accessNotConfigured')) {
+    return {
+      message: 'Google Drive API is not enabled for this project.',
+      instructions: [
+        '1. Go to Google Cloud Console → APIs & Services → Library',
+        '2. Search for "Google Drive API"',
+        '3. Click on "Google Drive API"',
+        '4. Click "Enable" button',
+        '5. Wait a few minutes for the change to take effect',
+        '6. Try the connection test again'
+      ],
+      helpUrl: 'https://console.cloud.google.com/apis/library/drive.googleapis.com'
+    }
+  }
+  
+  if (errorMessage.includes('quota') || errorMessage.includes('rateLimitExceeded')) {
+    return {
+      message: 'API quota exceeded - Too many requests to Google Drive.',
+      instructions: [
+        '1. Wait a few minutes and try again',
+        '2. If this persists, check your Google Cloud Console quota usage',
+        '3. Consider requesting a quota increase if needed'
+      ],
+      helpUrl: 'https://console.cloud.google.com/apis/api/drive.googleapis.com/quotas'
+    }
+  }
+  
+  if (errorMessage.includes('insufficientPermissions') || errorMessage.includes('forbidden')) {
+    return {
+      message: 'Insufficient permissions - The app does not have required Drive permissions.',
+      instructions: [
+        '1. Go to OAuth Playground and generate a new refresh token',
+        '2. Make sure to select "https://www.googleapis.com/auth/drive.file" scope',
+        '3. If you need access to all files, also select "https://www.googleapis.com/auth/drive"',
+        '4. Re-authorize and get a new refresh token'
+      ],
+      helpUrl: 'https://developers.google.com/oauthplayground'
+    }
+  }
+  
+  if (errorMessage.includes('notFound') || errorCode === 404) {
+    return {
+      message: 'Folder not found - The specified Google Drive folder does not exist.',
+      instructions: [
+        '1. Check that the Folder ID is correct',
+        '2. Verify you have access to the folder in Google Drive',
+        '3. Try clearing the Base Folder ID and using the root folder instead',
+        '4. Use the "Browse..." button to select a valid folder'
+      ],
+      helpUrl: null
+    }
+  }
+  
+  // Generic error with the original message
+  return {
+    message: `Connection error: ${errorMessage || errorDescription || 'Unknown error'}`,
+    instructions: [
+      '1. Verify all credentials are entered correctly',
+      '2. Check that Google Drive API is enabled in Cloud Console',
+      '3. Try generating a new refresh token using OAuth Playground',
+      '4. Check browser console and server logs for more details'
+    ],
+    helpUrl: 'https://console.cloud.google.com/apis/credentials'
+  }
+}
 
 // GET settings can be accessed by authenticated users (for Google Address Validation API key)
 // POST settings requires admin
@@ -165,7 +301,33 @@ router.post('/test/google-drive', requireAdmin, async (req, res) => {
     if (!clientId || !clientSecret || !refreshToken) {
       return res.json({ 
         success: false, 
-        error: 'Google Drive credentials not configured. Please enter Client ID, Client Secret, and Refresh Token.' 
+        error: 'Google Drive credentials not configured.',
+        instructions: [
+          '1. Enter your OAuth Client ID from Google Cloud Console',
+          '2. Enter your OAuth Client Secret',
+          '3. Generate a Refresh Token using OAuth Playground',
+          '4. Click "Save All Settings" before testing'
+        ],
+        helpUrl: 'https://console.cloud.google.com/apis/credentials'
+      })
+    }
+    
+    // Check if values are actually set (not just empty)
+    const decClientId = decryptText(clientId.value)
+    const decClientSecret = decryptText(clientSecret.value)
+    const decRefreshToken = decryptText(refreshToken.value)
+    
+    if (!decClientId || !decClientSecret || !decRefreshToken) {
+      return res.json({ 
+        success: false, 
+        error: 'One or more credentials are empty.',
+        instructions: [
+          '1. Make sure all three fields are filled in: Client ID, Client Secret, and Refresh Token',
+          '2. Client ID should end with ".apps.googleusercontent.com"',
+          '3. Refresh Token should be a long string starting with "1//"',
+          '4. Click "Save All Settings" and try again'
+        ],
+        helpUrl: 'https://developers.google.com/oauthplayground'
       })
     }
     
@@ -178,14 +340,26 @@ router.post('/test/google-drive', requireAdmin, async (req, res) => {
         folderCount: folders.length
       })
     } catch (driveError) {
+      console.error('Google Drive test connection error:', driveError)
+      const parsedError = parseGoogleDriveError(driveError)
       res.json({ 
         success: false, 
-        error: `Connection failed: ${driveError.message}` 
+        error: parsedError.message,
+        instructions: parsedError.instructions,
+        helpUrl: parsedError.helpUrl,
+        technicalDetails: driveError.message // Include raw error for debugging
       })
     }
   } catch (error) {
     console.error('Google Drive test error:', error)
-    res.json({ success: false, error: 'Test failed: ' + error.message })
+    const parsedError = parseGoogleDriveError(error)
+    res.json({ 
+      success: false, 
+      error: parsedError.message,
+      instructions: parsedError.instructions,
+      helpUrl: parsedError.helpUrl,
+      technicalDetails: error.message
+    })
   }
 })
 
@@ -269,11 +443,12 @@ router.post('/test/address-validation', requireAdmin, async (req, res) => {
 /**
  * GET /api/settings/google-drive/browse
  * Browse Google Drive folders with search capability
+ * Supports both My Drive and Shared Drives
  * Requires admin access
  */
 router.get('/google-drive/browse', requireAdmin, async (req, res) => {
   try {
-    const { parentId = 'root', search = '' } = req.query
+    const { parentId = 'root', search = '', sharedDriveId = '' } = req.query
     
     // Import the function to initialize drive client
     const { google } = await import('googleapis')
@@ -301,6 +476,9 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
     
     const driveClient = google.drive({ version: 'v3', auth: oauth2Client })
     
+    // Determine actual parent ID for Shared Drives
+    const actualParentId = sharedDriveId && parentId === 'root' ? sharedDriveId : parentId
+    
     // Build query
     let query = `mimeType='application/vnd.google-apps.folder' and trashed=false`
     
@@ -309,23 +487,35 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
       query += ` and name contains '${search.replace(/'/g, "\\'")}'`
     } else {
       // Browse by parent
-      query += ` and '${parentId}' in parents`
+      query += ` and '${actualParentId}' in parents`
     }
     
-    const response = await driveClient.files.list({
+    // Build request parameters with Shared Drive support
+    const listParams = {
       q: query,
       fields: 'files(id, name, mimeType, parents)',
       orderBy: 'name',
-      pageSize: 50
-    })
+      pageSize: 50,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true
+    }
+    
+    // Add Shared Drive specific parameters
+    if (sharedDriveId) {
+      listParams.corpora = 'drive'
+      listParams.driveId = sharedDriveId
+    }
+    
+    const response = await driveClient.files.list(listParams)
     
     // Get parent folder info if not root
     let parentInfo = null
-    if (parentId !== 'root') {
+    if (parentId !== 'root' && actualParentId !== sharedDriveId) {
       try {
         const parentResponse = await driveClient.files.get({
-          fileId: parentId,
-          fields: 'id, name, parents'
+          fileId: actualParentId,
+          fields: 'id, name, parents',
+          supportsAllDrives: true
         })
         parentInfo = parentResponse.data
       } catch (e) {
@@ -337,11 +527,42 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
       folders: response.data.files || [],
       parentId,
       parentInfo,
-      isSearch: !!search
+      isSearch: !!search,
+      sharedDriveId: sharedDriveId || null
     })
   } catch (error) {
     console.error('Browse folders error:', error)
     res.status(500).json({ error: 'Failed to browse folders', details: error.message })
+  }
+})
+
+/**
+ * GET /api/settings/google-drive/shared-drives
+ * List available Shared Drives the user has access to
+ * Requires admin access
+ */
+router.get('/google-drive/shared-drives', requireAdmin, async (req, res) => {
+  try {
+    const sharedDrives = await listSharedDrives()
+    res.json({ sharedDrives })
+  } catch (error) {
+    console.error('List shared drives error:', error)
+    res.status(500).json({ error: 'Failed to list shared drives', details: error.message })
+  }
+})
+
+/**
+ * GET /api/settings/google-drive/shared-drive/:id
+ * Get Shared Drive information by ID
+ * Requires admin access
+ */
+router.get('/google-drive/shared-drive/:id', requireAdmin, async (req, res) => {
+  try {
+    const driveInfo = await getSharedDriveInfo(req.params.id)
+    res.json(driveInfo)
+  } catch (error) {
+    console.error('Get shared drive info error:', error)
+    res.status(500).json({ error: 'Failed to get shared drive information', details: error.message })
   }
 })
 

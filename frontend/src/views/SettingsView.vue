@@ -152,10 +152,40 @@
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
               </svg>
             </div>
-            <div class="ml-3">
-              <p :class="['text-sm', driveTestResult.success ? 'text-green-800' : 'text-red-800']">
+            <div class="ml-3 flex-1">
+              <p :class="['text-sm font-medium', driveTestResult.success ? 'text-green-800' : 'text-red-800']">
                 {{ driveTestResult.message || driveTestResult.error }}
               </p>
+              
+              <!-- Instructions for fixing the error -->
+              <div v-if="!driveTestResult.success && driveTestResult.instructions" class="mt-3">
+                <p class="text-sm font-medium text-red-800 mb-2">How to fix:</p>
+                <ul class="list-none text-sm text-red-700 space-y-1">
+                  <li v-for="(instruction, index) in driveTestResult.instructions" :key="index" class="flex items-start">
+                    <span class="text-red-500 mr-2">•</span>
+                    <span>{{ instruction }}</span>
+                  </li>
+                </ul>
+                
+                <!-- Help Link -->
+                <a 
+                  v-if="driveTestResult.helpUrl" 
+                  :href="driveTestResult.helpUrl" 
+                  target="_blank"
+                  class="inline-flex items-center mt-3 text-sm text-red-700 hover:text-red-900 underline"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open Google Cloud Console
+                </a>
+              </div>
+              
+              <!-- Technical Details (collapsible) -->
+              <details v-if="!driveTestResult.success && driveTestResult.technicalDetails" class="mt-3">
+                <summary class="text-xs text-red-600 cursor-pointer hover:text-red-800">Show technical details</summary>
+                <pre class="mt-2 text-xs text-red-600 bg-red-100 p-2 rounded overflow-x-auto">{{ driveTestResult.technicalDetails }}</pre>
+              </details>
             </div>
           </div>
         </div>
@@ -185,10 +215,83 @@
         </div>
 
         <form @submit.prevent="handleSave" class="space-y-6">
+          <!-- Drive Type Selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Storage Location
+            </label>
+            <div class="flex space-x-4">
+              <label class="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  :checked="driveType === 'myDrive'"
+                  @change="handleDriveTypeChange('myDrive')"
+                  :disabled="!googleDriveConfigured"
+                  class="w-4 h-4 text-primary border-gray-300 focus:ring-primary disabled:opacity-50"
+                />
+                <span class="ml-2 text-sm text-gray-700">My Drive</span>
+              </label>
+              <label class="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  :checked="driveType === 'sharedDrive'"
+                  @change="handleDriveTypeChange('sharedDrive')"
+                  :disabled="!googleDriveConfigured"
+                  class="w-4 h-4 text-primary border-gray-300 focus:ring-primary disabled:opacity-50"
+                />
+                <span class="ml-2 text-sm text-gray-700">Shared Drive</span>
+              </label>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              Choose whether to store documents in your personal Google Drive or a Shared Drive (Team Drive).
+            </p>
+          </div>
+
+          <!-- Shared Drive Selection (only shown when sharedDrive is selected) -->
+          <div v-if="driveType === 'sharedDrive'" class="border-l-4 border-blue-400 pl-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Select Shared Drive <span class="text-red-500">*</span>
+            </label>
+            <div class="flex gap-2">
+              <select
+                v-model="selectedSharedDriveId"
+                @change="handleSharedDriveSelect(selectedSharedDriveId)"
+                :disabled="loadingSharedDrives || !googleDriveConfigured"
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">-- Select a Shared Drive --</option>
+                <option v-for="drive in sharedDrives" :key="drive.id" :value="drive.id">
+                  {{ drive.name }}
+                </option>
+              </select>
+              <button
+                type="button"
+                @click="loadSharedDrives"
+                :disabled="!googleDriveConfigured || loadingSharedDrives"
+                class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh shared drives list"
+              >
+                <svg v-if="loadingSharedDrives" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+            <p v-if="sharedDrives.length === 0 && !loadingSharedDrives" class="mt-1 text-xs text-yellow-600">
+              No Shared Drives found. Make sure you have access to at least one Shared Drive.
+            </p>
+            <p v-else class="mt-1 text-xs text-gray-500">
+              {{ selectedSharedDriveName ? `Selected: ${selectedSharedDriveName}` : 'Select a Shared Drive to store documents in.' }}
+            </p>
+          </div>
+
           <!-- Folder Browser -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
-              Google Drive Base Folder
+              {{ driveType === 'sharedDrive' ? 'Folder within Shared Drive' : 'Google Drive Base Folder' }}
             </label>
             <div class="flex gap-2">
               <input
@@ -201,7 +304,7 @@
               <button
                 type="button"
                 @click="openFolderBrowser"
-                :disabled="!googleDriveConfigured"
+                :disabled="!googleDriveConfigured || (driveType === 'sharedDrive' && !settings.google_shared_drive_id)"
                 class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Browse...
@@ -209,7 +312,7 @@
               <button
                 v-if="settings.google_drive_base_folder_id"
                 type="button"
-                @click="settings.google_drive_base_folder_id = ''"
+                @click="settings.google_drive_base_folder_id = ''; selectedFolderName = ''"
                 class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-md"
                 title="Clear selection (use root)"
               >
@@ -219,7 +322,12 @@
               </button>
             </div>
             <p class="mt-1 text-xs text-gray-500">
-              {{ selectedFolderName ? `Selected: ${selectedFolderName}` : 'Click Browse to select a folder from your Google Drive, or leave empty to use root.' }}
+              {{ selectedFolderName 
+                ? `Selected: ${selectedFolderName}` 
+                : driveType === 'sharedDrive' 
+                  ? 'Click Browse to select a folder within the Shared Drive, or leave empty to use the root of the Shared Drive.' 
+                  : 'Click Browse to select a folder from your Google Drive, or leave empty to use root.' 
+              }}
             </p>
           </div>
           
@@ -434,9 +542,12 @@
           <div class="flex items-center space-x-2 text-sm">
             <button
               @click="navigateToFolder('root')"
-              class="text-primary hover:underline"
+              class="text-primary hover:underline flex items-center"
             >
-              My Drive
+              <svg v-if="driveType === 'sharedDrive'" class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              {{ driveType === 'sharedDrive' ? (selectedSharedDriveName || 'Shared Drive') : 'My Drive' }}
             </button>
             <template v-for="(crumb, index) in folderBreadcrumbs" :key="crumb.id">
               <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -550,6 +661,7 @@ import api from '../services/api.js'
 
 const settings = ref({
   google_drive_base_folder_id: '',
+  google_shared_drive_id: '',
   google_client_id: '',
   google_client_secret: '',
   google_refresh_token: '',
@@ -579,6 +691,13 @@ const selectedFolderName = ref('')
 const folderSearch = ref('')
 let searchTimeout = null
 
+// Shared Drives states
+const driveType = ref('myDrive') // 'myDrive' or 'sharedDrive'
+const sharedDrives = ref([])
+const loadingSharedDrives = ref(false)
+const selectedSharedDriveId = ref('')
+const selectedSharedDriveName = ref('')
+
 // Computed properties for configuration status
 const googleDriveConfigured = computed(() => {
   return !!(
@@ -598,6 +717,14 @@ onMounted(async () => {
     const response = await api.get('/settings')
     settings.value = { ...settings.value, ...response.data }
     
+    // Set drive type based on saved settings
+    if (settings.value.google_shared_drive_id) {
+      driveType.value = 'sharedDrive'
+      selectedSharedDriveId.value = settings.value.google_shared_drive_id
+      // Load shared drive name
+      await loadSharedDriveName(settings.value.google_shared_drive_id)
+    }
+    
     // Load folder name if folder ID is set
     if (settings.value.google_drive_base_folder_id) {
       await loadFolderName(settings.value.google_drive_base_folder_id)
@@ -616,6 +743,64 @@ const loadFolderName = async (folderId) => {
   } catch (err) {
     selectedFolderName.value = folderId
   }
+}
+
+const loadSharedDriveName = async (driveId) => {
+  try {
+    const response = await api.get(`/settings/google-drive/shared-drive/${driveId}`)
+    selectedSharedDriveName.value = response.data.name || driveId
+  } catch (err) {
+    selectedSharedDriveName.value = driveId
+  }
+}
+
+const loadSharedDrives = async () => {
+  loadingSharedDrives.value = true
+  try {
+    const response = await api.get('/settings/google-drive/shared-drives')
+    sharedDrives.value = response.data.sharedDrives || []
+  } catch (err) {
+    console.error('Error loading shared drives:', err)
+    sharedDrives.value = []
+  } finally {
+    loadingSharedDrives.value = false
+  }
+}
+
+const handleDriveTypeChange = async (type) => {
+  driveType.value = type
+  
+  if (type === 'sharedDrive') {
+    // Load shared drives list if not already loaded
+    if (sharedDrives.value.length === 0) {
+      await loadSharedDrives()
+    }
+    // Clear my drive folder selection when switching to shared drive
+    if (!settings.value.google_shared_drive_id) {
+      settings.value.google_drive_base_folder_id = ''
+      selectedFolderName.value = ''
+    }
+  } else {
+    // Clear shared drive selection when switching to my drive
+    settings.value.google_shared_drive_id = ''
+    selectedSharedDriveId.value = ''
+    selectedSharedDriveName.value = ''
+    settings.value.google_drive_base_folder_id = ''
+    selectedFolderName.value = ''
+  }
+}
+
+const handleSharedDriveSelect = async (driveId) => {
+  selectedSharedDriveId.value = driveId
+  settings.value.google_shared_drive_id = driveId
+  
+  // Find and set the name
+  const drive = sharedDrives.value.find(d => d.id === driveId)
+  selectedSharedDriveName.value = drive?.name || driveId
+  
+  // Clear folder selection when changing shared drive
+  settings.value.google_drive_base_folder_id = ''
+  selectedFolderName.value = ''
 }
 
 const handleSave = async () => {
@@ -703,6 +888,11 @@ const loadFolders = async (parentId, isSearch = false) => {
       params.set('search', folderSearch.value)
     } else {
       params.set('parentId', parentId)
+    }
+    
+    // Add shared drive ID if using shared drives
+    if (driveType.value === 'sharedDrive' && settings.value.google_shared_drive_id) {
+      params.set('sharedDriveId', settings.value.google_shared_drive_id)
     }
     
     const response = await api.get(`/settings/google-drive/browse?${params}`)
