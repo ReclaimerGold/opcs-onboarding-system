@@ -39,6 +39,10 @@ const sessionsDb = new Database(sessionsDbPath)
 const app = express()
 const PORT = process.env.PORT || 3000
 
+// Trust proxy (required when behind nginx/load balancer)
+// This fixes X-Forwarded-For header issues with rate limiting and session
+app.set('trust proxy', 1)
+
 // Initialize database
 initializeDatabase()
 
@@ -53,6 +57,10 @@ app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
 // Session configuration
+// Note: secure cookies require HTTPS. Set SECURE_COOKIES=true when serving over HTTPS.
+// For local development/testing over HTTP, leave SECURE_COOKIES unset or set to 'false'.
+const isSecureCookies = process.env.SECURE_COOKIES === 'true'
+
 app.use(session({
   store: new SqliteStore({
     client: sessionsDb,
@@ -67,7 +75,8 @@ app.use(session({
   rolling: true,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureCookies,
+    sameSite: 'lax',
     maxAge: 15 * 60 * 1000 // 15 minutes
   }
 }))
@@ -79,8 +88,8 @@ const generalLimiter = rateLimit({
 })
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // limit each IP to 50 auth requests per windowMs (signup/login attempts)
+  windowMs: 1 * 60 * 1000, // 1 minute - reduced for testing
+  max: 100, // limit each IP to 100 auth requests per windowMs (signup/login attempts) - increased for testing
   message: 'Too many authentication attempts. Please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
