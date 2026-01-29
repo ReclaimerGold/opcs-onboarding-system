@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 9999,
     host: true, // Allow external connections for port forwarding
+    allowedHosts: ['onboarding.reiffenberger.net', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
