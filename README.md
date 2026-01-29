@@ -10,6 +10,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
   - Sign In: Continue onboarding or access admin dashboard (password required if set)
   - Two-phase authentication: Users with passwords prompted after credential verification
   - Password Reset: "Forgot password?" link sends reset email via Mailgun
+- **User Roles**: Centrally managed roles—Admin, Manager, Employee, Applicant—assignable from the Admin Dashboard **Users** tab
 - **Clickable Breadcrumb Navigation**: Navigate between steps with visual progress indicators
 - **Smart Step Validation**: Warnings when navigating to steps with missing prerequisites
 - **Auto-save drafts**: Progress is automatically saved as you fill out forms (2-second debounce)
@@ -311,6 +312,7 @@ This API provides address verification and auto-fill for city, state, and ZIP co
 The admin dashboard is organized into workflow-based sections for management teams:
 
 - **Overview Tab**: Priority alerts, workflow summary, and quick stats
+- **Users Tab**: Central user management—list all users, filter by role (Admin, Manager, Employee, Applicant), and change a user’s role. Admins require a password to access admin features.
 - **Active Onboarding Tab**: In-progress applicants with filtering and admin management
 - **Completed Tab**: Completed onboarding records
 - **Documents Tab**: Form submissions and I-9 documents with advanced search/filter
@@ -427,7 +429,10 @@ This system is designed to comply with:
   - Query params: `search`, `formType`, `stepNumber`, `applicantId`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
 - `GET /api/admin/i9-documents` - Get all I-9 documents with filtering and pagination
   - Query params: `search`, `documentType`, `documentCategory`, `applicantId`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
-- `PUT /api/admin/users/:id/admin` - Update user admin status
+- `GET /api/admin/users` - List all users (includes current user and admins) with search, role filter, pagination. By default only active users; use `includeInactive=1` to include deactivated. Query: search, role, page, limit, sortKey, sortDir, includeInactive
+- `PUT /api/admin/users/:id/role` - Update user role (body: `{ role: "admin"|"manager"|"employee"|"applicant" }`). Cannot modify your own role; cannot demote the last admin.
+- `DELETE /api/admin/users/:id` - Deactivate a user (soft delete; records retained for compliance). Cannot deactivate yourself; cannot deactivate the last admin.
+- `PUT /api/admin/users/:id/admin` - Update user admin status (legacy; also sets role to admin or applicant). Same restrictions as role update.
 - `POST /api/admin/normalize-applicants` - Normalize existing applicant data (fixes login issues)
 - `POST /api/admin/fix-admin-assignments` - Fix incorrect admin assignments (ensures only first user is admin)
 - `GET /api/admin/diagnose-login` - Diagnostic endpoint for login issues (query params: firstName, lastName, email)

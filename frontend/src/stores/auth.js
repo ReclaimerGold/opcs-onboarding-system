@@ -6,7 +6,8 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
     isAuthenticated: false,
-    isAdmin: false
+    isAdmin: false,
+    role: null // admin | manager | employee | applicant
   }),
 
   actions: {
@@ -18,9 +19,11 @@ export const useAuthStore = defineStore('auth', {
           email
         })
         
-        this.user = response.data.applicant
+        const {applicant} = response.data
+        this.user = applicant
         this.isAuthenticated = true
-        this.isAdmin = response.data.applicant?.isAdmin || false
+        this.role = applicant?.role || (applicant?.isAdmin ? 'admin' : 'applicant')
+        this.isAdmin = applicant?.isAdmin ?? (this.role === 'admin')
         localStorage.setItem('authToken', 'authenticated')
         
         return { success: true, isNewUser: response.data.isNewUser }
@@ -42,9 +45,11 @@ export const useAuthStore = defineStore('auth', {
           email
         })
         
-        this.user = response.data.applicant
+        const {applicant} = response.data
+        this.user = applicant
         this.isAuthenticated = true
-        this.isAdmin = response.data.applicant?.isAdmin || false
+        this.role = applicant?.role || (applicant?.isAdmin ? 'admin' : 'applicant')
+        this.isAdmin = applicant?.isAdmin ?? (this.role === 'admin')
         localStorage.setItem('authToken', 'authenticated')
         
         return { success: true, isNewUser: response.data.isNewUser }
@@ -67,6 +72,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = null
         this.isAuthenticated = false
         this.isAdmin = false
+        this.role = null
         localStorage.removeItem('authToken')
         // Clear SSN cookie on logout for security
         clearSSNCookie()
@@ -76,14 +82,17 @@ export const useAuthStore = defineStore('auth', {
     async fetchUser() {
       try {
         const response = await api.get('/auth/me')
-        this.user = response.data
+        const {data} = response
+        this.user = data
         this.isAuthenticated = true
-        this.isAdmin = response.data.isAdmin || false
-        return response.data
+        this.role = data.role || (data.isAdmin ? 'admin' : 'applicant')
+        this.isAdmin = data.isAdmin ?? (this.role === 'admin')
+        return data
       } catch (error) {
         this.user = null
         this.isAuthenticated = false
         this.isAdmin = false
+        this.role = null
         throw error
       }
     }

@@ -1,7 +1,11 @@
 import axios from 'axios'
 
+// Use VITE_API_BASE_URL when set (e.g. http://localhost:3000/api) so /api requests
+// hit the backend directly when the app is served from a host/port that doesn't proxy /api.
+const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
@@ -43,6 +47,7 @@ api.interceptors.response.use(
         authStore.user = null
         authStore.isAuthenticated = false
         authStore.isAdmin = false
+        authStore.role = null
       } catch (storeError) {
         // Ignore store cleanup failures (e.g., before Pinia is ready)
       }

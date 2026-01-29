@@ -80,6 +80,7 @@ router.post('/signup', async (req, res) => {
     const db = getDatabase()
     const fullApplicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(applicant.id)
 
+    const role = fullApplicant.role || (fullApplicant.is_admin === 1 ? 'admin' : 'applicant')
     res.json({
       success: true,
       applicant: {
@@ -87,7 +88,8 @@ router.post('/signup', async (req, res) => {
         firstName: fullApplicant.first_name,
         lastName: fullApplicant.last_name,
         email: fullApplicant.email,
-        isAdmin: fullApplicant.is_admin === 1
+        isAdmin: fullApplicant.is_admin === 1,
+        role
       },
       isNewUser: true
     })
@@ -144,6 +146,27 @@ router.post('/login', async (req, res) => {
       })
     }
 
+    if (applicant.is_active === 0) {
+      const db = getDatabase()
+      db.prepare(`
+        INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        firstName,
+        lastName,
+        email,
+        0,
+        req.ip,
+        req.get('user-agent'),
+        'Account deactivated',
+        applicant.id
+      )
+      return res.status(401).json({
+        error: 'This account has been deactivated. Contact an administrator.',
+        code: 'ACCOUNT_DEACTIVATED'
+      })
+    }
+
     const isAdmin = applicant.is_admin === 1
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
     // Require password for anyone who has set one (admins and applicants)
@@ -182,7 +205,8 @@ router.post('/login', async (req, res) => {
           firstName: applicant.first_name,
           lastName: applicant.last_name,
           email: applicant.email,
-          isAdmin: applicant.is_admin === 1
+          isAdmin: applicant.is_admin === 1,
+          role: applicant.role || (applicant.is_admin === 1 ? 'admin' : 'applicant')
         }
       })
     }
@@ -204,7 +228,8 @@ router.post('/login', async (req, res) => {
             firstName: applicant.first_name,
             lastName: applicant.last_name,
             email: applicant.email,
-            isAdmin: true
+            isAdmin: true,
+            role: applicant.role || 'admin'
           }
         })
       }
@@ -279,6 +304,7 @@ router.post('/login', async (req, res) => {
       details: { email: applicant.email, completedSteps }
     })
 
+    const role = applicant.role || (applicant.is_admin === 1 ? 'admin' : 'applicant')
     return res.json({
       success: true,
       applicant: {
@@ -286,7 +312,8 @@ router.post('/login', async (req, res) => {
         firstName: applicant.first_name,
         lastName: applicant.last_name,
         email: applicant.email,
-        isAdmin: applicant.is_admin === 1
+        isAdmin: applicant.is_admin === 1,
+        role
       },
       isNewUser: false,
       onboardingComplete: isOnboardingComplete,
@@ -349,16 +376,22 @@ router.get('/me', async (req, res) => {
     if (req.session && req.session.applicantId) {
       const { getDatabase } = await import('../database/init.js')
       const db = getDatabase()
-      const applicant = db.prepare('SELECT id, first_name, last_name, email, is_admin FROM applicants WHERE id = ?')
+      const applicant = db.prepare('SELECT id, first_name, last_name, email, is_admin, role, is_active FROM applicants WHERE id = ?')
         .get(req.session.applicantId)
 
       if (applicant) {
+        if (applicant.is_active === 0) {
+          req.session.destroy(() => {})
+          return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
+        }
+        const role = applicant.role || (applicant.is_admin === 1 ? 'admin' : 'applicant')
         res.json({
           id: applicant.id,
           firstName: applicant.first_name,
           lastName: applicant.last_name,
           email: applicant.email,
-          isAdmin: applicant.is_admin === 1
+          isAdmin: applicant.is_admin === 1,
+          role
         })
       } else {
         res.status(404).json({ error: 'User not found' })

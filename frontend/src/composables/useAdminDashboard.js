@@ -24,7 +24,8 @@ export function useAdminDashboard() {
     health: false,
     submissions: false,
     documents: false,
-    compliance: false
+    compliance: false,
+    users: false
   })
 
   // Error states
@@ -188,6 +189,41 @@ export function useAdminDashboard() {
     }
   }
 
+  const loadUsers = async (params = {}) => {
+    loading.value.users = true
+    errors.value.users = null
+    try {
+      const response = await api.get('/admin/users', { params })
+      const {data} = response
+      if (!data || typeof data !== 'object') {
+        errors.value.users = 'Invalid response from server'
+        return { users: [], pagination: { total: 0 } }
+      }
+      return {
+        users: Array.isArray(data.users) ? data.users : [],
+        pagination: data.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 }
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+      const status = error.response?.status
+      const msg = error.response?.data?.error || error.message
+      errors.value.users = status ? `${msg} (${status})` : msg
+      return { users: [], pagination: { total: 0 } }
+    } finally {
+      loading.value.users = false
+    }
+  }
+
+  const updateUserRole = async (userId, role) => {
+    const response = await api.put(`/admin/users/${userId}/role`, { role })
+    return response.data
+  }
+
+  const deactivateUser = async (userId) => {
+    const response = await api.delete(`/admin/users/${userId}`)
+    return response.data
+  }
+
   const loadComplianceReport = async () => {
     loading.value.compliance = true
     try {
@@ -216,6 +252,8 @@ export function useAdminDashboard() {
     ])
   }
 
+  // Note: loadUsers is not in loadAllData to avoid loading users on every dashboard load
+
   // Refresh specific data
   const refresh = async (type) => {
     switch (type) {
@@ -239,6 +277,9 @@ export function useAdminDashboard() {
         break
       case 'documents':
         await loadAllI9Documents()
+        break
+      case 'users':
+        await loadUsers()
         break
       case 'compliance':
         await loadComplianceReport()
@@ -274,6 +315,9 @@ export function useAdminDashboard() {
     loadSystemHealth,
     loadAllSubmissions,
     loadAllI9Documents,
+    loadUsers,
+    updateUserRole,
+    deactivateUser,
     loadComplianceReport,
     loadAllData,
     refresh

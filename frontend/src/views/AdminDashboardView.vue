@@ -147,6 +147,12 @@
               Completed
             </button>
             <button
+              @click="activeTab = 'users'"
+              :class="tabClass('users')"
+            >
+              Users
+            </button>
+            <button
               @click="activeTab = 'documents'"
               :class="tabClass('documents')"
             >
@@ -319,22 +325,9 @@
                 </span>
               </template>
               <template #cell-isAdmin="{ row }">
-                <div class="flex items-center space-x-2">
-                  <span v-if="row.isAdmin" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Admin</span>
-                  <span v-else class="text-sm text-gray-400">User</span>
-                  <button
-                    v-if="row.id !== currentUserId"
-                    @click="toggleAdminStatus(row)"
-                    :disabled="updatingAdmin === row.id"
-                    class="text-xs px-2 py-1 rounded border transition-colors"
-                    :class="row.isAdmin 
-                      ? 'border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50' 
-                      : 'border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50'"
-                  >
-                    <span v-if="updatingAdmin === row.id">...</span>
-                    <span v-else>{{ row.isAdmin ? 'Remove' : 'Make Admin' }}</span>
-                  </button>
-                </div>
+                <span :class="getRoleBadgeClass(row.role || (row.isAdmin ? 'admin' : 'applicant'))">
+                  {{ formatRole(row.role || (row.isAdmin ? 'admin' : 'applicant')) }}
+                </span>
               </template>
             </DataTable>
           </div>
@@ -373,6 +366,89 @@
                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                   Completed
                 </span>
+              </template>
+              <template #cell-isAdmin="{ row }">
+                <span :class="getRoleBadgeClass(row.role || (row.isAdmin ? 'admin' : 'applicant'))">
+                  {{ formatRole(row.role || (row.isAdmin ? 'admin' : 'applicant')) }}
+                </span>
+              </template>
+            </DataTable>
+          </div>
+
+          <!-- Users Tab -->
+          <div v-if="activeTab === 'users'">
+            <div v-if="dashboard.errors.value.users" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+              <span class="text-sm text-red-800">Failed to load users: {{ dashboard.errors.value.users }}</span>
+              <button
+                type="button"
+                @click="loadUsersData"
+                class="text-sm font-medium text-red-700 hover:text-red-800 underline"
+              >
+                Retry
+              </button>
+            </div>
+            <div class="mb-4 flex items-center gap-4">
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  v-model="usersIncludeInactive"
+                  type="checkbox"
+                  class="rounded border-gray-300 text-primary focus:ring-primary"
+                  @change="loadUsersData"
+                />
+                Include deactivated users
+              </label>
+            </div>
+            <DataTable
+              title="User Management"
+              :columns="usersColumns"
+              :data="usersData"
+              :loading="dashboard.loading.value.users"
+              :pagination="usersPagination"
+              :filters="usersFilters"
+              :sort="usersSort"
+              search-placeholder="Search by name or email..."
+              @search="handleUsersSearch"
+              @filter-change="handleUsersFilterChange"
+              @page-change="handleUsersPageChange"
+              @limit-change="handleUsersLimitChange"
+              @sort-change="handleUsersSort"
+              @refresh="loadUsersData"
+            >
+              <template #cell-firstName="{ row }">
+                <span>{{ row.firstName }}</span>
+                <span v-if="row.id === currentUserId" class="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary" title="Current user">You</span>
+                <span v-if="row.isActive === false" class="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-600">Deactivated</span>
+              </template>
+              <template #cell-role="{ row }">
+                <div class="flex items-center space-x-2">
+                  <span :class="getRoleBadgeClass(row.role)">{{ formatRole(row.role) }}</span>
+                  <select
+                    v-if="row.id !== currentUserId && (row.isActive === undefined || row.isActive === true)"
+                    :value="row.role"
+                    :disabled="updatingRole === row.id"
+                    @change="(e) => changeUserRole(row, e.target.value)"
+                    class="text-xs border rounded px-2 py-1 bg-white"
+                  >
+                    <option value="applicant">Applicant</option>
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <span v-else-if="row.id === currentUserId" class="text-xs text-gray-400">(you)</span>
+                </div>
+              </template>
+              <template #actions="{ row }">
+                <button
+                  v-if="row.id !== currentUserId && (row.isActive === undefined || row.isActive === true)"
+                  type="button"
+                  :disabled="deactivatingUserId === row.id"
+                  @click="deactivateUserConfirm(row)"
+                  class="text-xs px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {{ deactivatingUserId === row.id ? '...' : 'Deactivate' }}
+                </button>
+                <span v-else-if="row.id === currentUserId" class="text-xs text-gray-400">—</span>
+                <span v-else class="text-xs text-gray-400">—</span>
               </template>
             </DataTable>
           </div>
@@ -759,6 +835,8 @@ import { exportToCSV } from '../utils/exportUtils.js'
 import AlertsPanel from '../components/admin/AlertsPanel.vue'
 import DataTable from '../components/admin/DataTable.vue'
 import ComplianceChecker from '../components/admin/ComplianceChecker.vue'
+import TestResultsPanel from '../components/admin/TestResultsPanel.vue'
+import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -777,7 +855,9 @@ const permissionFixResult = ref(null)
 const regeneratingPdfs = ref(false)
 const regeneratePdfsResult = ref(null)
 const runningTests = ref(false)
-const updatingAdmin = ref(null)
+const updatingRole = ref(null)
+const deactivatingUserId = ref(null)
+const usersIncludeInactive = ref(false)
 const currentUserId = ref(null)
 const testResults = ref(null)
 
@@ -795,6 +875,19 @@ const tabClass = (tab) => [
 ]
 
 // Column definitions
+const usersColumns = [
+  { key: 'firstName', label: 'First Name', sortable: true },
+  { key: 'lastName', label: 'Last Name', sortable: true },
+  { key: 'email', label: 'Email', sortable: true },
+  { key: 'role', label: 'Role', sortable: true, filterType: 'select', options: [
+    { value: 'admin', label: 'Admin' },
+    { value: 'manager', label: 'Manager' },
+    { value: 'employee', label: 'Employee' },
+    { value: 'applicant', label: 'Applicant' }
+  ]},
+  { key: 'createdAt', label: 'Created', type: 'date', sortable: true }
+]
+
 const onboardingColumns = [
   { key: 'firstName', label: 'First Name', sortable: true },
   { key: 'lastName', label: 'Last Name', sortable: true },
@@ -925,6 +1018,12 @@ const auditSort = ref({ key: 'created_at', direction: 'desc' })
 const auditSearch = ref('')
 const auditData = ref([])
 
+const usersFilters = ref({})
+const usersPagination = ref({ page: 1, limit: 25, total: 0 })
+const usersSort = ref({ key: 'created_at', direction: 'desc' })
+const usersSearch = ref('')
+const usersData = ref([])
+
 // Helper functions
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
@@ -960,6 +1059,22 @@ const getCategoryBadgeClass = (category) => {
     listC: 'bg-purple-100 text-purple-800'
   }
   return `${base} ${colors[category] || 'bg-gray-100 text-gray-800'}`
+}
+
+const formatRole = (role) => {
+  const map = { admin: 'Admin', manager: 'Manager', employee: 'Employee', applicant: 'Applicant' }
+  return map[role] || role || 'Applicant'
+}
+
+const getRoleBadgeClass = (role) => {
+  const base = 'px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center'
+  const colors = {
+    admin: 'bg-blue-100 text-blue-800',
+    manager: 'bg-indigo-100 text-indigo-800',
+    employee: 'bg-green-100 text-green-800',
+    applicant: 'bg-gray-100 text-gray-800'
+  }
+  return `${base} ${colors[role] || 'bg-gray-100 text-gray-800'}`
 }
 
 // Data loading functions
@@ -1025,6 +1140,28 @@ const loadI9Documents = async () => {
   i9Data.value = result.documents || []
   if (result.pagination) {
     i9Pagination.value.total = result.pagination.total
+  }
+}
+
+const loadUsersData = async () => {
+  const params = {
+    search: usersSearch.value || undefined,
+    role: usersFilters.value?.role || undefined,
+    page: usersPagination.value.page,
+    limit: usersPagination.value.limit,
+    sortKey: usersSort.value.key,
+    sortDir: usersSort.value.direction
+  }
+  if (usersIncludeInactive.value) {
+    params.includeInactive = '1'
+  }
+  const result = await dashboard.loadUsers(params)
+  usersData.value = Array.isArray(result.users) ? result.users : []
+  if (result.pagination) {
+    usersPagination.value = {
+      ...usersPagination.value,
+      total: result.pagination.total ?? 0
+    }
   }
 }
 
@@ -1189,6 +1326,91 @@ const handleI9Export = () => {
   window.open(`/api/admin/i9-documents/export?${params}`, '_blank')
 }
 
+// Event handlers for users table
+const handleUsersSearch = (search) => {
+  usersSearch.value = search
+  usersPagination.value.page = 1
+  loadUsersData()
+}
+const handleUsersFilterChange = (filters) => {
+  usersFilters.value = filters
+  usersPagination.value.page = 1
+  loadUsersData()
+}
+const handleUsersPageChange = (page) => {
+  usersPagination.value.page = page
+  loadUsersData()
+}
+const handleUsersLimitChange = (limit) => {
+  usersPagination.value.limit = limit
+  usersPagination.value.page = 1
+  loadUsersData()
+}
+const handleUsersSort = (sort) => {
+  usersSort.value = sort
+  loadUsersData()
+}
+
+const changeUserRole = async (user, newRole) => {
+  if (user.role === newRole) return
+  if (!confirm(`Change ${user.firstName} ${user.lastName} to ${formatRole(newRole)}?`)) {
+    return
+  }
+  updatingRole.value = user.id
+  try {
+    const result = await dashboard.updateUserRole(user.id, newRole)
+    if (result.success) {
+      const idx = usersData.value.findIndex(u => u.id === user.id)
+      if (idx !== -1) {
+        usersData.value[idx] = { ...usersData.value[idx], role: newRole, isAdmin: newRole === 'admin' }
+      }
+      loadOnboardingData()
+      loadCompletedData()
+      dashboard.loadDashboardStats()
+      if (result.requiresPasswordSetup && newRole === 'admin') {
+        alert(`${result.message}\n\nThis user will need to set a password before accessing admin features.`)
+      } else {
+        alert(result.message)
+      }
+    }
+  } catch (error) {
+    console.error('Error updating user role:', error)
+    alert(error.response?.data?.error || 'Failed to update role')
+  } finally {
+    updatingRole.value = null
+  }
+}
+
+const deactivateUserConfirm = async (user) => {
+  if (!confirm(`Deactivate ${user.firstName} ${user.lastName}? They will not be able to log in. Their records are retained for compliance.`)) {
+    return
+  }
+  deactivatingUserId.value = user.id
+  try {
+    const result = await dashboard.deactivateUser(user.id)
+    if (result.success) {
+      if (usersIncludeInactive.value) {
+        const idx = usersData.value.findIndex(u => u.id === user.id)
+        if (idx !== -1) {
+          usersData.value[idx] = { ...usersData.value[idx], isActive: false }
+        }
+      } else {
+        usersData.value = usersData.value.filter(u => u.id !== user.id)
+        usersPagination.value.total = Math.max(0, (usersPagination.value.total || 1) - 1)
+      }
+      loadOnboardingData()
+      loadCompletedData()
+      dashboard.loadDashboardStats()
+      alert(result.message)
+    }
+  } catch (error) {
+    console.error('Error deactivating user:', error)
+    alert(error.response?.data?.error || 'Failed to deactivate user')
+  } finally {
+    deactivatingUserId.value = null
+  }
+}
+
 // Event handlers for login attempts table
 const handleLoginsSearch = (search) => {
   loginsSearch.value = search
@@ -1318,41 +1540,13 @@ const handleAlertNavigation = (tab, options = {}) => {
   }
 }
 
-const toggleAdminStatus = async (user) => {
-  if (!confirm(`Are you sure you want to ${user.isAdmin ? 'remove' : 'grant'} administrator privileges for ${user.firstName} ${user.lastName}?`)) {
-    return
-  }
-  
-  updatingAdmin.value = user.id
-  try {
-    const response = await api.put(`/admin/users/${user.id}/admin`, {
-      isAdmin: !user.isAdmin
-    })
-    
-    if (response.data.success) {
-      // Reload data
-      loadOnboardingData()
-      loadCompletedData()
-      dashboard.loadDashboardStats()
-      
-      if (response.data.requiresPasswordSetup && !user.isAdmin) {
-        alert(`${response.data.message}\n\nNote: This user will need to set a password before accessing admin features.`)
-      } else {
-        alert(response.data.message)
-      }
-    }
-  } catch (error) {
-    console.error('Error updating admin status:', error)
-    alert(error.response?.data?.error || 'Failed to update admin status')
-  } finally {
-    updatingAdmin.value = null
-  }
-}
-
 const refreshAll = async () => {
   await dashboard.loadAllData()
   loadOnboardingData()
   loadCompletedData()
+  if (activeTab.value === 'users') {
+    loadUsersData()
+  }
   loadSubmissions()
   loadI9Documents()
   loadLoginAttempts()
@@ -1411,6 +1605,9 @@ watch(activeTab, (newTab) => {
     loadOnboardingData()
   } else if (newTab === 'completed') {
     loadCompletedData()
+  } else if (newTab === 'users') {
+    ensureCurrentUserId()
+    loadUsersData()
   } else if (newTab === 'documents') {
     if (documentTab.value === 'submissions') {
       loadSubmissions()
@@ -1442,8 +1639,20 @@ watch(activityTab, (newTab) => {
   }
 })
 
+// Ensure current user id is available (for Users tab "You" badge and restrictions)
+function ensureCurrentUserId() {
+  if (currentUserId.value != null) return
+  const id = authStore.user?.id
+  if (id != null) {
+    currentUserId.value = id
+    return
+  }
+  api.get('/auth/me').then((r) => { currentUserId.value = r.data?.id }).catch(() => {})
+}
+
 // Initialize
 onMounted(async () => {
+  ensureCurrentUserId()
   try {
     const userResponse = await api.get('/auth/me')
     currentUserId.value = userResponse.data.id

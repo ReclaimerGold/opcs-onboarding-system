@@ -3,34 +3,45 @@ import bcrypt from 'bcrypt'
 
 /**
  * Authentication middleware
- * Checks if user is logged in via session
+ * Checks if user is logged in via session and account is active
  */
 export function requireAuth(req, res, next) {
-  if (req.session && req.session.applicantId) {
-    req.applicantId = req.session.applicantId
-    next()
-  } else {
-    res.status(401).json({ error: 'Authentication required' })
+  if (!req.session || !req.session.applicantId) {
+    return res.status(401).json({ error: 'Authentication required' })
   }
+  const db = getDatabase()
+  const applicant = db.prepare('SELECT id, is_active FROM applicants WHERE id = ?').get(req.session.applicantId)
+  if (!applicant) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  if (applicant.is_active === 0) {
+    req.session.destroy(() => {})
+    return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
+  }
+  req.applicantId = req.session.applicantId
+  next()
 }
 
 /**
  * Admin authentication middleware
- * Checks if user is authenticated and has admin privileges
+ * Checks if user is authenticated, active, and has admin privileges
  */
 export function requireAdmin(req, res, next) {
   if (!req.session || !req.session.applicantId) {
     return res.status(401).json({ error: 'Authentication required' })
   }
-  
   const db = getDatabase()
-  const applicant = db.prepare('SELECT is_admin FROM applicants WHERE id = ?')
-    .get(req.session.applicantId)
-  
-  if (!applicant || !applicant.is_admin) {
+  const applicant = db.prepare('SELECT is_admin, is_active FROM applicants WHERE id = ?').get(req.session.applicantId)
+  if (!applicant) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  if (applicant.is_active === 0) {
+    req.session.destroy(() => {})
+    return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
+  }
+  if (!applicant.is_admin) {
     return res.status(403).json({ error: 'Admin access required' })
   }
-  
   req.applicantId = req.session.applicantId
   next()
 }
@@ -172,9 +183,10 @@ export function createApplicant(firstName, lastName, email, additionalData = {})
       })
     }
     
+    const role = isAdmin ? 'admin' : (additionalData.role === 'manager' || additionalData.role === 'employee' ? additionalData.role : 'applicant')
     const insertResult = db.prepare(`
-      INSERT INTO applicants (first_name, last_name, email, phone, date_of_birth, address, city, state, zip_code, is_admin)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO applicants (first_name, last_name, email, phone, date_of_birth, address, city, state, zip_code, is_admin, role)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       normalizedFirstName,
       normalizedLastName,
@@ -185,7 +197,8 @@ export function createApplicant(firstName, lastName, email, additionalData = {})
       additionalData.city || null,
       additionalData.state || null,
       additionalData.zipCode || null,
-      isAdmin
+      isAdmin,
+      role
     )
     
     return { insertResult, isAdmin }

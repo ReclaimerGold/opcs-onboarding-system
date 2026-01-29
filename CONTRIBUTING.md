@@ -144,6 +144,7 @@ docker run -p 8888:80 -e SESSION_SECRET=test-secret opcs-test
 - [ ] Document uploads work
 - [ ] Authentication works
 - [ ] Admin features work (if applicable)
+- [ ] User role management works (Admin Dashboard → Users tab: Admin, Manager, Employee, Applicant)
 
 ## Git Workflow
 

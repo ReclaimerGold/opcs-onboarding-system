@@ -107,6 +107,134 @@ router.get('/dashboard', async (req, res) => {
   }
 })
 
+/** Valid role values for user management (used by users routes) */
+const VALID_ROLES = ['admin', 'manager', 'employee', 'applicant']
+
+/**
+ * GET /api/admin/users
+ * List all users (includes current user and all admins) with search, role filter, pagination.
+ * By default returns only active users; use ?includeInactive=1 to include deactivated.
+ * Query params: search, role, page, limit, sortKey, sortDir, includeInactive
+ */
+router.get('/users', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1)
+    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25))
+    const offset = (pageNum - 1) * limitNum
+    const {
+      search,
+      role,
+      sortKey = 'created_at',
+      sortDir = 'desc',
+      includeInactive
+    } = req.query
+
+    let whereClause = 'WHERE 1=1'
+    const params = []
+
+    if (search) {
+      whereClause += ` AND (
+        a.first_name LIKE ? OR 
+        a.last_name LIKE ? OR 
+        a.email LIKE ?
+      )`
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern)
+    }
+
+    if (role && role !== '' && VALID_ROLES.includes(role)) {
+      whereClause += ' AND a.role = ?'
+      params.push(role)
+    }
+
+    let hasIsActiveColumn
+    try {
+      db.prepare('SELECT is_active FROM applicants LIMIT 1').get()
+      hasIsActiveColumn = true
+    } catch (e) {
+      hasIsActiveColumn = false
+    }
+    if (hasIsActiveColumn && includeInactive !== 'true' && includeInactive !== '1') {
+      whereClause += ' AND (a.is_active IS NULL OR a.is_active = 1)'
+    }
+
+    const sortKeyMap = { createdAt: 'created_at', firstName: 'first_name', lastName: 'last_name', email: 'email', role: 'role' }
+    const dbSortKey = sortKeyMap[sortKey] || sortKey
+    const validSortColumns = ['created_at', 'first_name', 'last_name', 'email', 'role']
+    const sortColumn = validSortColumns.includes(dbSortKey) ? `a.${dbSortKey}` : 'a.created_at'
+    const sortDirection = sortDir === 'asc' ? 'ASC' : 'DESC'
+
+    let total
+    let rows
+    try {
+      const countQuery = `SELECT COUNT(*) as total FROM applicants a ${whereClause}`
+      total = db.prepare(countQuery).get(...params).total
+
+      let dataQuery
+      if (hasIsActiveColumn) {
+        dataQuery = `
+          SELECT a.id, a.first_name, a.last_name, a.email, a.role, a.is_admin, a.is_active, a.created_at
+          FROM applicants a ${whereClause}
+          ORDER BY ${sortColumn} ${sortDirection}
+          LIMIT ? OFFSET ?
+        `
+      } else {
+        dataQuery = `
+          SELECT a.id, a.first_name, a.last_name, a.email, a.role, a.is_admin, a.created_at
+          FROM applicants a ${whereClause}
+          ORDER BY ${sortColumn} ${sortDirection}
+          LIMIT ? OFFSET ?
+        `
+      }
+      rows = db.prepare(dataQuery).all(...params, limitNum, offset)
+    } catch (queryError) {
+      console.error('Get users query error:', queryError.message)
+      total = db.prepare('SELECT COUNT(*) as total FROM applicants').get().total
+      rows = db.prepare(`
+        SELECT id, first_name, last_name, email, is_admin, created_at
+        FROM applicants
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `).all(limitNum, offset)
+    }
+
+    const users = rows.map(r => ({
+      id: r.id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      email: r.email,
+      role: r.role != null ? r.role : (r.is_admin === 1 ? 'admin' : 'applicant'),
+      isAdmin: r.is_admin === 1,
+      isActive: (r.is_active != null && r.is_active !== undefined) ? r.is_active !== 0 : true,
+      createdAt: r.created_at
+    }))
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'VIEW',
+      resourceType: 'ADMIN',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { endpoint: 'users', filters: req.query }
+    })
+
+    res.json({
+      users,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    })
+  } catch (error) {
+    console.error('Get users error:', error)
+    res.status(500).json({ error: 'Failed to retrieve users', details: error.message })
+  }
+})
+
 /**
  * GET /api/admin/login-attempts
  * Get all login attempts with filtering, search, and pagination
@@ -245,6 +373,7 @@ router.get('/onboarding-status', async (req, res) => {
         a.last_name,
         a.email,
         a.is_admin,
+        a.role,
         a.created_at,
         COUNT(DISTINCT fs.step_number) as completed_steps,
         MAX(fs.submitted_at) as last_submission
@@ -299,6 +428,7 @@ router.get('/onboarding-status', async (req, res) => {
         lastName: app.last_name,
         email: app.email,
         isAdmin: app.is_admin === 1,
+        role: app.role || (app.is_admin === 1 ? 'admin' : 'applicant'),
         completedSteps: steps,
         totalSteps: 6,
         progress: isCompleted ? 100 : Math.min(100, Math.round((steps / 6) * 100)),
@@ -562,8 +692,159 @@ router.get('/system-health', async (req, res) => {
 })
 
 /**
+ * PUT /api/admin/users/:id/role
+ * Update user role (admin, manager, employee, applicant).
+ * Restrictions: cannot modify your own role; cannot demote the last admin (compliance).
+ */
+router.put('/users/:id/role', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id)
+    const { role } = req.body
+
+    if (userId === req.applicantId) {
+      return res.status(400).json({ error: 'Cannot modify your own role' })
+    }
+
+    if (!role || !VALID_ROLES.includes(role)) {
+      return res.status(400).json({
+        error: `role must be one of: ${VALID_ROLES.join(', ')}`
+      })
+    }
+
+    const db = getDatabase()
+
+    const user = db.prepare('SELECT id, first_name, last_name, email, is_admin, role, is_active FROM applicants WHERE id = ?').get(userId)
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    if (user.is_active === 0) {
+      return res.status(400).json({ error: 'Cannot change role of a deactivated user' })
+    }
+
+    const previousRole = user.role || 'applicant'
+    const isAdmin = role === 'admin'
+
+    if (user.is_admin === 1 && !isAdmin) {
+      const adminCount = db.prepare('SELECT COUNT(*) as c FROM applicants WHERE is_admin = 1 AND (is_active IS NULL OR is_active = 1)').get().c
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot demote the last administrator. At least one admin is required for compliance.' })
+      }
+    }
+
+    db.prepare('UPDATE applicants SET role = ?, is_admin = ? WHERE id = ?').run(role, isAdmin ? 1 : 0, userId)
+
+    let requiresPasswordSetup = false
+    if (isAdmin) {
+      const updated = db.prepare('SELECT password_hash FROM applicants WHERE id = ?').get(userId)
+      requiresPasswordSetup = !updated.password_hash || updated.password_hash === ''
+    }
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'UPDATE_USER_ROLE',
+      resourceType: 'USER',
+      resourceId: userId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: {
+        targetUserId: userId,
+        targetUserName: `${user.first_name} ${user.last_name}`,
+        targetUserEmail: user.email,
+        previousRole,
+        newRole: role,
+        requiresPasswordSetup
+      }
+    })
+
+    res.json({
+      success: true,
+      message: `Role for ${user.first_name} ${user.last_name} updated to ${role}`,
+      user: {
+        id: userId,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role,
+        isAdmin
+      },
+      requiresPasswordSetup
+    })
+  } catch (error) {
+    console.error('Update user role error:', error)
+    res.status(500).json({ error: 'Failed to update user role' })
+  }
+})
+
+/**
+ * DELETE /api/admin/users/:id
+ * Deactivate a user (soft delete). Preserves records for audit/retention compliance.
+ * Restrictions: cannot deactivate yourself; cannot deactivate the last admin.
+ */
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id)
+
+    if (userId === req.applicantId) {
+      return res.status(400).json({ error: 'Cannot deactivate your own account' })
+    }
+
+    const db = getDatabase()
+
+    const user = db.prepare('SELECT id, first_name, last_name, email, is_admin, is_active FROM applicants WHERE id = ?').get(userId)
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    if (user.is_active === 0) {
+      return res.status(400).json({ error: 'User is already deactivated' })
+    }
+
+    if (user.is_admin === 1) {
+      const adminCount = db.prepare('SELECT COUNT(*) as c FROM applicants WHERE is_admin = 1 AND (is_active IS NULL OR is_active = 1)').get().c
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot deactivate the last administrator. At least one admin is required for compliance.' })
+      }
+    }
+
+    db.prepare('UPDATE applicants SET is_active = 0 WHERE id = ?').run(userId)
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'DEACTIVATE_USER',
+      resourceType: 'USER',
+      resourceId: userId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: {
+        targetUserId: userId,
+        targetUserName: `${user.first_name} ${user.last_name}`,
+        targetUserEmail: user.email,
+        targetWasAdmin: user.is_admin === 1
+      }
+    })
+
+    res.json({
+      success: true,
+      message: `User ${user.first_name} ${user.last_name} has been deactivated. Their records are retained for compliance.`,
+      user: {
+        id: userId,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        isActive: false
+      }
+    })
+  } catch (error) {
+    console.error('Deactivate user error:', error)
+    res.status(500).json({ error: 'Failed to deactivate user' })
+  }
+})
+
+/**
  * PUT /api/admin/users/:id/admin
- * Update user admin status
+ * Update user admin status (legacy; also updates role to admin/applicant).
+ * Restrictions: cannot modify your own status; cannot demote the last admin.
  */
 router.put('/users/:id/admin', async (req, res) => {
   try {
@@ -580,23 +861,27 @@ router.put('/users/:id/admin', async (req, res) => {
 
     const db = getDatabase()
 
-    // Check if user exists
-    const user = db.prepare('SELECT id, first_name, last_name, email, is_admin FROM applicants WHERE id = ?').get(userId)
+    const user = db.prepare('SELECT id, first_name, last_name, email, is_admin, role, is_active FROM applicants WHERE id = ?').get(userId)
     if (!user) {
       return res.status(404).json({ error: 'User not found' })
     }
 
-    // Update admin status
-    db.prepare('UPDATE applicants SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, userId)
+    if (user.is_admin === 1 && !isAdmin) {
+      const adminCount = db.prepare('SELECT COUNT(*) as c FROM applicants WHERE is_admin = 1 AND (is_active IS NULL OR is_active = 1)').get().c
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot demote the last administrator. At least one admin is required for compliance.' })
+      }
+    }
 
-    // Check if password is set (only if promoting to admin)
+    const newRole = isAdmin ? 'admin' : 'applicant'
+    db.prepare('UPDATE applicants SET is_admin = ?, role = ? WHERE id = ?').run(isAdmin ? 1 : 0, newRole, userId)
+
     let requiresPasswordSetup = false
     if (isAdmin) {
       const updatedUser = db.prepare('SELECT password_hash FROM applicants WHERE id = ?').get(userId)
       requiresPasswordSetup = !updatedUser.password_hash || updatedUser.password_hash === ''
     }
 
-    // Audit log
     await auditLog({
       userId: req.applicantId,
       action: isAdmin ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN',
@@ -624,6 +909,7 @@ router.put('/users/:id/admin', async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         email: user.email,
+        role: newRole,
         isAdmin
       },
       requiresPasswordSetup

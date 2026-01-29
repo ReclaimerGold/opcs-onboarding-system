@@ -21,6 +21,7 @@ db.pragma('foreign_keys = ON')
 
 export function initializeDatabase() {
   // Applicants table (NO SSN - compliant with data minimization)
+  // role: admin | manager | employee | applicant (centrally managed)
   db.exec(`
     CREATE TABLE IF NOT EXISTS applicants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,6 +37,7 @@ export function initializeDatabase() {
       hire_date TEXT,
       termination_date TEXT,
       is_admin INTEGER DEFAULT 0,
+      role TEXT DEFAULT 'applicant' CHECK(role IN ('admin', 'manager', 'employee', 'applicant')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `)
@@ -53,6 +55,25 @@ export function initializeDatabase() {
   } catch (error) {
     // Column already exists, ignore
   }
+
+  // Add role column for centralized user management (Admin, Manager, Employee, Applicant)
+  const validRoles = ['admin', 'manager', 'employee', 'applicant']
+  try {
+    db.exec(`ALTER TABLE applicants ADD COLUMN role TEXT DEFAULT 'applicant'`)
+  } catch (error) {
+    // Column already exists
+  }
+  // Backfill: existing admins get role 'admin', everyone else with invalid/missing role gets 'applicant'
+  db.exec(`UPDATE applicants SET role = 'admin' WHERE is_admin = 1`)
+  db.exec(`UPDATE applicants SET role = 'applicant' WHERE role IS NULL OR role = '' OR role NOT IN (${validRoles.map(r => `'${r}'`).join(',')})`)
+
+  // Soft-delete: is_active = 0 means deactivated (preserves audit/retention compliance)
+  try {
+    db.exec(`ALTER TABLE applicants ADD COLUMN is_active INTEGER DEFAULT 1`)
+  } catch (error) {
+    // Column already exists
+  }
+  db.exec(`UPDATE applicants SET is_active = 1 WHERE is_active IS NULL`)
 
   // Form submissions with retention tracking
   db.exec(`
