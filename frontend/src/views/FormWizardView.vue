@@ -67,7 +67,7 @@
               class="flex flex-col items-center cursor-pointer group relative flex-shrink-0"
               @click="navigateToStep(1)"
             >
-              <div class="relative flex items-center justify-center">
+              <div class="relative w-10 flex justify-center">
                 <div
                   :class="[
                     'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
@@ -78,6 +78,7 @@
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
                     getStepStatus(1).hasWarning ? 'ring-2 ring-yellow-400' : ''
                   ]"
+                  :title="getStepStatus(1).hasWarning ? getStepStatus(1).warningMessage : undefined"
                 >
                   <svg 
                     v-if="getStepStatus(1).status === 'completed'" 
@@ -88,16 +89,16 @@
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  <span v-else>1</span>
-                </div>
-                <div 
-                  v-if="getStepStatus(1).hasWarning" 
-                  class="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center z-20 shadow-sm"
-                  :title="getStepStatus(1).warningMessage"
-                >
-                  <svg class="w-3 h-3 text-yellow-900" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  <svg 
+                    v-else-if="getStepStatus(1).status === 'pending' && getStepStatus(1).hasWarning" 
+                    class="w-5 h-5" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
+                  <span v-else>1</span>
                 </div>
               </div>
               <div class="mt-2 text-center">
@@ -128,37 +129,40 @@
                 class="flex flex-col items-center cursor-pointer group relative flex-1"
                 @click="navigateToStep(step)"
               >
-                <div class="relative flex items-center justify-center w-full">
-                  <div
-                    :class="[
-                      'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
-                      getStepStatus(step).status === 'completed' 
-                        ? 'bg-primary text-white shadow-md' 
-                        : getStepStatus(step).status === 'current'
-                        ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
-                        : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
-                      getStepStatus(step).hasWarning ? 'ring-2 ring-yellow-400' : ''
-                    ]"
-                  >
-                    <svg 
-                      v-if="getStepStatus(step).status === 'completed'" 
-                      class="w-6 h-6" 
-                      fill="none" 
-                      viewBox="0 0 24 24" 
-                      stroke="currentColor"
+                <div class="flex justify-center w-full">
+                  <div class="relative w-10 flex justify-center">
+                    <div
+                      :class="[
+                        'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
+                        getStepStatus(step).status === 'completed' 
+                          ? 'bg-primary text-white shadow-md' 
+                          : getStepStatus(step).status === 'current'
+                          ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
+                          : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
+                        getStepStatus(step).hasWarning ? 'ring-2 ring-yellow-400' : ''
+                      ]"
+                      :title="getStepStatus(step).hasWarning ? getStepStatus(step).warningMessage : undefined"
                     >
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span v-else>{{ step }}</span>
-                  </div>
-                  <div 
-                    v-if="getStepStatus(step).hasWarning" 
-                    class="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center z-20 shadow-sm"
-                    :title="getStepStatus(step).warningMessage"
-                  >
-                    <svg class="w-3 h-3 text-yellow-900" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                    </svg>
+                      <svg 
+                        v-if="getStepStatus(step).status === 'completed'" 
+                        class="w-6 h-6" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <svg 
+                        v-else-if="getStepStatus(step).status === 'pending' && getStepStatus(step).hasWarning" 
+                        class="w-5 h-5" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span v-else>{{ step }}</span>
+                    </div>
                   </div>
                 </div>
                 <div class="mt-2 text-center w-full">
@@ -187,7 +191,7 @@
               class="flex flex-col items-center cursor-pointer group relative flex-shrink-0 ml-auto"
               @click="navigateToStep(6)"
             >
-              <div class="relative flex items-center justify-center">
+              <div class="relative w-10 flex justify-center">
                 <div
                   :class="[
                     'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
@@ -198,6 +202,7 @@
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
                     getStepStatus(6).hasWarning ? 'ring-2 ring-yellow-400' : ''
                   ]"
+                  :title="getStepStatus(6).hasWarning ? getStepStatus(6).warningMessage : undefined"
                 >
                   <svg 
                     v-if="getStepStatus(6).status === 'completed'" 
@@ -208,16 +213,16 @@
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  <span v-else>6</span>
-                </div>
-                <div 
-                  v-if="getStepStatus(6).hasWarning" 
-                  class="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center z-20 shadow-sm"
-                  :title="getStepStatus(6).warningMessage"
-                >
-                  <svg class="w-3 h-3 text-yellow-900" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  <svg 
+                    v-else-if="getStepStatus(6).status === 'pending' && getStepStatus(6).hasWarning" 
+                    class="w-5 h-5" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
+                  <span v-else>6</span>
                 </div>
               </div>
               <div class="mt-2 text-center">
