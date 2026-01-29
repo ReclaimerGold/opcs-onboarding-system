@@ -304,13 +304,13 @@
             >
               <template #cell-progress="{ row }">
                 <div class="flex items-center space-x-2">
-                  <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px] min-w-[100px]">
                     <div
-                      class="bg-primary h-2 rounded-full"
-                      :style="{ width: `${row.progress}%` }"
+                      class="bg-primary h-2 rounded-full transition-[width] duration-200"
+                      :style="{ width: `${Math.min(100, row.progress ?? 0)}%` }"
                     ></div>
                   </div>
-                  <span class="text-xs text-gray-500">{{ row.completedSteps }}/6</span>
+                  <span class="text-xs text-gray-500">{{ row.completedSteps ?? 0 }}/6</span>
                 </div>
               </template>
               <template #cell-status="{ row }">
@@ -360,10 +360,10 @@
             >
               <template #cell-progress="{ row }">
                 <div class="flex items-center space-x-2">
-                  <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px] min-w-[100px]">
                     <div
-                      class="bg-green-500 h-2 rounded-full"
-                      :style="{ width: `${row.progress}%` }"
+                      class="bg-green-500 h-2 rounded-full transition-[width] duration-200"
+                      :style="{ width: `${row.status === 'completed' ? 100 : Math.min(100, row.progress ?? 0)}%` }"
                     ></div>
                   </div>
                   <span class="text-xs text-green-600 font-medium">Complete</span>

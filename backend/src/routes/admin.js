@@ -237,7 +237,7 @@ router.get('/onboarding-status', async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit)
 
-    // First, get all applicants with their submission counts (we need to filter after aggregation for status)
+    // First, get all applicants with distinct step counts (steps 1-6; resubmissions don't overcount)
     let baseQuery = `
       SELECT 
         a.id,
@@ -246,7 +246,7 @@ router.get('/onboarding-status', async (req, res) => {
         a.email,
         a.is_admin,
         a.created_at,
-        COUNT(fs.id) as completed_steps,
+        COUNT(DISTINCT fs.step_number) as completed_steps,
         MAX(fs.submitted_at) as last_submission
       FROM applicants a
       LEFT JOIN form_submissions fs ON a.id = fs.applicant_id
@@ -289,20 +289,24 @@ router.get('/onboarding-status', async (req, res) => {
     // Get all matching records for filtering by status
     const allApplicants = db.prepare(fullQuery).all(...params)
 
-    // Transform and filter by status
-    let transformedApplicants = allApplicants.map(app => ({
-      id: app.id,
-      firstName: app.first_name,
-      lastName: app.last_name,
-      email: app.email,
-      isAdmin: app.is_admin === 1,
-      completedSteps: app.completed_steps || 0,
-      totalSteps: 6,
-      progress: Math.round(((app.completed_steps || 0) / 6) * 100),
-      status: app.completed_steps >= 6 ? 'completed' : app.completed_steps > 0 ? 'in_progress' : 'not_started',
-      createdAt: app.created_at,
-      lastSubmission: app.last_submission
-    }))
+    // Transform and filter by status (cap completed_steps at 6 and progress at 100)
+    let transformedApplicants = allApplicants.map(app => {
+      const steps = Math.min(6, app.completed_steps || 0)
+      const isCompleted = steps >= 6
+      return {
+        id: app.id,
+        firstName: app.first_name,
+        lastName: app.last_name,
+        email: app.email,
+        isAdmin: app.is_admin === 1,
+        completedSteps: steps,
+        totalSteps: 6,
+        progress: isCompleted ? 100 : Math.min(100, Math.round((steps / 6) * 100)),
+        status: isCompleted ? 'completed' : steps > 0 ? 'in_progress' : 'not_started',
+        createdAt: app.created_at,
+        lastSubmission: app.last_submission
+      }
+    })
 
     // Filter by status if specified
     if (status && status !== '') {
@@ -1553,7 +1557,7 @@ router.get('/onboarding-status/export', async (req, res) => {
         a.email,
         a.is_admin,
         a.created_at,
-        COUNT(fs.id) as completed_steps,
+        COUNT(DISTINCT fs.step_number) as completed_steps,
         MAX(fs.submitted_at) as last_submission
       FROM applicants a
       LEFT JOIN form_submissions fs ON a.id = fs.applicant_id
@@ -1586,18 +1590,23 @@ router.get('/onboarding-status/export', async (req, res) => {
     const fullQuery = `${baseQuery} ${whereClause} GROUP BY a.id ORDER BY a.created_at DESC`
     const applicants = db.prepare(fullQuery).all(...params)
 
-    let data = applicants.map(app => ({
-      id: app.id,
-      firstName: app.first_name,
-      lastName: app.last_name,
-      email: app.email,
-      isAdmin: app.is_admin === 1 ? 'Yes' : 'No',
-      completedSteps: app.completed_steps || 0,
-      progress: Math.round(((app.completed_steps || 0) / 6) * 100) + '%',
-      status: app.completed_steps >= 6 ? 'Completed' : app.completed_steps > 0 ? 'In Progress' : 'Not Started',
-      createdAt: app.created_at,
-      lastSubmission: app.last_submission || 'N/A'
-    }))
+    let data = applicants.map(app => {
+      const steps = Math.min(6, app.completed_steps || 0)
+      const isCompleted = steps >= 6
+      const progressPct = isCompleted ? 100 : Math.min(100, Math.round((steps / 6) * 100))
+      return {
+        id: app.id,
+        firstName: app.first_name,
+        lastName: app.last_name,
+        email: app.email,
+        isAdmin: app.is_admin === 1 ? 'Yes' : 'No',
+        completedSteps: steps,
+        progress: progressPct + '%',
+        status: isCompleted ? 'Completed' : steps > 0 ? 'In Progress' : 'Not Started',
+        createdAt: app.created_at,
+        lastSubmission: app.last_submission || 'N/A'
+      }
+    })
 
     if (status && status !== '') {
       const statusMap = { completed: 'Completed', in_progress: 'In Progress', not_started: 'Not Started' }
