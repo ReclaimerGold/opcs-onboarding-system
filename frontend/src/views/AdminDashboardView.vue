@@ -429,12 +429,15 @@
             >
               <template #actions="{ row }">
                 <a
-                  :href="`/api/forms/submissions/${row.id}/view`"
+                  :href="row.web_view_link || `/api/forms/submissions/${row.id}/view`"
                   target="_blank"
                   class="text-primary hover:text-primary-light hover:underline text-sm"
                 >
                   View PDF
                 </a>
+                <span v-if="row.web_view_link" class="ml-2 text-xs text-green-600" title="Stored in Google Drive">
+                  <svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+                </span>
               </template>
             </DataTable>
 
@@ -463,12 +466,16 @@
                 </span>
               </template>
               <template #actions="{ row }">
-                <button
-                  @click="viewI9Document(row.id)"
+                <a
+                  :href="row.web_view_link || `/api/forms/i9/documents/${row.id}/view`"
+                  target="_blank"
                   class="text-primary hover:text-primary-light hover:underline text-sm"
                 >
                   View
-                </button>
+                </a>
+                <span v-if="row.web_view_link" class="ml-2 text-xs text-green-600" title="Stored in Google Drive">
+                  <svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+                </span>
               </template>
             </DataTable>
           </div>
@@ -626,6 +633,63 @@
                   <p class="text-sm text-gray-600">Start Time: {{ formatDate(dashboard.systemHealth.value.server?.startTime) }}</p>
                 </div>
               </div>
+              <!-- Google Drive Utilities -->
+              <div class="mt-6 bg-gray-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 mb-2">Google Drive Utilities</h4>
+                
+                <!-- Fix Permissions -->
+                <div class="mb-4">
+                  <p class="text-sm text-gray-600 mb-2">
+                    Fix permissions on existing Google Drive files to make them viewable by anyone with the link.
+                  </p>
+                  <div class="flex items-center space-x-4">
+                    <button
+                      @click="fixGDrivePermissions"
+                      :disabled="fixingPermissions"
+                      class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 flex items-center text-sm"
+                    >
+                      <svg v-if="!fixingPermissions" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                      <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>{{ fixingPermissions ? 'Fixing...' : 'Fix File Permissions' }}</span>
+                    </button>
+                    <span v-if="permissionFixResult" :class="permissionFixResult.success ? 'text-green-600' : 'text-red-600'" class="text-sm">
+                      {{ permissionFixResult.message }}
+                    </span>
+                  </div>
+                </div>
+                
+                <!-- Regenerate PDFs -->
+                <div class="pt-4 border-t border-gray-200">
+                  <p class="text-sm text-gray-600 mb-2">
+                    Regenerate corrupted PDFs - deletes old files and uploads fresh copies from stored form data.
+                  </p>
+                  <div class="flex items-center space-x-4">
+                    <button
+                      @click="regeneratePdfs"
+                      :disabled="regeneratingPdfs"
+                      class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 flex items-center text-sm"
+                    >
+                      <svg v-if="!regeneratingPdfs" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>{{ regeneratingPdfs ? 'Regenerating...' : 'Regenerate All PDFs' }}</span>
+                    </button>
+                    <span v-if="regeneratePdfsResult" :class="regeneratePdfsResult.success ? 'text-green-600' : 'text-red-600'" class="text-sm">
+                      {{ regeneratePdfsResult.message }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div v-if="dashboard.systemHealth.value.recentErrors && dashboard.systemHealth.value.recentErrors.length > 0" class="mt-6">
                 <h4 class="font-semibold text-gray-900 mb-2">Recent Errors</h4>
                 <div class="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -708,6 +772,10 @@ const systemTab = ref('health')
 
 // Loading states
 const exporting = ref(false)
+const fixingPermissions = ref(false)
+const permissionFixResult = ref(null)
+const regeneratingPdfs = ref(false)
+const regeneratePdfsResult = ref(null)
 const runningTests = ref(false)
 const updatingAdmin = ref(null)
 const currentUserId = ref(null)
@@ -1182,6 +1250,58 @@ const handleAuditExport = () => {
 // Other handlers
 const viewI9Document = (documentId) => {
   window.open(`/api/forms/i9/documents/${documentId}/view`, '_blank')
+}
+
+// Fix Google Drive file permissions
+const fixGDrivePermissions = async () => {
+  if (!confirm('This will set public viewer permissions on all Google Drive files. Continue?')) {
+    return
+  }
+  
+  fixingPermissions.value = true
+  permissionFixResult.value = null
+  
+  try {
+    const response = await api.post('/admin/fix-gdrive-permissions')
+    permissionFixResult.value = {
+      success: true,
+      message: `Fixed ${response.data.results.success} of ${response.data.results.total} files`
+    }
+  } catch (error) {
+    permissionFixResult.value = {
+      success: false,
+      message: error.response?.data?.error || 'Failed to fix permissions'
+    }
+  } finally {
+    fixingPermissions.value = false
+  }
+}
+
+// Regenerate all PDFs
+const regeneratePdfs = async () => {
+  if (!confirm('This will delete all existing Google Drive PDFs and regenerate them from stored form data. This may take a while. Continue?')) {
+    return
+  }
+  
+  regeneratingPdfs.value = true
+  regeneratePdfsResult.value = null
+  
+  try {
+    const response = await api.post('/admin/regenerate-pdfs')
+    regeneratePdfsResult.value = {
+      success: true,
+      message: `Regenerated ${response.data.results.success} of ${response.data.results.total} PDFs`
+    }
+    // Refresh the dashboard data to show updated documents
+    dashboard.loadAll()
+  } catch (error) {
+    regeneratePdfsResult.value = {
+      success: false,
+      message: error.response?.data?.error || 'Failed to regenerate PDFs'
+    }
+  } finally {
+    regeneratingPdfs.value = false
+  }
 }
 
 const handleAlertNavigation = (tab, options = {}) => {
