@@ -214,13 +214,15 @@
         
         <div class="mt-6">
           <label class="block text-sm font-medium text-gray-700 mb-2">
-            Upload Photo ID <span class="text-red-500">*</span>
+            Upload Photo ID
+            <!-- TODO: Re-add required after PDF testing -->
+            <!-- <span class="text-red-500">*</span> -->
+            <span class="ml-1 text-xs text-gray-500">(Optional for now)</span>
           </label>
           <input
             type="file"
             accept="image/*,.pdf"
             @change="handleFileUpload"
-            required
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
           />
         </div>

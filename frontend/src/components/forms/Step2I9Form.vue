@@ -982,17 +982,19 @@ const validateDocuments = () => {
     return true
   }
   
-  // If List A option is selected, must have a List A document and upload
+  // If List A option is selected, must have a List A document selected
   // (List B/C are not required when List A is selected)
+  // NOTE: Upload validation temporarily disabled for testing PDF generation
   if (documentOption.value === 'listA') {
     if (!formData.value.listADocument) {
       documentValidationError.value = 'Please select your List A document.'
       return false
     }
-    if (!uploadedDocuments.value.listA) {
-      documentValidationError.value = 'Please upload your List A document.'
-      return false
-    }
+    // TODO: Re-enable upload validation after PDF testing
+    // if (!uploadedDocuments.value.listA) {
+    //   documentValidationError.value = 'Please upload your List A document.'
+    //   return false
+    // }
     return true
   }
   
@@ -1014,16 +1016,17 @@ const validateDocuments = () => {
       return false
     }
     
-    // Check uploads
-    if (formData.value.listBDocument && !uploadedDocuments.value.listB) {
-      documentValidationError.value = 'Please upload your List B document.'
-      return false
-    }
-    
-    if (formData.value.listCDocument && !uploadedDocuments.value.listC) {
-      documentValidationError.value = 'Please upload your List C document.'
-      return false
-    }
+    // TODO: Re-enable upload validation after PDF testing
+    // Check uploads - temporarily disabled for testing PDF generation
+    // if (formData.value.listBDocument && !uploadedDocuments.value.listB) {
+    //   documentValidationError.value = 'Please upload your List B document.'
+    //   return false
+    // }
+    // 
+    // if (formData.value.listCDocument && !uploadedDocuments.value.listC) {
+    //   documentValidationError.value = 'Please upload your List C document.'
+    //   return false
+    // }
     
     return true
   }
