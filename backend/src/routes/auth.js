@@ -148,7 +148,28 @@ router.post('/login', async (req, res) => {
     const shouldCompleteLogin = !requiresPassword || password !== undefined
     
     if (!shouldCompleteLogin) {
-      // Phase 1: Return whether password is required
+      // Phase 1: Return whether password is required or needs setup
+      // If admin doesn't have password set, they need to set it up first
+      if (isAdmin && !passwordSet) {
+        // Create session so they can access /password-setup
+        req.session.applicantId = applicant.id
+        req.session.isAdmin = true
+        req.session.needsPasswordSetup = true
+        
+        return res.json({
+          success: true,
+          requiresPasswordSetup: true,
+          isAdmin: true,
+          applicant: {
+            id: applicant.id,
+            firstName: applicant.first_name,
+            lastName: applicant.last_name,
+            email: applicant.email,
+            isAdmin: true
+          }
+        })
+      }
+      
       return res.json({
         success: true,
         requiresPassword,
@@ -164,15 +185,29 @@ router.post('/login', async (req, res) => {
     }
     
     if (requiresPassword) {
-      let isValid = false
-      
-      if (passwordSet) {
-        // Verify against stored hash
-        isValid = await verifyPassword(password, applicant.password_hash)
-      } else {
-        // Password not set yet - check against default 'opcs'
-        isValid = password === 'opcs'
+      if (!passwordSet) {
+        // Password not set yet - admin must set up their password first
+        // Create session so they can access /password-setup
+        req.session.applicantId = applicant.id
+        req.session.isAdmin = true
+        req.session.needsPasswordSetup = true
+        
+        return res.json({
+          success: true,
+          requiresPasswordSetup: true,
+          isAdmin: true,
+          applicant: {
+            id: applicant.id,
+            firstName: applicant.first_name,
+            lastName: applicant.last_name,
+            email: applicant.email,
+            isAdmin: true
+          }
+        })
       }
+      
+      // Verify against stored hash
+      const isValid = await verifyPassword(password, applicant.password_hash)
       
       if (!isValid) {
         const db = getDatabase()
@@ -499,14 +534,15 @@ router.post('/change-password', async (req, res) => {
     
     // Verify current password
     const passwordSet = applicant.password_hash !== null && applicant.password_hash !== ''
-    let currentPasswordValid = false
     
-    if (passwordSet) {
-      currentPasswordValid = await verifyPassword(currentPassword, applicant.password_hash)
-    } else {
-      // If password not set, check against default 'opcs'
-      currentPasswordValid = currentPassword === 'opcs'
+    if (!passwordSet) {
+      return res.status(400).json({
+        error: 'Password not set yet. Use set-password endpoint first.',
+        code: 'PASSWORD_NOT_SET'
+      })
     }
+    
+    const currentPasswordValid = await verifyPassword(currentPassword, applicant.password_hash)
     
     if (!currentPasswordValid) {
       return res.status(401).json({
