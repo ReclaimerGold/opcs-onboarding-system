@@ -349,7 +349,7 @@
               @limit-change="handleCompletedLimitChange"
               @sort-change="handleCompletedSort"
               @export="handleCompletedExport"
-              @refresh="loadOnboardingData"
+              @refresh="loadCompletedData"
             >
               <template #cell-progress="{ row }">
                 <div class="flex items-center space-x-2">

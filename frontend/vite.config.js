@@ -16,7 +16,19 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          // Ensure session cookie is attributed to frontend origin so it is sent on subsequent requests
+          proxy.on('proxyRes', (proxyRes) => {
+            const setCookie = proxyRes.headers['set-cookie']
+            if (setCookie) {
+              const arr = Array.isArray(setCookie) ? setCookie : [setCookie]
+              proxyRes.headers['set-cookie'] = arr.map((cookie) =>
+                typeof cookie === 'string' ? cookie.replace(/;\s*Domain=[^;]+/gi, '') : cookie
+              )
+            }
+          })
+        }
       }
     }
   },

@@ -244,9 +244,11 @@ const handleSubmit = async () => {
     if (response?.data?.success) {
       // Admin needs password setup
       if (response.data.requiresPasswordSetup) {
-        authStore.user = response.data.applicant
+        const {applicant} = response.data
+        authStore.user = applicant
         authStore.isAuthenticated = true
         authStore.isAdmin = true
+        authStore.role = applicant?.role || 'admin'
         localStorage.setItem('authToken', 'authenticated')
         router.push('/password-setup')
         return
@@ -259,9 +261,11 @@ const handleSubmit = async () => {
         return
       }
       // Success: set session and redirect
-      authStore.user = response.data.applicant
+      const {applicant} = response.data
+      authStore.user = applicant
       authStore.isAuthenticated = true
-      authStore.isAdmin = response.data.applicant?.isAdmin || false
+      authStore.isAdmin = applicant?.isAdmin || false
+      authStore.role = applicant?.role || (applicant?.isAdmin ? 'admin' : 'applicant')
       localStorage.setItem('authToken', 'authenticated')
       if (authStore.isAdmin) {
         router.push('/admin')
@@ -338,7 +342,8 @@ const handleSubmit = async () => {
           } else if (statusCode === 404) {
             error.value = 'No account found. Please try again.'
           } else if (statusCode === 500) {
-            error.value = 'Server error. Please try again in a few moments.'
+            // Prefer backend message when present (e.g. error.message or error.details)
+            error.value = errorData.message || errorData.details || 'Server error. Please try again in a few moments.'
           } else {
             error.value = 'Something went wrong. Please check your information and try again.'
           }

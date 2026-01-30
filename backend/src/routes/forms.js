@@ -46,7 +46,7 @@ function validatePreviewFormData(formData, step) {
       const stateValid = formData.state && formData.state.length === 2
       const zipValid = formData.zipCode && /^\d{5}(-\d{4})?$/.test(formData.zipCode)
       if (!formData.firstName || !formData.lastName || !formData.email || !ssnValid || !formData.dateOfBirth ||
-          !formData.address || !formData.city || !stateValid || !zipValid || !formData.filingStatus) {
+        !formData.address || !formData.city || !stateValid || !zipValid || !formData.filingStatus) {
         return { valid: false, error: 'Complete all required W-4 fields before viewing preview' }
       }
       return { valid: true }
@@ -88,7 +88,7 @@ function validateSubmitFormData(formData, step, applicantId, db) {
       const stateValid = formData.state && formData.state.length === 2
       const zipValid = formData.zipCode && /^\d{5}(-\d{4})?$/.test(formData.zipCode)
       if (!formData.firstName || !formData.lastName || !formData.email || !ssnValid || !formData.dateOfBirth ||
-          !formData.address || !formData.city || !stateValid || !zipValid || !formData.filingStatus) {
+        !formData.address || !formData.city || !stateValid || !zipValid || !formData.filingStatus) {
         return { valid: false, error: 'Complete all required W-4 fields before submitting' }
       }
       return { valid: true }
@@ -281,7 +281,12 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     })
   } catch (error) {
     console.error('Form submission error:', error)
-    res.status(500).json({ error: 'Failed to submit form' })
+    const payload = { error: 'Failed to submit form' }
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+      payload.message = error.message
+      payload.stack = error.stack
+    }
+    res.status(500).json(payload)
   }
 })
 

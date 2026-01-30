@@ -438,4 +438,3 @@ export async function fixAllFilePermissions() {
     throw error
   }
 }
-

@@ -99,13 +99,19 @@ export function useAdminDashboard() {
     loading.value.onboarding = true
     try {
       const response = await api.get('/admin/onboarding-status', { params })
-      onboardingStatus.value = response.data.applicants || []
+      const applicants = response.data.applicants || []
+      // Only update shared onboardingStatus when loading full list (no status filter);
+      // filtered loads (e.g. status=completed) are for tab tables and must not overwrite
+      // the shared ref so Overview counts and workflow groups stay correct.
+      if (params.status === undefined || params.status === '') {
+        onboardingStatus.value = applicants
+      }
       errors.value.onboarding = null
-      return response.data
+      return { ...response.data, applicants }
     } catch (error) {
       console.error('Error loading onboarding status:', error)
       errors.value.onboarding = error.message
-      return { applicants: [], total: 0 }
+      return { applicants: [], pagination: { total: 0 } }
     } finally {
       loading.value.onboarding = false
     }

@@ -28,7 +28,13 @@ describe('Form Routes', () => {
 
   beforeEach(async () => {
     initializeDatabase()
-    
+
+    // Ensure Google Drive is not used in tests (avoids decrypting real credentials with test key)
+    const db = getDatabase()
+    db.prepare(`
+      DELETE FROM settings WHERE key IN ('google_client_id', 'google_client_secret', 'google_refresh_token', 'google_drive_base_folder_id', 'google_shared_drive_id')
+    `).run()
+
     // Create test user and get session
     const signupResponse = await request(app)
       .post('/api/auth/signup')
@@ -37,7 +43,7 @@ describe('Form Routes', () => {
         lastName: 'User',
         email: 'test@example.com'
       })
-    
+
     testUser = signupResponse.body.applicant
     sessionCookie = signupResponse.headers['set-cookie']
   })
