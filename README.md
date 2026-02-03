@@ -167,13 +167,21 @@ NODE_ENV=development
 ```
 
 3. **Run development servers:**
+
+   From the project root, run:
 ```bash
 npm run dev
 ```
+   This starts both the backend and frontend (Node.js 18+ required for backend `--watch` support).
 
-This will start:
-- Backend server on `http://localhost:3000`
-- Frontend dev server on `http://localhost:9999`
+   You should see:
+   - Backend server on `http://localhost:3000`
+   - Frontend dev server on `http://localhost:9999`
+
+### Troubleshooting
+
+- **`[vite] http proxy error: /api/...` and `Error: connect ECONNREFUSED 127.0.0.1:3000`**  
+  The frontend is running but the backend is not listening on port 3000. Run `npm run dev` **from the project root** so both start. Alternatively, run them in two terminals: from the project root, `npm run dev:backend` in one and `npm run dev:frontend` in the other (or from `backend/` and `frontend/` run each package's `npm run dev`).
 
 ### Google APIs Setup
 
