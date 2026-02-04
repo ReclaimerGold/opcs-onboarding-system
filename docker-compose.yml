@@ -1,6 +1,7 @@
 # Production Docker Compose for OPCS Onboarding System
 # Usage: docker-compose up -d
-# Access at: http://localhost (port 80)
+# Access at: http://localhost (port 80, or FRONTEND_PORT if set)
+# Use FRONTEND_PORT and BACKEND_PORT to avoid conflicts (e.g. FRONTEND_PORT=8080 BACKEND_PORT=3001)
 
 services:
   frontend:
@@ -8,7 +9,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -21,10 +22,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${BACKEND_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
       - SESSION_SECRET=${SESSION_SECRET:-change-me-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - GOOGLE_SERVICE_ACCOUNT_EMAIL=${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}
@@ -37,11 +39,11 @@ services:
       - uploads-data:/app/uploads
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" ]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 60s
     networks:
       - opcs-network
 
