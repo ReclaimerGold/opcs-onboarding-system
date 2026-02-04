@@ -1,5 +1,23 @@
 <template>
   <div class="min-h-screen bg-gray-50">
+    <!-- User onboarding locked until: SSN consent, password (if admin), and signature set -->
+    <SSNConsentModal
+      v-if="showOnboardingModal"
+      :open="showOnboardingModal"
+      :startAtSignature="showStartAtSignatureOnly"
+      v-model:consented="dashboardConsented"
+      @signature="onDashboardOnboardingComplete"
+    />
+    <div v-else-if="onboardingLoading" class="min-h-screen flex items-center justify-center bg-gray-50">
+      <div class="text-center">
+        <svg class="animate-spin h-10 w-10 text-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-gray-600">Loading...</p>
+      </div>
+    </div>
+    <template v-else>
     <nav class="bg-white shadow">
       <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
         <div class="flex justify-between h-16">
@@ -402,7 +420,8 @@
                   View
                 </button>
                 <button
-                  @click="$refs.listAFileInput.click()"
+                  type="button"
+                  @click="openI9UploadModal('listA')"
                   :disabled="uploading.listA"
                   class="flex-1 px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
                 >
@@ -419,15 +438,9 @@
               <p v-else class="text-sm text-yellow-800 mb-3 font-medium">
                 ⚠️ {{ getListAStatus.message }}. Please upload your document.
               </p>
-              <input
-                ref="listAFileInput"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                @change="handleFileUpload('listA', $event)"
-                class="hidden"
-              />
               <button
-                @click="$refs.listAFileInput.click()"
+                type="button"
+                @click="openI9UploadModal('listA')"
                 :disabled="uploading.listA || (hasListB && hasListC)"
                 :class="[
                   'w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
@@ -489,7 +502,8 @@
                   View
                 </button>
                 <button
-                  @click="$refs.listBFileInput.click()"
+                  type="button"
+                  @click="openI9UploadModal('listB')"
                   :disabled="uploading.listB"
                   class="flex-1 px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
                 >
@@ -509,15 +523,9 @@
               <p v-else class="text-sm text-yellow-800 mb-3 font-medium">
                 <span class="text-yellow-500">⚠️</span> {{ getListBStatus.message }}. Please upload your document.
               </p>
-              <input
-                ref="listBFileInput"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                @change="handleFileUpload('listB', $event)"
-                class="hidden"
-              />
               <button
-                @click="$refs.listBFileInput.click()"
+                type="button"
+                @click="openI9UploadModal('listB')"
                 :disabled="uploading.listB || hasListA"
                 :class="[
                   'w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
@@ -579,7 +587,8 @@
                   View
                 </button>
                 <button
-                  @click="$refs.listCFileInput.click()"
+                  type="button"
+                  @click="openI9UploadModal('listC')"
                   :disabled="uploading.listC"
                   class="flex-1 px-3 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
                 >
@@ -599,15 +608,9 @@
               <p v-else class="text-sm text-yellow-800 mb-3 font-medium">
                 <span class="text-yellow-500">⚠️</span> {{ getListCStatus.message }}. Please upload your document.
               </p>
-              <input
-                ref="listCFileInput"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                @change="handleFileUpload('listC', $event)"
-                class="hidden"
-              />
               <button
-                @click="$refs.listCFileInput.click()"
+                type="button"
+                @click="openI9UploadModal('listC')"
                 :disabled="uploading.listC || hasListA || !hasListB"
                 :class="[
                   'w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50',
@@ -626,7 +629,92 @@
           </div>
         </div>
       </div>
+
+      <!-- I-9 Re-upload / Replace modal: capture document number, issuing authority, expiration -->
+      <Teleport to="body">
+        <div
+          v-if="showI9UploadModal"
+          class="fixed inset-0 z-50 overflow-y-auto"
+          aria-labelledby="modal-title"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="closeI9UploadModal()"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 id="modal-title" class="text-lg font-semibold text-gray-900 mb-4">
+                {{ i9UploadCategory ? (getDocumentByCategory(i9UploadCategory) ? 'Replace' : 'Upload') : '' }} {{ i9UploadCategory === 'listA' ? 'List A' : i9UploadCategory === 'listB' ? 'List B' : 'List C' }} Document
+              </h3>
+              <p class="text-sm text-gray-600 mb-4">Enter the document details (same as on the I-9 form), then select the file.</p>
+              <form @submit.prevent="submitI9UploadWithMetadata" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Document number <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="i9UploadForm.documentNumber"
+                    type="text"
+                    :placeholder="i9UploadCategory === 'listC' ? 'Document number or SSN (XXX-XX-XXXX)' : 'Document number'"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                    required
+                  />
+                </div>
+                <div v-if="i9UploadCategory !== 'listC'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Issuing authority {{ i9UploadCategory === 'listB' ? '' : '(optional)' }}
+                    <span v-if="i9UploadCategory === 'listB'" class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="i9UploadForm.issuingAuthority"
+                    type="text"
+                    placeholder="e.g., State DMV, U.S. Department of State"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                    :required="i9UploadCategory === 'listB'"
+                  />
+                </div>
+                <div v-if="i9UploadCategory !== 'listC'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Expiration date (optional)</label>
+                  <input
+                    v-model="i9UploadForm.expirationDate"
+                    type="date"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">File <span class="text-red-500">*</span></label>
+                  <input
+                    ref="i9UploadFileInput"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    class="w-full text-sm text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded file:border-0 file:bg-primary file:text-white file:font-medium"
+                    required
+                    @change="onI9UploadFileChange"
+                  />
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    @click="closeI9UploadModal()"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    :disabled="i9UploadSubmitting"
+                    class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light disabled:opacity-50"
+                  >
+                    {{ i9UploadSubmitting ? 'Uploading...' : 'Upload' }}
+                  </button>
+                </div>
+                <p v-if="i9UploadError" class="text-sm text-red-600">{{ i9UploadError }}</p>
+              </form>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </div>
+    </template>
   </div>
 </template>
 
@@ -635,9 +723,40 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
+import SSNConsentModal from '../components/SSNConsentModal.vue'
+import { useDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const dashboardOnboarding = useDashboardOnboarding()
+const dashboardConsented = ref(false)
+
+// Unwrap composable refs so template gets booleans (SSNConsentModal expects open: Boolean)
+const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboardingModal?.value)
+const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
+const onboardingLoading = computed(() => !!dashboardOnboarding.loading?.value)
+
+async function onDashboardOnboardingComplete(signatureData) {
+  if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
+  const wasSignatureOnly = !!dashboardOnboarding.startAtSignatureOnly?.value
+  try {
+    await dashboardOnboarding.saveSignature(signatureData)
+  } catch (err) {
+    console.error('Failed to save signature', err)
+    return
+  }
+  dashboardConsented.value = true
+  if (!wasSignatureOnly) {
+    dashboardOnboarding.ssnConsentGiven.value = true
+    try {
+      await dashboardOnboarding.recordConsent()
+    } catch (err) {
+      console.error('Failed to record SSN consent', err)
+      dashboardOnboarding.ssnConsentGiven.value = false
+      dashboardConsented.value = false
+    }
+  }
+}
 
 const progress = ref(0)
 const submissions = ref([])
@@ -659,6 +778,18 @@ const uploadError = ref({
   listB: '',
   listC: ''
 })
+// I-9 re-upload modal: capture document number, issuing authority, expiration
+const showI9UploadModal = ref(false)
+const i9UploadCategory = ref(null)
+const i9UploadForm = ref({
+  documentNumber: '',
+  issuingAuthority: '',
+  expirationDate: ''
+})
+const i9UploadFile = ref(null)
+const i9UploadSubmitting = ref(false)
+const i9UploadError = ref('')
+const i9UploadFileInput = ref(null)
 
 const stepNames = {
   1: 'W-4',
@@ -776,10 +907,9 @@ onMounted(async () => {
     const submissionsResponse = await api.get('/forms/submissions')
     submissions.value = submissionsResponse.data
     
-    // Track completed steps
-    submissions.value.forEach(sub => {
-      completedSteps.value.add(sub.step_number)
-    })
+    // Track completed steps (distinct step numbers; list is ordered by step_number, submitted_at DESC so first per step is latest)
+    const stepNumbers = new Set(submissions.value.map(s => s.step_number))
+    stepNumbers.forEach(step => completedSteps.value.add(step))
     
     // Determine current step (first incomplete step)
     if (completedSteps.value.size < 6) {
@@ -961,47 +1091,88 @@ const getListAStatus = computed(() => {
   return { message: 'Required (or provide List B+C)', type: 'warning' }
 })
 
-const handleFileUpload = async (documentCategory, event) => {
-  const file = event.target.files[0]
-  if (!file) return
+function openI9UploadModal(category) {
+  i9UploadCategory.value = category
+  const doc = getDocumentByCategory(category)
+  i9UploadForm.value = {
+    documentNumber: doc?.document_number ?? '',
+    issuingAuthority: doc?.issuing_authority ?? '',
+    expirationDate: doc?.expiration_date ? doc.expiration_date.slice(0, 10) : ''
+  }
+  i9UploadFile.value = null
+  i9UploadError.value = ''
+  showI9UploadModal.value = true
+  if (i9UploadFileInput.value) {
+    i9UploadFileInput.value.value = ''
+  }
+}
 
-  // Validate file size (10MB)
-  if (file.size > 10 * 1024 * 1024) {
-    uploadError.value[documentCategory] = 'File size must be less than 10MB'
+function closeI9UploadModal() {
+  showI9UploadModal.value = false
+  i9UploadCategory.value = null
+  i9UploadForm.value = { documentNumber: '', issuingAuthority: '', expirationDate: '' }
+  i9UploadFile.value = null
+  i9UploadError.value = ''
+}
+
+function onI9UploadFileChange(event) {
+  const file = event.target?.files?.[0]
+  i9UploadFile.value = file || null
+}
+
+async function submitI9UploadWithMetadata() {
+  const category = i9UploadCategory.value
+  if (!category) return
+  const file = i9UploadFile.value
+  if (!file) {
+    i9UploadError.value = 'Please select a file.'
     return
   }
-
-  // Validate file type
+  if (file.size > 10 * 1024 * 1024) {
+    i9UploadError.value = 'File size must be less than 10MB'
+    return
+  }
   const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
   if (!allowedTypes.includes(file.type)) {
-    uploadError.value[documentCategory] = 'File must be PDF, JPG, or PNG'
+    i9UploadError.value = 'File must be PDF, JPG, or PNG'
+    return
+  }
+  if (!i9UploadForm.value.documentNumber?.trim()) {
+    i9UploadError.value = 'Document number is required.'
+    return
+  }
+  if (category === 'listB' && !i9UploadForm.value.issuingAuthority?.trim()) {
+    i9UploadError.value = 'Issuing authority is required for List B.'
     return
   }
 
-  uploadError.value[documentCategory] = ''
-  uploading.value[documentCategory] = true
+  i9UploadError.value = ''
+  i9UploadSubmitting.value = true
+  uploading.value[category] = true
+  uploadError.value[category] = ''
 
   try {
     const formData = new FormData()
     formData.append('document', file)
     formData.append('documentType', 'I9')
-    formData.append('documentCategory', documentCategory)
+    formData.append('documentCategory', category)
     formData.append('documentName', file.name)
+    formData.append('documentNumber', i9UploadForm.value.documentNumber.trim())
+    formData.append('issuingAuthority', i9UploadForm.value.issuingAuthority?.trim() ?? '')
+    formData.append('expirationDate', i9UploadForm.value.expirationDate?.trim() ?? '')
 
-    const response = await api.post('/forms/i9/upload-document', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+    await api.post('/forms/i9/upload-document', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
 
-    // Reload documents to get updated list
     await loadUploadedDocuments()
-    uploadError.value[documentCategory] = ''
+    closeI9UploadModal()
   } catch (error) {
     console.error('Upload error:', error)
-    uploadError.value[documentCategory] = error.response?.data?.error || 'Failed to upload document'
+    i9UploadError.value = error.response?.data?.error || 'Failed to upload document'
   } finally {
-    uploading.value[documentCategory] = false
+    i9UploadSubmitting.value = false
+    uploading.value[category] = false
   }
 }
 

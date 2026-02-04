@@ -17,14 +17,17 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Manual save**: Save draft button available on each form
 - **Resume anytime**: Pick up where you left off with saved drafts
 - **Field Auto-population**: Name, email, and phone auto-populate from signup and are locked after first entry
+- **Shared fields across forms**: Name, email, phone, address, date of birth, and (where applicable) SSN and signature auto-fill consistently across all six steps. The applicant API (`/applicants/me`) is updated on Step 1 submit (and Step 3 for address); the Step 1 draft is used as fallback for middle name and for address/DOB when the applicant record does not yet have them. SSN is provided via temporary browser cookie (not stored in the database); signature is stored in session and reused on W-4, I-9, Acknowledgements, and Form 8850.
 - **Loading Banners**: Clear indicators show when pre-fill data or settings are still loading
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 - **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
-- **Applicant onboarding modal** (SSN consent flow): Three-step flow when first using the forms:
-  - Step 1: SSN collection notice and consent (required before W-4 and 8850)
-  - Step 2: Password setup (if not already set; secures account for future logins)
-  - Step 3: Add your signature once; it is stored for the session and auto-populates on W-4, I-9, 8850, and Acknowledgements
+- **User onboarding gate**: Dashboard and forms are **locked** until the user completes: (1) SSN consent (once, documented in DB), (2) password set (admins redirected to password-setup if needed), (3) signature (once, stored in DB). User cannot continue until consent and signature are filled.
+- **Applicant onboarding modal** (SSN consent flow): Shown when the gate is not satisfied. Three-step flow:
+  - Step 1: SSN collection notice and consent (required once; recorded in `privacy_consents`).
+  - Step 2: Password setup (skipped if already set, e.g. for admins).
+  - Step 3: Add your signature (required once; stored in `applicants.signature_data`). Continue is disabled until the signature is filled.
+  - If consent and password are already done, the modal opens at the signature step only. On later visits, if signature is already in DB, the gate is satisfied and the stored signature is loaded into session for forms.
 
 ### Form Features
 - **6-step form workflow**: W-4, I-9, Background Check, Direct Deposit, Acknowledgements, Form 8850
@@ -36,7 +39,9 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **E-Signatures**: Draw or type your signature on W-4, I-9, Acknowledgements, and Form 8850; the same signature is imprinted on each PDF at admin-configured positions (free-place)
 
 ### Technical Features
-- **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data
+- **Document submission behavior**: During initial onboarding (before all 6 steps are complete), submitting the same form step again **overwrites** the existing submission (one PDF per step; no duplicates). After onboarding is complete, submitting again **creates a new version** (duplicate) for history. Progress and "onboarding complete" are based on **distinct steps** (0–6), not total submission rows.
+- **I-9 identity documents**: During onboarding, replacing an I-9 document (List A, B, or C) **overwrites** the existing file. After onboarding, replacing saves a **new version** on the backend while the UI shows a single "current" document per slot. The dashboard **re-upload flow** re-captures document number, issuing authority, and expiration date (same as initial I-9 submission) so updated documents (e.g. new driver's license) are recorded correctly.
+- **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data; generated PDFs and uploaded PDFs (e.g. I-9 identity documents) are flattened so stored copies are non-editable
 - **Automatic Template Updates**: Checks for new form versions daily, downloads and caches updates
 - **Template Version History**: Archives previous template versions when updates are detected, allowing admin preview of historical forms
 - **Google Drive Integration**: Document storage with direct Google Drive links for viewing files
@@ -385,6 +390,10 @@ This system is designed to comply with:
 - `POST /api/auth/keepalive` - Refresh session expiration for active users
 - `GET /api/auth/me` - Get current user info
 - `GET /api/auth/password-status` - Check if password is set for current user
+- `GET /api/auth/dashboard-onboarding-status` - Returns `{ ssnConsentGiven, passwordSet, isAdmin, hasSignature }`. Used to lock dashboard/forms until SSN consent (once, in DB), password (if admin), and signature (once, in DB) are complete.
+- `POST /api/auth/ssn-consent` - Record SSN collection consent once (documented in DB; does not store SSN).
+- `POST /api/auth/save-signature` - Save the user's signature once (body: `{ signatureData }`; stored in DB). Required before dashboard/forms access; user cannot continue until filled.
+- `GET /api/auth/signature` - Get the current user's stored signature (for loading into session when opening dashboard/forms).
 - `POST /api/auth/set-password` - Set initial password (any authenticated user, first-time only)
 - `POST /api/auth/change-password` - Change existing password (admins only)
 - `POST /api/auth/forgot-password` - Request password reset email (no auth required)
@@ -402,8 +411,8 @@ This system is designed to comply with:
 - `POST /api/forms/draft/:step` - Save draft for step
 - `GET /api/forms/draft/:step` - Load draft for step
 - `GET /api/forms/drafts` - Get all drafts
-- `POST /api/forms/i9/upload-document` - Upload I-9 identity document
-- `GET /api/forms/i9/documents` - Get all I-9 documents (includes `web_view_link` for Google Drive direct links)
+- `POST /api/forms/i9/upload-document` - Upload I-9 identity document. Optional body fields: `documentNumber`, `issuingAuthority`, `expirationDate` (for dashboard re-upload). During onboarding overwrites existing document for that category; after onboarding inserts a new version. Returns current document metadata.
+- `GET /api/forms/i9/documents` - Get **current** I-9 documents (latest version per List A/B/C). Includes `document_number`, `issuing_authority`, `expiration_date`, and `web_view_link` for Google Drive.
 - `GET /api/forms/i9/documents/:id/view` - View I-9 document (or redirects to Google Drive if `web_view_link` available)
 
 ### Applicants

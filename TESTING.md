@@ -97,6 +97,53 @@ describe('Component', () => {
 })
 ```
 
+## End-to-End (E2E) Tests (Playwright)
+
+Browser-based E2E tests cover the full login and onboarding flow.
+
+### Prerequisites
+
+1. **Start the app** (backend on 3000, frontend on 9999):
+
+   ```bash
+   npm run dev
+   ```
+
+   Or start backend and frontend separately. Playwright will reuse an existing server when not in CI.
+
+2. **Install Playwright browsers** (once per machine):
+
+   ```bash
+   npx playwright install chromium
+   ```
+
+   On Linux, if Chromium fails to launch with missing shared library errors (e.g. `libnspr4.so`), install system dependencies:
+
+   ```bash
+   npx playwright install-deps
+   ```
+
+### Running E2E Tests
+
+```bash
+# Run all E2E tests (Chromium)
+npm run test:e2e
+
+# Run with Playwright UI
+npm run test:e2e:ui
+```
+
+### What the E2E Suite Covers
+
+- **Login** (`e2e/login.spec.js`): Login page load, signup and redirect, logout and re-login.
+- **Onboarding** (`e2e/onboarding.spec.js`): Full 6-step flow: signup → W-4 (with SSN consent) → I-9 (List B + List C + file uploads) → Background → Direct Deposit → Acknowledgements → Form 8850 → dashboard.
+
+Before E2E runs, `globalSetup` seeds signature placements for W-4, I-9, and 8850 so the form wizard is available without manual admin setup.
+
+### Fixtures
+
+- `e2e/fixtures/minimal.pdf` – minimal PDF used for I-9 List B and List C document uploads in the onboarding test.
+
 ## Test Coverage Goals
 
 - **Minimum Coverage**: 80% for critical paths
@@ -151,3 +198,6 @@ Backend tests use a separate test database that is:
 - Ensure Jest/Vitest config matches project structure
 - Check that ES module syntax is correct
 
+### Playwright: Browser won't launch (e.g. libnspr4.so missing)
+- Run `npx playwright install-deps` to install system dependencies for Chromium.
+- Or use a different channel: `npx playwright install chromium` and ensure your OS has the required libraries (see [Playwright docs](https://playwright.dev/docs/ci)).

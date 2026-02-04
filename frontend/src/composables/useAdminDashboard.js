@@ -50,7 +50,11 @@ export function useAdminDashboard() {
     }
 
     const ready = dashboardStats.value.signaturePlacementReady || {}
-    const missingSignaturePlacement = ['W4', 'I9', '8850'].filter(t => !ready[t])
+    const missingSignaturePlacement = [].concat(
+      !ready.w4 ? ['W4'] : [],
+      !ready.i9 ? ['I9'] : [],
+      !ready['8850'] ? ['8850'] : []
+    )
 
     return {
       failedLogins: dashboardStats.value.activity?.failedLogins || 0,

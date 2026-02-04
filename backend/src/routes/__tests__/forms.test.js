@@ -117,6 +117,49 @@ describe('Form Routes', () => {
 
       expect(response.body.error).toContain('Authentication required')
     })
+
+    it('should overwrite existing submission when submitting same step again during onboarding', async () => {
+      const formData = {
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@example.com',
+        phone: '(234) 567-8901',
+        ssn: '123-45-6789',
+        dateOfBirth: '1990-01-01',
+        address: '123 Main St',
+        city: 'Sioux Falls',
+        state: 'SD',
+        zipCode: '57101',
+        filingStatus: 'single'
+      }
+      const payload = { formData, ssnConsented: true }
+
+      const res1 = await request(app)
+        .post('/api/forms/submit/1')
+        .set('Cookie', sessionCookie)
+        .send(payload)
+      if (res1.status !== 200) throw new Error(`First submit failed: ${res1.body?.error || res1.status}`)
+
+      const db = getDatabase()
+      const applicantId = testUser?.id || db.prepare('SELECT id FROM applicants WHERE email = ?').get('test@example.com')?.id
+      const countAfterFirst = db.prepare('SELECT COUNT(*) as c FROM form_submissions WHERE applicant_id = ?').get(applicantId).c
+      const distinctAfterFirst = db.prepare('SELECT COUNT(DISTINCT step_number) as c FROM form_submissions WHERE applicant_id = ?').get(applicantId).c
+
+      const res2 = await request(app)
+        .post('/api/forms/submit/1')
+        .set('Cookie', sessionCookie)
+        .send(payload)
+      if (res2.status !== 200) throw new Error(`Second submit failed: ${res2.body?.error || res2.status}`)
+
+      const countAfterSecond = db.prepare('SELECT COUNT(*) as c FROM form_submissions WHERE applicant_id = ?').get(applicantId).c
+      const distinctAfterSecond = db.prepare('SELECT COUNT(DISTINCT step_number) as c FROM form_submissions WHERE applicant_id = ?').get(applicantId).c
+
+      expect(countAfterFirst).toBe(1)
+      expect(countAfterSecond).toBe(1)
+      expect(distinctAfterFirst).toBe(1)
+      expect(distinctAfterSecond).toBe(1)
+      expect(res2.body.submissionId).toBe(res1.body.submissionId)
+    })
   })
 
   describe('POST /api/forms/draft/:step', () => {

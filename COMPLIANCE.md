@@ -30,6 +30,8 @@ This document outlines all compliance requirements for the OPCS Onboarding Syste
   - I-9 forms stored with calculated retention dates
   - Automatic deletion after retention period expires
   - See `backend/src/services/pdfService.js` for retention calculation
+- **Document versioning**: During initial onboarding, replacing an I-9 identity document (List A, B, or C) overwrites the existing record. After onboarding is complete, replacing saves a **new version** (duplicate row) so history is preserved; the UI shows one "current" document per category (latest by upload date). All versions are retained per the same IRCA schedule.
+- **Re-capture of document details**: When an employee replaces an I-9 identity document (e.g. updated driver's license) from the dashboard, the system re-captures **document number**, **issuing authority**, and **expiration date** (same fields as the initial I-9 submission) so the stored record matches the new document.
 
 **Compliance Checklist:**
 - [ ] I-9 completed no later than first day of employment
@@ -277,20 +279,21 @@ This document outlines all compliance requirements for the OPCS Onboarding Syste
 
 ### Encryption
 
-- **Standard**: AES-256-GCM
+- **Standard**: AES-256-GCM for application-level encryption
 - **Encrypted Data**:
-  - All PDF documents
-  - API keys and credentials
-  - I-9 identity documents
+  - API keys and credentials (in database)
+  - I-9 identity documents (encrypted before upload to Google Drive or local storage)
+  - Form submission PDFs when stored locally (encrypted before write)
 - **Implementation**: 
   - `backend/src/services/encryptionService.js`
-  - All documents encrypted before storage
+  - **Google Drive**: Documents uploaded to Google Drive are protected by the provider’s encryption at rest. Generated form PDFs (W-4, I-9, 8850) are uploaded as-is; I-9 identity document uploads are application-encrypted before upload.
+  - **Local storage**: When Google Drive is not configured, all stored PDFs (form submissions and I-9 docs) are encrypted with AES-256-GCM before being written to disk.
 
 ### Secure Storage
 
-- **Primary Storage**: Google Drive (encrypted)
-- **Fallback Storage**: Local encrypted storage (when Google Drive not configured)
-- **Database**: SQLite (no sensitive data stored unencrypted)
+- **Primary Storage**: Google Drive (provider encryption at rest; I-9 uploads are also application-encrypted before upload)
+- **Fallback Storage**: Local encrypted storage (when Google Drive not configured); all files application-encrypted
+- **Database**: SQLite (no sensitive data stored unencrypted; SSN redacted from form_data)
 
 ### Cookie Security
 

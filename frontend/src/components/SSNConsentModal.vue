@@ -244,6 +244,11 @@ const props = defineProps({
   consented: {
     type: Boolean,
     default: false
+  },
+  /** When true, open at signature step only (consent and password already done this session or previously) */
+  startAtSignature: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -271,15 +276,24 @@ const isPasswordValid = computed(() => {
 
 // Reset state when modal opens
 watch(
-  () => props.open,
-  (open) => {
+  () => [props.open, props.startAtSignature],
+  ([open, startAtSignature]) => {
     if (open) {
-      slide.value = 1
-      localConsented.value = false
-      password.value = ''
-      confirmPassword.value = ''
-      passwordError.value = ''
-      onboardingSignature.value = null
+      if (startAtSignature) {
+        slide.value = 3
+        localConsented.value = true
+        password.value = ''
+        confirmPassword.value = ''
+        passwordError.value = ''
+        onboardingSignature.value = null
+      } else {
+        slide.value = 1
+        localConsented.value = false
+        password.value = ''
+        confirmPassword.value = ''
+        passwordError.value = ''
+        onboardingSignature.value = null
+      }
     }
   }
 )

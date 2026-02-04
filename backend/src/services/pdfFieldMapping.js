@@ -457,7 +457,7 @@ export function map8850FormData(formData) {
 
   return {
     firstName: formData.firstName || '',
-    middleInitial: formData.middle ? formData.middle.charAt(0) : '',
+    middleInitial: (formData.middleName || formData.middle) ? (formData.middleName || formData.middle).charAt(0) : '',
     lastName: formData.lastName || '',
     ssn: formatSSNForPDF(formData.ssn),
 

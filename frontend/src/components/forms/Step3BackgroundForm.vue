@@ -311,52 +311,75 @@ const loading = ref(false)
 const addressLocked = ref(false)
 const middleNameLocked = ref(false)
 
-// Load applicant data and auto-populate fields
+// Load applicant data and auto-populate fields (applicant first, then Step 1 draft as fallback)
 onMounted(async () => {
   if (loadingApplicant.value) {
     await new Promise(resolve => setTimeout(resolve, 500))
   }
-  
-  if (applicantData.value) {
-    formData.value.firstName = applicantData.value.firstName || applicantData.value.first_name || ''
-    formData.value.lastName = applicantData.value.lastName || applicantData.value.last_name || ''
-    formData.value.dateOfBirth = applicantData.value.dateOfBirth || applicantData.value.date_of_birth || ''
-  } else {
+
+  let applicant = applicantData.value
+  if (!applicant) {
     try {
       const response = await api.get('/applicants/me')
-      formData.value.firstName = response.data.firstName || response.data.first_name || ''
-      formData.value.lastName = response.data.lastName || response.data.last_name || ''
-      formData.value.dateOfBirth = response.data.dateOfBirth || response.data.date_of_birth || ''
+      applicant = response.data
     } catch (error) {
       console.error('Error loading applicant data:', error)
     }
   }
-  
-  // Load address fields from Step 1 draft
+
+  if (applicant) {
+    formData.value.firstName = applicant.firstName || applicant.first_name || ''
+    formData.value.lastName = applicant.lastName || applicant.last_name || ''
+    formData.value.dateOfBirth = applicant.dateOfBirth || applicant.date_of_birth || ''
+    // Address from applicant (set after Step 1 submit)
+    if (applicant.address) {
+      formData.value.address = applicant.address
+      addressLocked.value = true
+    }
+    if (applicant.city) {
+      formData.value.city = applicant.city
+      addressLocked.value = true
+    }
+    if (applicant.state) {
+      formData.value.state = applicant.state
+      addressLocked.value = true
+    }
+    if (applicant.zipCode || applicant.zip_code) {
+      formData.value.zipCode = applicant.zipCode || applicant.zip_code
+      addressLocked.value = true
+    }
+  }
+
+  // Step 1 draft as fallback for address, DOB, and middle name
   try {
     const step1Draft = await api.get('/forms/draft/1')
     if (step1Draft.data.success && step1Draft.data.formData) {
       const step1Data = step1Draft.data.formData
-      
-      // Auto-populate address fields from Step 1
-      if (step1Data.address) {
+
+      // Address fallback when applicant has no address yet
+      if (!formData.value.address && step1Data.address) {
         formData.value.address = step1Data.address
         addressLocked.value = true
       }
-      if (step1Data.city) {
+      if (!formData.value.city && step1Data.city) {
         formData.value.city = step1Data.city
         addressLocked.value = true
       }
-      if (step1Data.state) {
+      if (!formData.value.state && step1Data.state) {
         formData.value.state = step1Data.state
         addressLocked.value = true
       }
-      if (step1Data.zipCode) {
+      if (!formData.value.zipCode && step1Data.zipCode) {
         formData.value.zipCode = step1Data.zipCode
         addressLocked.value = true
       }
-      
-      // Auto-populate middle name if available
+
+      // DOB fallback when applicant has no DOB yet
+      if (!formData.value.dateOfBirth && step1Data.dateOfBirth) {
+        formData.value.dateOfBirth = step1Data.dateOfBirth
+      }
+
+      // Middle name from Step 1 only (applicant table has no middle name)
       if (step1Data.middleName) {
         formData.value.middleName = step1Data.middleName
         middleNameLocked.value = true

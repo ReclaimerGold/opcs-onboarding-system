@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { PDFDocument } from 'pdf-lib'
-import { calculateRetentionDate, generateFilename, generateW4PDF, generateI9PDF, generate8850PDF } from '../pdfService.js'
+import { calculateRetentionDate, generateFilename, generateW4PDF, generateI9PDF, generate8850PDF, flattenPdfBuffer } from '../pdfService.js'
 
 describe('PDF Service', () => {
   describe('calculateRetentionDate', () => {
@@ -129,6 +129,38 @@ describe('PDF Service', () => {
       const pdfBytes = await generate8850PDF(minimal8850Data, minimalApplicantData)
       expect(pdfBytes).toBeInstanceOf(Uint8Array)
       await assertPdfHasNoFormFields(pdfBytes)
+    })
+  })
+
+  describe('flattenPdfBuffer', () => {
+    it('should flatten a PDF with form fields and return Buffer with no fillable fields', async () => {
+      const pdfDoc = await PDFDocument.create()
+      const page = pdfDoc.addPage([612, 792])
+      const form = pdfDoc.getForm()
+      const font = await pdfDoc.embedFont('Helvetica')
+      const field = form.createTextField('test.field')
+      field.addToPage(page, { x: 50, y: 700, width: 200, height: 20 })
+      const pdfBytes = await pdfDoc.save()
+      const buffer = Buffer.from(pdfBytes)
+
+      const flattened = await flattenPdfBuffer(buffer)
+      expect(flattened).toBeInstanceOf(Buffer)
+      expect(flattened.length).toBeGreaterThan(0)
+      const loaded = await PDFDocument.load(flattened)
+      const loadedForm = loaded.getForm()
+      expect(loadedForm.getFields().length).toBe(0)
+    })
+
+    it('should return original buffer when input is empty', async () => {
+      const empty = Buffer.alloc(0)
+      const result = await flattenPdfBuffer(empty)
+      expect(result).toBe(empty)
+    })
+
+    it('should return original buffer on invalid/non-PDF input', async () => {
+      const notPdf = Buffer.from('not a pdf')
+      const result = await flattenPdfBuffer(notPdf)
+      expect(result).toBe(notPdf)
     })
   })
 })

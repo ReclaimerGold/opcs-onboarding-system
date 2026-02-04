@@ -114,6 +114,7 @@
 <script setup>
 import { ref } from 'vue'
 import api from '../../services/api.js'
+import { useFormDraft } from '../../composables/useFormDraft.js'
 
 const emit = defineEmits(['submitted'])
 
@@ -127,6 +128,7 @@ const formData = ref({
 })
 
 const loading = ref(false)
+useFormDraft(4, formData)
 
 const handlePhotoUpload = (e) => {
   formData.value.photoFile = e.target.files[0]

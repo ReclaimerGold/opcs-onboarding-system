@@ -1,5 +1,13 @@
 <template>
   <div class="min-h-screen bg-gray-50">
+    <!-- User onboarding locked until: SSN consent, password (if admin), and signature set -->
+    <SSNConsentModal
+      v-if="showOnboardingModal"
+      :open="showOnboardingModal"
+      :startAtSignature="showStartAtSignatureOnly"
+      v-model:consented="dashboardConsented"
+      @signature="onDashboardOnboardingComplete"
+    />
     <nav class="bg-white shadow">
       <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
         <div class="flex justify-between h-16">
@@ -19,6 +27,34 @@
       </div>
     </nav>
 
+    <!-- Checking availability (before template-status has loaded) -->
+    <div v-if="!templateStatusLoaded" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16 flex items-center justify-center">
+      <div class="text-center">
+        <svg class="animate-spin h-10 w-10 text-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-gray-600">Checking availability...</p>
+      </div>
+    </div>
+
+    <!-- Forms not yet available: admin must set signature placement for all documents -->
+    <div v-else-if="!allSignaturePlacementsReady" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16">
+      <div class="max-w-xl mx-auto bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-sm">
+        <h2 class="text-lg font-semibold text-amber-800 mb-2">Forms are not yet available</h2>
+        <p class="text-sm text-amber-700 mb-4">
+          Your administrator must configure signature placement for W-4, I-9, and Form 8850 before you can complete onboarding. Please contact your administrator or try again later.
+        </p>
+        <router-link
+          to="/dashboard"
+          class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light"
+        >
+          Go to Dashboard
+        </router-link>
+      </div>
+    </div>
+
+    <template v-else>
     <div v-if="showLoadingBanner" class="sticky top-0 z-40 bg-yellow-50 border-b border-yellow-200 shadow-sm">
       <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-3">
         <div class="flex items-center">
@@ -428,6 +464,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -435,6 +472,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import SSNConsentModal from '../components/SSNConsentModal.vue'
 import Step1W4Form from '../components/forms/Step1W4Form.vue'
 import Step2I9Form from '../components/forms/Step2I9Form.vue'
 import Step3BackgroundForm from '../components/forms/Step3BackgroundForm.vue'
@@ -443,10 +481,39 @@ import Step5AcknowledgementsForm from '../components/forms/Step5Acknowledgements
 import Step68850Form from '../components/forms/Step68850Form.vue'
 import api from '../services/api.js'
 import { getSessionSignature } from '../utils/sessionSignature.js'
+import { useDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const dashboardOnboarding = useDashboardOnboarding()
+const dashboardConsented = ref(false)
+
+// Unwrap composable refs so template gets booleans (SSNConsentModal expects open: Boolean)
+const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboardingModal?.value)
+const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
+
+async function onDashboardOnboardingComplete(signatureData) {
+  if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
+  const wasSignatureOnly = !!dashboardOnboarding.startAtSignatureOnly?.value
+  try {
+    await dashboardOnboarding.saveSignature(signatureData)
+  } catch (err) {
+    console.error('Failed to save signature', err)
+    return
+  }
+  dashboardConsented.value = true
+  if (!wasSignatureOnly) {
+    dashboardOnboarding.ssnConsentGiven.value = true
+    try {
+      await dashboardOnboarding.recordConsent()
+    } catch (err) {
+      console.error('Failed to record SSN consent', err)
+      dashboardOnboarding.ssnConsentGiven.value = false
+      dashboardConsented.value = false
+    }
+  }
+}
 
 const currentStep = ref(1)
 const hasDrafts = ref(false)
@@ -461,8 +528,13 @@ const previewError = ref(null)
 const loadingProgress = ref(false)
 const loadingApplicant = ref(false)
 const sessionSignature = ref(null)
-const templateStatus = ref({ w4: true, i9: true, 8850: true })
+const templateStatus = ref({ w4: false, i9: false, 8850: false })
+const templateStatusLoaded = ref(false)
 let previewDebounceTimer = null
+
+const allSignaturePlacementsReady = computed(() =>
+  templateStatus.value.w4 && templateStatus.value.i9 && !!templateStatus.value['8850']
+)
 
 const stepLabels = {
   1: 'W-4',
@@ -510,25 +582,29 @@ const loadTemplateStatus = async () => {
     templateStatus.value = { w4: !!res.data.w4, i9: !!res.data.i9, 8850: !!res.data['8850'] }
   } catch {
     templateStatus.value = { w4: false, i9: false, 8850: false }
+  } finally {
+    templateStatusLoaded.value = true
   }
 }
 
 onMounted(async () => {
   await loadTemplateStatus()
+  const ready = templateStatus.value.w4 && templateStatus.value.i9 && templateStatus.value['8850']
+  if (!ready) return
+
   await loadProgress()
   await loadApplicantData()
-  
+
   // Auto-populate signature from onboarding modal (session storage) if not already set from draft
   if (!sessionSignature.value) {
     const stored = getSessionSignature()
     if (stored) sessionSignature.value = stored
   }
-  
+
   // Check for step query parameter
   if (route.query.step) {
     const step = parseInt(route.query.step)
     if (step >= 1 && step <= 6) {
-      // Use navigateToStep to validate and set step
       navigateToStep(step)
     } else {
       validateCurrentStep()
@@ -536,8 +612,7 @@ onMounted(async () => {
   } else {
     validateCurrentStep()
   }
-  
-  // Initialize preview for current step
+
   updatePreviewForStep(currentStep.value)
 })
 

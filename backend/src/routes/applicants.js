@@ -21,11 +21,11 @@ router.get('/me', async (req, res) => {
       FROM applicants 
       WHERE id = ?
     `).get(req.applicantId)
-    
+
     if (!applicant) {
       return res.status(404).json({ error: 'Applicant not found' })
     }
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'VIEW',
@@ -34,7 +34,7 @@ router.get('/me', async (req, res) => {
       ipAddress: req.ip,
       userAgent: req.get('user-agent')
     })
-    
+
     res.json({
       id: applicant.id,
       firstName: applicant.first_name,
@@ -67,13 +67,13 @@ router.put('/me', async (req, res) => {
   try {
     const db = getDatabase()
     const { phone, dateOfBirth, address, city, state, zipCode } = req.body
-    
+
     db.prepare(`
       UPDATE applicants 
       SET phone = ?, date_of_birth = ?, address = ?, city = ?, state = ?, zip_code = ?
       WHERE id = ?
     `).run(phone, dateOfBirth, address, city, state, zipCode, req.applicantId)
-    
+
     await auditLog({
       userId: req.applicantId,
       action: 'UPDATE',
@@ -83,7 +83,7 @@ router.put('/me', async (req, res) => {
       userAgent: req.get('user-agent'),
       details: { fields: Object.keys(req.body) }
     })
-    
+
     res.json({ success: true })
   } catch (error) {
     console.error('Update applicant error:', error)
@@ -98,17 +98,21 @@ router.put('/me', async (req, res) => {
 router.get('/me/progress', async (req, res) => {
   try {
     const db = getDatabase()
+    // Latest submission per step (for progress and list)
     const submissions = db.prepare(`
       SELECT step_number, form_type, submitted_at, pdf_filename
       FROM form_submissions
       WHERE applicant_id = ?
+        AND (step_number, submitted_at) IN (
+          SELECT step_number, MAX(submitted_at) FROM form_submissions WHERE applicant_id = ? GROUP BY step_number
+        )
       ORDER BY step_number
-    `).all(req.applicantId)
-    
+    `).all(req.applicantId, req.applicantId)
+
     const totalSteps = 6
     const completedSteps = submissions.length
     const progress = (completedSteps / totalSteps) * 100
-    
+
     res.json({
       totalSteps,
       completedSteps,

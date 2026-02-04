@@ -103,6 +103,7 @@
 import { ref, onMounted } from 'vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
+import { useFormDraft } from '../../composables/useFormDraft.js'
 import SignaturePad from '../ui/SignaturePad.vue'
 
 const props = defineProps({
@@ -119,8 +120,9 @@ const formData = ref({
 })
 
 const loading = ref(false)
+useFormDraft(5, formData)
 
-// Load applicant data to sync name fields
+// Load applicant data to sync name fields (after draft may have loaded)
 onMounted(async () => {
   // Wait for applicant data to load
   if (loadingApplicant.value) {

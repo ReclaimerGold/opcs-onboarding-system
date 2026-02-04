@@ -41,7 +41,7 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `)
-  
+
   // Add is_admin column if it doesn't exist (for existing databases)
   try {
     db.exec(`ALTER TABLE applicants ADD COLUMN is_admin INTEGER DEFAULT 0`)
@@ -75,6 +75,13 @@ export function initializeDatabase() {
   }
   db.exec(`UPDATE applicants SET is_active = 1 WHERE is_active IS NULL`)
 
+  // User onboarding: signature stored once per applicant (required before dashboard/forms access)
+  try {
+    db.exec(`ALTER TABLE applicants ADD COLUMN signature_data TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
   // Form submissions with retention tracking
   db.exec(`
     CREATE TABLE IF NOT EXISTS form_submissions (
@@ -91,14 +98,14 @@ export function initializeDatabase() {
       FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
     )
   `)
-  
+
   // Add google_drive_id column if it doesn't exist (migration)
   try {
     db.exec(`ALTER TABLE form_submissions ADD COLUMN google_drive_id TEXT`)
   } catch (error) {
     // Column already exists, ignore
   }
-  
+
   // Make google_drive_id required (set default for existing records)
   try {
     // Update any null google_drive_id values (migration)
@@ -212,14 +219,14 @@ export function initializeDatabase() {
       UNIQUE(applicant_id, document_type, document_category)
     )
   `)
-  
+
   // Add google_drive_id column if it doesn't exist (migration)
   try {
     db.exec(`ALTER TABLE i9_documents ADD COLUMN google_drive_id TEXT`)
   } catch (error) {
     // Column already exists, ignore
   }
-  
+
   // Make file_path nullable (migration)
   try {
     // Update any null google_drive_id values (migration)
@@ -233,6 +240,74 @@ export function initializeDatabase() {
     db.exec(`ALTER TABLE i9_documents ADD COLUMN web_view_link TEXT`)
   } catch (error) {
     // Column already exists, ignore
+  }
+
+  // Add retention_until to i9_documents (IRCA: same retention as I-9 form)
+  try {
+    db.exec(`ALTER TABLE i9_documents ADD COLUMN retention_until DATE`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
+  // Add document metadata columns for I-9 re-upload (number, issuing authority, expiration)
+  try {
+    db.exec(`ALTER TABLE i9_documents ADD COLUMN document_number TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE i9_documents ADD COLUMN issuing_authority TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE i9_documents ADD COLUMN expiration_date DATE`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
+  // Migrate i9_documents to allow multiple versions per category (remove UNIQUE constraint)
+  // SQLite cannot DROP UNIQUE; recreate table without UNIQUE and copy data (run only once)
+  const i9Schema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='i9_documents'").get()
+  if (i9Schema && i9Schema.sql && i9Schema.sql.includes('UNIQUE(applicant_id, document_type, document_category)')) {
+    try {
+      db.exec(`
+        CREATE TABLE i9_documents_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          applicant_id INTEGER NOT NULL,
+          document_type TEXT NOT NULL,
+          document_category TEXT NOT NULL,
+          document_name TEXT,
+          file_path TEXT,
+          file_name TEXT NOT NULL,
+          file_size INTEGER,
+          mime_type TEXT,
+          google_drive_id TEXT NOT NULL,
+          uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          web_view_link TEXT,
+          retention_until DATE,
+          document_number TEXT,
+          issuing_authority TEXT,
+          expiration_date DATE,
+          FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`
+        INSERT INTO i9_documents_new (id, applicant_id, document_type, document_category, document_name, file_path, file_name, file_size, mime_type, google_drive_id, uploaded_at, web_view_link, retention_until, document_number, issuing_authority, expiration_date)
+        SELECT id, applicant_id, document_type, document_category, document_name, file_path, file_name, file_size, mime_type, COALESCE(google_drive_id, ''), uploaded_at, web_view_link, retention_until,
+          COALESCE(document_number, ''), COALESCE(issuing_authority, ''), expiration_date
+        FROM i9_documents
+      `)
+      db.exec(`DROP TABLE i9_documents`)
+      db.exec(`ALTER TABLE i9_documents_new RENAME TO i9_documents`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_i9_documents_applicant ON i9_documents(applicant_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_i9_documents_type ON i9_documents(document_type, document_category)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_i9_documents_uploaded_at ON i9_documents(uploaded_at)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_i9_documents_category ON i9_documents(document_category)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_i9_documents_retention ON i9_documents(retention_until)`)
+    } catch (error) {
+      console.warn('i9_documents versioning migration:', error.message)
+    }
   }
 
   // Create indexes for performance
@@ -262,12 +337,13 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_i9_documents_type ON i9_documents(document_type, document_category);
     CREATE INDEX IF NOT EXISTS idx_i9_documents_uploaded_at ON i9_documents(uploaded_at);
     CREATE INDEX IF NOT EXISTS idx_i9_documents_category ON i9_documents(document_category);
+    CREATE INDEX IF NOT EXISTS idx_i9_documents_retention ON i9_documents(retention_until);
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_applicant ON password_reset_tokens(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires ON password_reset_tokens(expires_at);
   `)
 
   console.log('Database initialized successfully')
-  
+
   // Set default password for existing admin users (for testing)
   // This will be called asynchronously after bcrypt is available
   setDefaultPasswordsForAdmins().catch(err => {
@@ -283,23 +359,23 @@ async function setDefaultPasswordsForAdmins() {
   try {
     const { hashPassword } = await import('../middleware/auth.js')
     const db = getDatabase()
-    
+
     // Get all admin users without passwords
     const adminsWithoutPassword = db.prepare(`
       SELECT id FROM applicants 
       WHERE is_admin = 1 
         AND (password_hash IS NULL OR password_hash = '')
     `).all()
-    
+
     if (adminsWithoutPassword.length > 0) {
       const defaultPassword = 'opcs'
       const defaultHash = await hashPassword(defaultPassword)
-      
+
       for (const admin of adminsWithoutPassword) {
         db.prepare('UPDATE applicants SET password_hash = ? WHERE id = ?')
           .run(defaultHash, admin.id)
       }
-      
+
       console.log(`Set default password for ${adminsWithoutPassword.length} admin user(s)`)
     }
   } catch (error) {

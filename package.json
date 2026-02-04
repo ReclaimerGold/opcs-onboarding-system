@@ -27,6 +27,8 @@
     "test:frontend": "npm run test:run -w opcs-onboarding-frontend",
     "test:watch": "concurrently \"npm run test -w opcs-onboarding-backend\" \"npm run test -w opcs-onboarding-frontend\"",
     "test:coverage": "concurrently \"npm run test:coverage -w opcs-onboarding-backend\" \"npm run test:coverage -w opcs-onboarding-frontend\"",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "clean": "rm -rf node_modules backend/node_modules frontend/node_modules bun.lockb",
     "postinstall": "echo '✅ Dependencies installed'",
     "prepare": "husky"
@@ -39,6 +41,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7"

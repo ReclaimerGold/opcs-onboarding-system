@@ -5,10 +5,11 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { requireAuth } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
-import { generateAndSavePDF, getSignaturePlacement } from '../services/pdfService.js'
+import { generateAndSavePDF, getSignaturePlacement, flattenPdfBuffer } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
-import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured } from '../services/googleDriveService.js'
+import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from '../services/googleDriveService.js'
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
+import { redactFormDataForStorage } from '../utils/redactFormData.js'
 
 // Local storage directory for encrypted documents when Google Drive is not configured
 const LOCAL_I9_STORAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../storage/encrypted-i9-docs')
@@ -259,24 +260,46 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       )
     }
 
+    // During onboarding: overwrite existing submission for this step. After onboarding: insert new (duplicate).
+    const distinctSteps = db.prepare(`
+      SELECT COUNT(DISTINCT step_number) as count FROM form_submissions WHERE applicant_id = ?
+    `).get(req.applicantId)
+    const distinctStepCount = distinctSteps?.count ?? 0
+    const existingForStep = db.prepare(`
+      SELECT id, google_drive_id, pdf_encrypted_path FROM form_submissions
+      WHERE applicant_id = ? AND step_number = ?
+      ORDER BY submitted_at DESC LIMIT 1
+    `).get(req.applicantId, step)
+    const shouldOverwrite = existingForStep && distinctStepCount < 6
+    const existingSubmission = shouldOverwrite ? {
+      id: existingForStep.id,
+      google_drive_id: existingForStep.google_drive_id || '',
+      pdf_encrypted_path: existingForStep.pdf_encrypted_path
+    } : null
+
     // Generate PDF and upload directly to Google Drive (SSN is included here but never stored in DB)
     const pdfResult = await generateAndSavePDF(
       req.applicantId,
       step,
       formType,
       formData,
-      applicant
+      applicant,
+      existingSubmission
     )
 
-    // Check if onboarding is complete (6 steps) and if user is admin
-    const submissions = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM form_submissions 
-      WHERE applicant_id = ?
-    `).get(req.applicantId)
+    // Set retention_until on I-9 identity documents to match I-9 form (IRCA)
+    if (step === 2 && pdfResult.retentionUntil) {
+      db.prepare(`
+        UPDATE i9_documents SET retention_until = ? WHERE applicant_id = ?
+      `).run(pdfResult.retentionUntil, req.applicantId)
+    }
 
-    const completedSteps = submissions.count || 0
-    const isOnboardingComplete = completedSteps >= 6
+    // After submit: distinct step count (overwrite = unchanged; insert new step = +1; insert duplicate = unchanged)
+    const afterSubmitDistinct = shouldOverwrite
+      ? distinctStepCount
+      : (existingForStep ? distinctStepCount : distinctStepCount + 1)
+    const completedSteps = Math.min(6, afterSubmitDistinct)
+    const isOnboardingComplete = afterSubmitDistinct >= 6
 
     // Check if admin and password setup required
     let requiresPasswordSetup = false
@@ -334,7 +357,7 @@ router.get('/submissions', async (req, res) => {
       SELECT id, step_number, form_type, pdf_filename, submitted_at, retention_until, google_drive_id, web_view_link
       FROM form_submissions
       WHERE applicant_id = ?
-      ORDER BY step_number
+      ORDER BY step_number, submitted_at DESC
     `).all(req.applicantId)
 
     res.json(submissions)
@@ -532,8 +555,9 @@ router.post('/draft/:step', async (req, res) => {
 
     const db = getDatabase()
     const formData = req.body.formData || req.body
+    const formDataToStore = redactFormDataForStorage(formData, step)
 
-    // Save or update draft
+    // Save or update draft (SSN redacted for compliance)
     db.prepare(`
       INSERT INTO form_drafts (applicant_id, step_number, form_data, updated_at)
       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -543,8 +567,8 @@ router.post('/draft/:step', async (req, res) => {
     `).run(
       req.applicantId,
       step,
-      JSON.stringify(formData),
-      JSON.stringify(formData)
+      JSON.stringify(formDataToStore),
+      JSON.stringify(formDataToStore)
     )
 
     await auditLog({
@@ -622,6 +646,42 @@ router.get('/drafts', async (req, res) => {
 })
 
 /**
+ * Update I-9 form submission form_data with document metadata for a category (keeps form in sync with latest document).
+ * @param {object} db - Database instance
+ * @param {number} applicantId
+ * @param {string} documentCategory - listA, listB, or listC
+ * @param {string|null} documentNumber
+ * @param {string|null} issuingAuthority
+ * @param {string|null} expirationDate
+ */
+function updateI9FormDataForDocument(db, applicantId, documentCategory, documentNumber, issuingAuthority, expirationDate) {
+  const row = db.prepare(`
+    SELECT id, form_data FROM form_submissions
+    WHERE applicant_id = ? AND step_number = 2
+    ORDER BY submitted_at DESC LIMIT 1
+  `).get(applicantId)
+  if (!row || !row.form_data) return
+  let formData
+  try {
+    formData = JSON.parse(row.form_data)
+  } catch {
+    return
+  }
+  if (documentCategory === 'listA') {
+    if (documentNumber != null) formData.listADocumentNumber = documentNumber
+    if (issuingAuthority != null) formData.listAIssuingAuthority = issuingAuthority
+    if (expirationDate != null) formData.listAExpiration = expirationDate
+  } else if (documentCategory === 'listB') {
+    if (documentNumber != null) formData.listBDocumentNumber = documentNumber
+    if (issuingAuthority != null) formData.listBIssuingAuthority = issuingAuthority
+    if (expirationDate != null) formData.listBExpiration = expirationDate
+  } else if (documentCategory === 'listC') {
+    if (documentNumber != null) formData.listCDocumentNumber = documentNumber
+  }
+  db.prepare('UPDATE form_submissions SET form_data = ? WHERE id = ?').run(JSON.stringify(formData), row.id)
+}
+
+/**
  * POST /api/forms/i9/upload-document
  * Upload an I-9 identity document
  */
@@ -631,7 +691,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       return res.status(400).json({ error: 'No file uploaded' })
     }
 
-    const { documentType, documentCategory, documentName } = req.body
+    const { documentType, documentCategory, documentName, documentNumber, issuingAuthority, expirationDate } = req.body
 
     if (!documentType || !documentCategory) {
       // Clean up uploaded file
@@ -643,16 +703,27 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     const db = getDatabase()
     const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
 
+    // During onboarding (distinct form steps < 6): overwrite. After: insert new version.
+    const distinctSteps = db.prepare(`
+      SELECT COUNT(DISTINCT step_number) as count FROM form_submissions WHERE applicant_id = ?
+    `).get(req.applicantId)
+    const duringOnboarding = (distinctSteps?.count ?? 0) < 6
+
     if (!applicant) {
       await fs.unlink(req.file.path)
       return res.status(404).json({ error: 'Applicant not found' })
     }
 
     // Read uploaded file into buffer
-    const fileBuffer = await fs.readFile(req.file.path)
+    let fileBuffer = await fs.readFile(req.file.path)
 
     // Clean up temporary file immediately
     await fs.unlink(req.file.path)
+
+    // Flatten PDFs so stored copies are non-editable (compliance)
+    if (req.file.mimetype === 'application/pdf') {
+      fileBuffer = await flattenPdfBuffer(fileBuffer)
+    }
 
     // Generate appropriate filename
     const now = new Date()
@@ -692,33 +763,37 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       console.log(`I-9 document saved to local storage: ${localFilePath} (Google Drive not configured)`)
     }
 
-    // Store in database (replace if exists for same type/category)
+    // Latest existing document for this applicant + type + category (for overwrite or versioning)
     const existing = db.prepare(`
-      SELECT id, google_drive_id, file_path FROM i9_documents 
+      SELECT id, google_drive_id, file_path FROM i9_documents
       WHERE applicant_id = ? AND document_type = ? AND document_category = ?
+      ORDER BY uploaded_at DESC LIMIT 1
     `).get(req.applicantId, documentType, documentCategory)
 
-    if (existing) {
-      // Delete old file from Google Drive or local storage
+    const docNumber = documentNumber != null ? String(documentNumber).trim() || null : null
+    const issuingAuth = issuingAuthority != null ? String(issuingAuthority).trim() || null : null
+    const expDate = expirationDate != null ? String(expirationDate).trim() || null : null
+
+    if (duringOnboarding && existing) {
+      // Overwrite: delete old file, update existing row
       if (existing.google_drive_id) {
         try {
-          const { deleteFromGoogleDrive } = await import('../services/googleDriveService.js')
           await deleteFromGoogleDrive(existing.google_drive_id)
         } catch (error) {
           console.error('Error deleting old document from Google Drive:', error)
         }
-      } else if (existing.file_path) {
+      }
+      if (existing.file_path) {
         try {
           await fs.unlink(path.join(LOCAL_I9_STORAGE_DIR, existing.file_path))
         } catch (error) {
           console.error('Error deleting old document from local storage:', error)
         }
       }
-
-      // Update record
       db.prepare(`
-        UPDATE i9_documents 
-        SET document_name = ?, file_name = ?, file_size = ?, mime_type = ?, google_drive_id = ?, file_path = ?, web_view_link = ?, uploaded_at = CURRENT_TIMESTAMP
+        UPDATE i9_documents
+        SET document_name = ?, file_name = ?, file_size = ?, mime_type = ?, google_drive_id = ?, file_path = ?, web_view_link = ?, uploaded_at = CURRENT_TIMESTAMP,
+            document_number = ?, issuing_authority = ?, expiration_date = ?
         WHERE id = ?
       `).run(
         documentName || req.file.originalname,
@@ -728,14 +803,18 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         googleDriveId || '',
         localFilePath,
         webViewLink,
+        docNumber,
+        issuingAuth,
+        expDate,
         existing.id
       )
+      updateI9FormDataForDocument(db, req.applicantId, documentCategory, docNumber, issuingAuth, expDate)
     } else {
-      // Insert new record
+      // Insert new row (first upload or post-onboarding new version)
       db.prepare(`
-        INSERT INTO i9_documents 
-        (applicant_id, document_type, document_category, document_name, file_name, file_size, mime_type, google_drive_id, file_path, web_view_link)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO i9_documents
+        (applicant_id, document_type, document_category, document_name, file_name, file_size, mime_type, google_drive_id, file_path, web_view_link, document_number, issuing_authority, expiration_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         req.applicantId,
         documentType,
@@ -746,16 +825,22 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         req.file.mimetype,
         googleDriveId || '',
         localFilePath,
-        webViewLink
+        webViewLink,
+        docNumber,
+        issuingAuth,
+        expDate
       )
+      updateI9FormDataForDocument(db, req.applicantId, documentCategory, docNumber, issuingAuth, expDate)
     }
+
+    const resourceId = duringOnboarding && existing ? existing.id : db.prepare('SELECT last_insert_rowid()').get()['last_insert_rowid()']
 
     // Audit log
     await auditLog({
       userId: req.applicantId,
       action: 'UPLOAD_DOCUMENT',
       resourceType: 'I9_DOCUMENT',
-      resourceId: existing?.id || db.prepare('SELECT last_insert_rowid()').get()['last_insert_rowid()'],
+      resourceId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       details: {
@@ -787,17 +872,20 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
 
 /**
  * GET /api/forms/i9/documents
- * Get all I-9 documents for current applicant
+ * Get current I-9 documents for applicant (latest version per document_category)
  */
 router.get('/i9/documents', async (req, res) => {
   try {
     const db = getDatabase()
     const documents = db.prepare(`
-      SELECT id, document_type, document_category, document_name, file_name, file_size, uploaded_at, google_drive_id, web_view_link
+      SELECT id, document_type, document_category, document_name, file_name, file_size, uploaded_at, google_drive_id, web_view_link, document_number, issuing_authority, expiration_date
       FROM i9_documents
       WHERE applicant_id = ?
-      ORDER BY uploaded_at DESC
-    `).all(req.applicantId)
+        AND (document_category, uploaded_at) IN (
+          SELECT document_category, MAX(uploaded_at) FROM i9_documents WHERE applicant_id = ? GROUP BY document_category
+        )
+      ORDER BY document_category
+    `).all(req.applicantId, req.applicantId)
 
     res.json(documents)
   } catch (error) {

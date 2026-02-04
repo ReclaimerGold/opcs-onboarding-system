@@ -101,6 +101,22 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
+  // User onboarding (dashboard/forms): admins must have password set before accessing
+  if (to.meta.requiresAuth && isAuthenticated && (to.path === '/dashboard' || to.path === '/forms')) {
+    if (authStore.isAdmin) {
+      try {
+        const api = (await import('../services/api.js')).default
+        const passwordStatus = await api.get('/auth/password-status')
+        if (passwordStatus.data.requiresPassword) {
+          next('/password-setup')
+          return
+        }
+      } catch (error) {
+        console.error('Failed to check password status:', error)
+      }
+    }
+  }
+
   // Check admin access
   if (to.meta.requiresAdmin) {
     if (!isAuthenticated) {

@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib'
 import { encryptBuffer } from './encryptionService.js'
-import { uploadToGoogleDrive, isGoogleDriveConfigured } from './googleDriveService.js'
+import { uploadToGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from './googleDriveService.js'
 import { getDatabase } from '../database/init.js'
 import { getTemplate, hasTemplate } from './pdfTemplateService.js'
 import {
@@ -18,6 +18,7 @@ import {
 import path from 'path'
 import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
+import { redactFormDataForStorage } from '../utils/redactFormData.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -119,6 +120,27 @@ export function generateFilename(firstName, lastName, formType) {
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')
   const name = `${firstName}${lastName}`.replace(/\s/g, '')
   return `${name}-${formType}-${dateStr}-${timeStr}.pdf`
+}
+
+/**
+ * Flatten a PDF buffer so form fields and annotations become non-editable content.
+ * Used for uploaded PDFs (e.g. I-9 identity documents) before storage.
+ * On failure (e.g. XFA or corrupted PDF), returns the original buffer and logs a warning.
+ * @param {Buffer} buffer - PDF file buffer
+ * @returns {Promise<Buffer>} Flattened PDF buffer, or original buffer on failure
+ */
+export async function flattenPdfBuffer(buffer) {
+  if (!buffer || buffer.length === 0) return buffer
+  try {
+    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true })
+    const form = pdfDoc.getForm()
+    form.flatten()
+    const bytes = await pdfDoc.save()
+    return Buffer.from(bytes)
+  } catch (err) {
+    console.warn('PDF flatten failed, storing original:', err.message)
+    return buffer
+  }
 }
 
 /**
@@ -758,7 +780,7 @@ async function generate8850PDFFallback(formData, applicantData) {
   })
 
   let yPos = height - 110
-  page.drawText(`Name: ${formData.firstName} ${formData.middle || ''} ${formData.lastName}`.trim(), {
+  page.drawText(`Name: ${formData.firstName} ${formData.middleName || formData.middle || ''} ${formData.lastName}`.trim(), {
     x: 50,
     y: yPos,
     size: fontSize,
@@ -889,9 +911,17 @@ async function saveToLocalStorage(encryptedBuffer, filename, applicant) {
 }
 
 /**
- * Main function to generate and save PDF
+ * Main function to generate and save PDF.
+ * When existingSubmission is provided (during onboarding overwrite), updates that row and replaces the file.
+ * Otherwise inserts a new submission record.
+ * @param {number} applicantId
+ * @param {number} stepNumber
+ * @param {string} formType
+ * @param {Object} formData
+ * @param {Object} applicantData
+ * @param {{ id: number, google_drive_id: string, pdf_encrypted_path: string | null }} [existingSubmission] - When set, overwrite this row and replace file
  */
-export async function generateAndSavePDF(applicantId, stepNumber, formType, formData, applicantData) {
+export async function generateAndSavePDF(applicantId, stepNumber, formType, formData, applicantData, existingSubmission = null) {
   let pdfBytes
 
   // Generate PDF based on form type
@@ -930,6 +960,25 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     applicant.termination_date
   )
 
+  // If overwriting, delete old file from Drive or local storage first
+  if (existingSubmission) {
+    if (existingSubmission.google_drive_id) {
+      try {
+        await deleteFromGoogleDrive(existingSubmission.google_drive_id)
+      } catch (error) {
+        console.error('Error deleting old PDF from Google Drive:', error)
+      }
+    }
+    if (existingSubmission.pdf_encrypted_path) {
+      try {
+        const fullPath = path.join(LOCAL_STORAGE_DIR, existingSubmission.pdf_encrypted_path)
+        await fs.unlink(fullPath)
+      } catch (error) {
+        console.error('Error deleting old PDF from local storage:', error)
+      }
+    }
+  }
+
   let googleDriveId = null
   let webViewLink = null
   let localPath = null
@@ -937,7 +986,6 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
   // Check if Google Drive is configured
   if (isGoogleDriveConfigured()) {
     // Upload raw PDF to Google Drive (Google handles its own encryption)
-    // Convert Uint8Array to Buffer for upload
     const pdfBuffer = Buffer.from(pdfBytes)
     const uploadResult = await uploadToGoogleDrive(
       pdfBuffer,
@@ -955,7 +1003,34 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     console.log(`PDF saved to local storage (encrypted): ${localPath} (Google Drive not configured)`)
   }
 
-  // Save form submission record
+  const formDataToStore = redactFormDataForStorage(formData, stepNumber)
+
+  if (existingSubmission) {
+    db.prepare(`
+      UPDATE form_submissions
+      SET form_data = ?, pdf_filename = ?, google_drive_id = ?, pdf_encrypted_path = ?, retention_until = ?, web_view_link = ?, submitted_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      JSON.stringify(formDataToStore),
+      filename,
+      googleDriveId || '',
+      localPath,
+      retentionUntil,
+      webViewLink,
+      existingSubmission.id
+    )
+    return {
+      filename,
+      googleDriveId,
+      webViewLink,
+      localPath,
+      submissionId: existingSubmission.id,
+      retentionUntil,
+      storageType: googleDriveId ? 'google_drive' : 'local'
+    }
+  }
+
+  // Insert new form submission record (SSN redacted from form_data for compliance)
   const submissionId = db.prepare(`
     INSERT INTO form_submissions 
     (applicant_id, step_number, form_type, form_data, pdf_filename, google_drive_id, pdf_encrypted_path, retention_until, web_view_link)
@@ -964,7 +1039,7 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     applicantId,
     stepNumber,
     formType,
-    JSON.stringify(formData),
+    JSON.stringify(formDataToStore),
     filename,
     googleDriveId || '',
     localPath,

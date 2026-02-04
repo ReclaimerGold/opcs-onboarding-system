@@ -30,10 +30,10 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Middle
-              <span v-if="formData.middle" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
+              <span v-if="formData.middleName" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
-              v-model="formData.middle"
+              v-model="formData.middleName"
               type="text"
               :readonly="!!middleNameLocked"
               :class="middleNameLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
@@ -115,10 +115,10 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Zip
-              <span v-if="formData.zip" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
+              <span v-if="formData.zipCode" class="ml-1 text-xs text-green-600">(Auto-filled)</span>
             </label>
             <input
-              v-model="formData.zip"
+              v-model="formData.zipCode"
               type="text"
               :readonly="!!addressLocked"
               :class="addressLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
@@ -286,13 +286,13 @@ const { applicantData, loading: loadingApplicant } = useApplicantData()
 
 const formData = ref({
   firstName: '',
-  middle: '',
+  middleName: '',
   lastName: '',
   ssn: '',
   address: '',
   city: '',
   state: '',
-  zip: '',
+  zipCode: '',
   county: '',
   phone: '',
   email: '',
@@ -389,24 +389,24 @@ onMounted(async () => {
       addressLocked.value = true
     }
     if (applicant.zipCode || applicant.zip_code) {
-      formData.value.zip = applicant.zipCode || applicant.zip_code
+      formData.value.zipCode = applicant.zipCode || applicant.zip_code
       addressLocked.value = true
     }
   }
-  
+
   // Try to load middle name and phone from Step 1 or Step 3 drafts
   try {
     // Check Step 1 draft first
     const step1Draft = await api.get('/forms/draft/1')
     if (step1Draft.data?.success && step1Draft.data?.formData) {
       const step1Data = step1Draft.data.formData
-      
+
       // Load middle name
       if (step1Data.middleName) {
-        formData.value.middle = step1Data.middleName
+        formData.value.middleName = step1Data.middleName
         middleNameLocked.value = true
       }
-      
+
       // Load phone if not already loaded from applicant record
       if (!formData.value.phone && step1Data.phone) {
         formData.value.phone = step1Data.phone
@@ -416,7 +416,7 @@ onMounted(async () => {
       // Check Step 3 draft for middle name
       const step3Draft = await api.get('/forms/draft/3')
       if (step3Draft.data?.success && step3Draft.data?.formData?.middleName) {
-        formData.value.middle = step3Draft.data.formData.middleName
+        formData.value.middleName = step3Draft.data.formData.middleName
         middleNameLocked.value = true
       }
     }

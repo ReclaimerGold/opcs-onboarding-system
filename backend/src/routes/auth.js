@@ -38,13 +38,13 @@ router.post('/signup', async (req, res) => {
       const { getDatabase } = await import('../database/init.js')
       const db = getDatabase()
       const submissions = db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM form_submissions 
+        SELECT COUNT(DISTINCT step_number) as count
+        FROM form_submissions
         WHERE applicant_id = ?
       `).get(existingApplicant.id)
 
-      const completedSteps = submissions.count || 0
-      const isOnboardingComplete = completedSteps >= 6
+      const completedSteps = Math.min(6, submissions?.count ?? 0)
+      const isOnboardingComplete = (submissions?.count ?? 0) >= 6
 
       return res.status(400).json({
         error: isOnboardingComplete
@@ -278,15 +278,15 @@ router.post('/login', async (req, res) => {
       applicant.id
     )
 
-    // Check onboarding completion status
+    // Check onboarding completion status (distinct steps)
     const submissions = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM form_submissions 
+      SELECT COUNT(DISTINCT step_number) as count
+      FROM form_submissions
       WHERE applicant_id = ?
     `).get(applicant.id)
 
-    const completedSteps = submissions.count || 0
-    const isOnboardingComplete = completedSteps >= 6
+    const completedSteps = Math.min(6, submissions?.count ?? 0)
+    const isOnboardingComplete = (submissions?.count ?? 0) >= 6
 
     // Set session
     req.session.applicantId = applicant.id
@@ -381,7 +381,7 @@ router.get('/me', async (req, res) => {
 
       if (applicant) {
         if (applicant.is_active === 0) {
-          req.session.destroy(() => {})
+          req.session.destroy(() => { })
           return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
         }
         const role = applicant.role || (applicant.is_admin === 1 ? 'admin' : 'applicant')
@@ -402,6 +402,136 @@ router.get('/me', async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error)
     res.status(500).json({ error: 'Failed to retrieve user information' })
+  }
+})
+
+/**
+ * GET /api/auth/dashboard-onboarding-status
+ * Check if the user has completed requirements for user onboarding: SSN consent (once, in DB), password (if admin), signature (once, in DB).
+ * Used to lock dashboard/forms until all three are done.
+ */
+router.get('/dashboard-onboarding-status', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const db = getDatabase()
+    const consentRow = db.prepare(`
+      SELECT 1 FROM privacy_consents
+      WHERE applicant_id = ? AND consent_type = 'SSN_COLLECTION'
+      LIMIT 1
+    `).get(req.session.applicantId)
+
+    const applicant = db.prepare('SELECT is_admin, password_hash, signature_data FROM applicants WHERE id = ?')
+      .get(req.session.applicantId)
+    const isAdmin = applicant?.is_admin === 1
+    const passwordSet = !!(applicant?.password_hash && applicant.password_hash.trim() !== '')
+    const hasSignature = !!(applicant?.signature_data && applicant.signature_data.trim() !== '')
+
+    res.json({
+      ssnConsentGiven: !!consentRow,
+      passwordSet,
+      isAdmin,
+      hasSignature
+    })
+  } catch (error) {
+    console.error('Dashboard onboarding status error:', error)
+    res.status(500).json({ error: 'Failed to check onboarding status' })
+  }
+})
+
+/**
+ * POST /api/auth/ssn-consent
+ * Record SSN collection consent once (documented in DB). Required before user onboarding.
+ */
+router.post('/ssn-consent', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const db = getDatabase()
+    db.prepare(`
+      INSERT INTO privacy_consents (applicant_id, consent_type, consent_text, ip_address)
+      VALUES (?, ?, ?, ?)
+    `).run(
+      req.session.applicantId,
+      'SSN_COLLECTION',
+      'Consented to SSN collection (dashboard onboarding)',
+      req.ip
+    )
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('SSN consent recording error:', error)
+    res.status(500).json({ error: 'Failed to record consent' })
+  }
+})
+
+/**
+ * POST /api/auth/save-signature
+ * Save the user's signature once (stored in DB). Required before dashboard/forms access. Cannot continue until filled.
+ */
+router.post('/save-signature', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const { signatureData } = req.body
+    if (!signatureData || typeof signatureData !== 'string' || !signatureData.trim()) {
+      return res.status(400).json({ error: 'Signature data is required' })
+    }
+    // Allow data URL (e.g. data:image/png;base64,...) or plain base64
+    const trimmed = signatureData.trim()
+    if (trimmed.length > 500000) {
+      return res.status(400).json({ error: 'Signature data too large' })
+    }
+
+    const db = getDatabase()
+    db.prepare('UPDATE applicants SET signature_data = ? WHERE id = ?')
+      .run(trimmed, req.session.applicantId)
+
+    await auditLog({
+      userId: req.session.applicantId,
+      action: 'SIGNATURE_SAVED',
+      resourceType: 'APPLICANT',
+      resourceId: req.session.applicantId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { note: 'User onboarding signature saved' }
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Save signature error:', error)
+    res.status(500).json({ error: 'Failed to save signature' })
+  }
+})
+
+/**
+ * GET /api/auth/signature
+ * Get the current user's stored signature (for loading into session on dashboard/forms).
+ */
+router.get('/signature', async (req, res) => {
+  try {
+    if (!req.session || !req.session.applicantId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const db = getDatabase()
+    const row = db.prepare('SELECT signature_data FROM applicants WHERE id = ?')
+      .get(req.session.applicantId)
+
+    if (!row || !row.signature_data || !row.signature_data.trim()) {
+      return res.status(404).json({ error: 'No signature on file' })
+    }
+
+    res.json({ signature: row.signature_data })
+  } catch (error) {
+    console.error('Get signature error:', error)
+    res.status(500).json({ error: 'Failed to get signature' })
   }
 })
 

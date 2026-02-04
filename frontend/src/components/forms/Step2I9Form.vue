@@ -1076,7 +1076,17 @@ onMounted(async () => {
       console.error('Error loading applicant data:', error)
     }
   }
-  
+
+  // Load middle name from Step 1 draft so I-9 name matches W-4
+  try {
+    const step1Draft = await api.get('/forms/draft/1')
+    if (step1Draft.data.success && step1Draft.data.formData?.middleName) {
+      formData.value.middleName = step1Draft.data.formData.middleName
+    }
+  } catch (error) {
+    console.error('Error loading Step 1 draft for middle name:', error)
+  }
+
   // Set document option and substep based on existing data (draft restoration)
   if (formData.value.listADocument) {
     documentOption.value = 'listA'
