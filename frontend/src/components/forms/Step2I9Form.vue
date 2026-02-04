@@ -915,6 +915,17 @@
           </div>
         </div>
       </div>
+
+      <div class="mt-6">
+        <SignaturePad
+          :model-value="formData.signatureData"
+          @update:model-value="formData.signatureData = $event"
+          label="Signature"
+          description="Sign above or type your full legal name. This signature will be placed on your I-9 and other forms."
+          :required="true"
+          :initial-image="formData.signatureData || (sessionSignature || null)"
+        />
+      </div>
       
       <div class="flex justify-end">
         <button
@@ -931,13 +942,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
+import SignaturePad from '../ui/SignaturePad.vue'
 
+const props = defineProps({
+  sessionSignature: { type: String, default: null }
+})
 const emit = defineEmits(['submitted', 'form-data-change'])
-
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
 const formData = ref({
@@ -964,7 +978,8 @@ const formData = ref({
   preparerCity: '',
   preparerState: '',
   preparerZip: '',
-  preparerDate: ''
+  preparerDate: '',
+  signatureData: ''
 })
 
 const loading = ref(false)
@@ -1046,6 +1061,12 @@ onMounted(async () => {
   
   // Load existing uploaded documents
   loadUploadedDocuments()
+
+  nextTick(() => {
+    if (!formData.value.signatureData && props.sessionSignature) {
+      formData.value.signatureData = props.sessionSignature
+    }
+  })
 })
 
 // Load uploaded documents
@@ -1336,6 +1357,11 @@ const handleSubmit = async () => {
   // Validate List C field if List C is selected
   if (formData.value.listCDocument && !formData.value.listCDocumentNumber) {
     alert('Please enter the List C document number.')
+    return
+  }
+
+  if (!formData.value.signatureData) {
+    alert('Signature is required.')
     return
   }
   

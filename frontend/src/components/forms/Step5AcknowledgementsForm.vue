@@ -64,10 +64,14 @@
           </div>
           
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Signature</label>
-            <div class="border-2 border-dashed border-gray-300 rounded-md p-4 h-32 flex items-center justify-center">
-              <p class="text-gray-500 text-sm">Digital signature will be captured</p>
-            </div>
+            <SignaturePad
+              :model-value="formData.signatureData"
+              @update:model-value="formData.signatureData = $event; emit('form-data-change', { ...formData })"
+              label="Signature"
+              description="Sign above or type your full legal name. This signature will be used on your Form 8850 and other documents."
+              :required="true"
+              :initial-image="formData.signatureData || (sessionSignature || null)"
+            />
           </div>
           
           <div>
@@ -99,15 +103,19 @@
 import { ref, onMounted } from 'vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
+import SignaturePad from '../ui/SignaturePad.vue'
 
-const emit = defineEmits(['submitted'])
-
+const props = defineProps({
+  sessionSignature: { type: String, default: null }
+})
+const emit = defineEmits(['submitted', 'form-data-change'])
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
 const formData = ref({
   firstName: '',
   lastName: '',
-  date: new Date().toISOString().split('T')[0]
+  date: new Date().toISOString().split('T')[0],
+  signatureData: ''
 })
 
 const loading = ref(false)

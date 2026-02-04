@@ -29,11 +29,17 @@ describe('Form Routes', () => {
   beforeEach(async () => {
     initializeDatabase()
 
-    // Ensure Google Drive is not used in tests (avoids decrypting real credentials with test key)
     const db = getDatabase()
+    // Ensure Google Drive is not used in tests (avoids decrypting real credentials with test key)
     db.prepare(`
       DELETE FROM settings WHERE key IN ('google_client_id', 'google_client_secret', 'google_refresh_token', 'google_drive_base_folder_id', 'google_shared_drive_id')
     `).run()
+
+    // Set signature placement so W-4, I-9, 8850 submissions are allowed (admin-only setting; tests need it for submit)
+    const placement = JSON.stringify({ mode: 'free_place', pageIndex: 0, x: 72, y: 120, width: 180, height: 40 })
+    db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('signature_placement_W4', ?)`).run(placement)
+    db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('signature_placement_I9', ?)`).run(placement)
+    db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('signature_placement_8850', ?)`).run(placement)
 
     // Create test user and get session
     const signupResponse = await request(app)

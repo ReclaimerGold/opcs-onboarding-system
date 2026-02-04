@@ -140,6 +140,21 @@ This document outlines all compliance requirements for the OPCS Onboarding Syste
 - [ ] Privacy notice displayed before SSN collection
 - [ ] Explicit consent obtained for SSN collection
 
+### 8. E-Signatures
+**Electronic Signatures on PDF Forms**
+
+- **Requirement**: E-signatures (drawn or typed) are captured during onboarding and imprinted on W-4, I-9, and Form 8850 PDFs.
+- **Implementation**:
+  - Signature image is captured once per session and reused across PDF-generating steps.
+  - Signature data is part of the submitted form payload and is stored in `form_submissions.form_data` JSON (same as other form fields).
+  - No separate retention rule: the signature is embedded in the PDF and retained with the same schedule as the form (W-4: 4 years; I-9: per IRCA; 8850: 4 years).
+  - Admin configures placement per form type (free-place coordinates) in Admin → System → PDF Templates (Signature Placement panel).
+
+**Compliance Checklist:**
+- [ ] Signature is required before submitting steps that generate PDFs (W-4, I-9, 8850)
+- [ ] Signature image is not stored separately from the form; it is part of form data and the generated PDF
+- [ ] Retention of signed PDFs follows the same schedule as the underlying form type
+
 ---
 
 ## South Dakota State Requirements

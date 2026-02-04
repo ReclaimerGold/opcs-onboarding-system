@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import api from '../services/api.js'
 import { clearSSNCookie } from '../utils/cookies.js'
+import { clearSessionSignature } from '../utils/sessionSignature.js'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -18,19 +19,19 @@ export const useAuthStore = defineStore('auth', {
           lastName,
           email
         })
-        
-        const {applicant} = response.data
+
+        const { applicant } = response.data
         this.user = applicant
         this.isAuthenticated = true
         this.role = applicant?.role || (applicant?.isAdmin ? 'admin' : 'applicant')
         this.isAdmin = applicant?.isAdmin ?? (this.role === 'admin')
         localStorage.setItem('authToken', 'authenticated')
-        
+
         return { success: true, isNewUser: response.data.isNewUser }
       } catch (error) {
         console.error('Signup error:', error)
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: error.response?.data?.error || 'Signup failed',
           existingAccount: error.response?.data?.existingAccount
         }
@@ -44,19 +45,19 @@ export const useAuthStore = defineStore('auth', {
           lastName,
           email
         })
-        
-        const {applicant} = response.data
+
+        const { applicant } = response.data
         this.user = applicant
         this.isAuthenticated = true
         this.role = applicant?.role || (applicant?.isAdmin ? 'admin' : 'applicant')
         this.isAdmin = applicant?.isAdmin ?? (this.role === 'admin')
         localStorage.setItem('authToken', 'authenticated')
-        
+
         return { success: true, isNewUser: response.data.isNewUser }
       } catch (error) {
         console.error('Login error:', error)
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: error.response?.data?.error || 'Login failed',
           notFound: error.response?.data?.notFound
         }
@@ -76,13 +77,14 @@ export const useAuthStore = defineStore('auth', {
         localStorage.removeItem('authToken')
         // Clear SSN cookie on logout for security
         clearSSNCookie()
+        clearSessionSignature()
       }
     },
 
     async fetchUser() {
       try {
         const response = await api.get('/auth/me')
-        const {data} = response
+        const { data } = response
         this.user = data
         this.isAuthenticated = true
         this.role = data.role || (data.isAdmin ? 'admin' : 'applicant')

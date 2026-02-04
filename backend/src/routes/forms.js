@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { requireAuth } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
-import { generateAndSavePDF } from '../services/pdfService.js'
+import { generateAndSavePDF, getSignaturePlacement } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
 import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured } from '../services/googleDriveService.js'
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
@@ -24,6 +24,24 @@ const upload = multer({
 
 // All routes require authentication
 router.use(requireAuth)
+
+/**
+ * GET /api/forms/template-status
+ * Returns whether signature placement is configured for each PDF form type.
+ * Used by the form wizard to block steps until admin has set placement.
+ */
+router.get('/template-status', async (req, res) => {
+  try {
+    res.json({
+      w4: !!getSignaturePlacement('W4'),
+      i9: !!getSignaturePlacement('I9'),
+      8850: !!getSignaturePlacement('8850')
+    })
+  } catch (error) {
+    console.error('Template status error:', error)
+    res.status(500).json({ error: 'Failed to retrieve template status' })
+  }
+})
 
 const FORM_TYPES = {
   1: 'W4',
@@ -170,6 +188,13 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     // Check if SSN consent was provided for forms that need it
     if ((formType === 'W4' || formType === '8850') && !req.body.ssnConsented) {
       return res.status(400).json({ error: 'SSN collection consent required' })
+    }
+
+    // Block submission if admin has not configured signature placement for this form type
+    if (['W4', 'I9', '8850'].includes(formType) && !getSignaturePlacement(formType)) {
+      return res.status(503).json({
+        error: 'This form is not yet available. The administrator must configure signature placement in Admin → System → PDF Templates before employees can submit.'
+      })
     }
 
     // Validate all legally required fields (and I-9 uploads) before generating PDF
@@ -330,6 +355,13 @@ router.post('/preview/:step', async (req, res) => {
     // Only allow preview for forms that generate PDFs (W-4, I-9, 8850)
     if (!['W4', 'I9', '8850'].includes(formType)) {
       return res.status(400).json({ error: 'Preview not available for this form type' })
+    }
+
+    // Block preview if signature placement not configured (same as submission)
+    if (!getSignaturePlacement(formType)) {
+      return res.status(503).json({
+        error: 'This form is not yet available. The administrator must configure signature placement in Admin → System → PDF Templates.'
+      })
     }
 
     // Parse form data

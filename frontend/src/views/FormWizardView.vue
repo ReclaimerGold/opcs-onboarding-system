@@ -32,6 +32,19 @@
         </div>
       </div>
     </div>
+
+    <div v-if="signaturePlacementBlockedSteps.length > 0" class="sticky top-0 z-40 bg-amber-50 border-b border-amber-200 shadow-sm">
+      <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-3">
+        <div class="flex items-start">
+          <svg class="h-5 w-5 text-amber-600 mt-0.5 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p class="text-sm text-amber-800">
+            <strong>Forms not yet available:</strong> The following steps cannot be submitted until an administrator configures signature placement: {{ signaturePlacementBlockedStepsLabel }}. Please contact your administrator or try again later.
+          </p>
+        </div>
+      </div>
+    </div>
     
     <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
       <!-- Auto-Fill Disclaimer -->
@@ -64,8 +77,8 @@
           <div class="relative z-10 flex items-start w-full">
             <!-- Step 1 - Fixed at start -->
             <div 
-              class="flex flex-col items-center cursor-pointer group relative flex-shrink-0"
-              @click="navigateToStep(1)"
+              :class="['flex flex-col items-center group relative flex-shrink-0', isStepBlockedBySignaturePlacement(1) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer']"
+              @click="!isStepBlockedBySignaturePlacement(1) && navigateToStep(1)"
             >
               <div class="relative w-10 flex justify-center">
                 <div
@@ -76,9 +89,10 @@
                       : getStepStatus(1).status === 'current'
                       ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
-                    getStepStatus(1).hasWarning ? 'ring-2 ring-yellow-400' : ''
+                    getStepStatus(1).hasWarning ? 'ring-2 ring-yellow-400' : '',
+                    isStepBlockedBySignaturePlacement(1) ? 'opacity-70' : ''
                   ]"
-                  :title="getStepStatus(1).hasWarning ? getStepStatus(1).warningMessage : undefined"
+                  :title="isStepBlockedBySignaturePlacement(1) ? 'This form is unavailable until the administrator configures signature placement.' : (getStepStatus(1).hasWarning ? getStepStatus(1).warningMessage : undefined)"
                 >
                   <svg 
                     v-if="getStepStatus(1).status === 'completed'" 
@@ -126,8 +140,8 @@
               <div 
                 v-for="step in [2, 3, 4, 5]" 
                 :key="step" 
-                class="flex flex-col items-center cursor-pointer group relative flex-1"
-                @click="navigateToStep(step)"
+                :class="['flex flex-col items-center group relative flex-1', isStepBlockedBySignaturePlacement(step) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer']"
+                @click="!isStepBlockedBySignaturePlacement(step) && navigateToStep(step)"
               >
                 <div class="flex justify-center w-full">
                   <div class="relative w-10 flex justify-center">
@@ -139,9 +153,10 @@
                           : getStepStatus(step).status === 'current'
                           ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
                           : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
-                        getStepStatus(step).hasWarning ? 'ring-2 ring-yellow-400' : ''
+                        getStepStatus(step).hasWarning ? 'ring-2 ring-yellow-400' : '',
+                        isStepBlockedBySignaturePlacement(step) ? 'opacity-70' : ''
                       ]"
-                      :title="getStepStatus(step).hasWarning ? getStepStatus(step).warningMessage : undefined"
+                      :title="isStepBlockedBySignaturePlacement(step) ? 'This form is unavailable until the administrator configures signature placement.' : (getStepStatus(step).hasWarning ? getStepStatus(step).warningMessage : undefined)"
                     >
                       <svg 
                         v-if="getStepStatus(step).status === 'completed'" 
@@ -188,8 +203,8 @@
             
             <!-- Step 6 - Fixed at end -->
             <div 
-              class="flex flex-col items-center cursor-pointer group relative flex-shrink-0 ml-auto"
-              @click="navigateToStep(6)"
+              :class="['flex flex-col items-center group relative flex-shrink-0 ml-auto', isStepBlockedBySignaturePlacement(6) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer']"
+              @click="!isStepBlockedBySignaturePlacement(6) && navigateToStep(6)"
             >
               <div class="relative w-10 flex justify-center">
                 <div
@@ -200,9 +215,10 @@
                       : getStepStatus(6).status === 'current'
                       ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
-                    getStepStatus(6).hasWarning ? 'ring-2 ring-yellow-400' : ''
+                    getStepStatus(6).hasWarning ? 'ring-2 ring-yellow-400' : '',
+                    isStepBlockedBySignaturePlacement(6) ? 'opacity-70' : ''
                   ]"
-                  :title="getStepStatus(6).hasWarning ? getStepStatus(6).warningMessage : undefined"
+                  :title="isStepBlockedBySignaturePlacement(6) ? 'This form is unavailable until the administrator configures signature placement.' : (getStepStatus(6).hasWarning ? getStepStatus(6).warningMessage : undefined)"
                 >
                   <svg 
                     v-if="getStepStatus(6).status === 'completed'" 
@@ -248,8 +264,21 @@
         </div>
       </div>
       
+      <!-- Signature placement not configured - form cannot be submitted -->
+      <div v-if="isStepBlockedBySignaturePlacement(currentStep)" class="mb-4 bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+        <div class="flex items-start">
+          <svg class="h-5 w-5 text-amber-600 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h3 class="text-sm font-semibold text-amber-800">Form temporarily unavailable</h3>
+            <p class="text-sm text-amber-700 mt-1">This form cannot be submitted until an administrator configures signature placement in Admin → System → PDF Templates.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Warning Banner for Missing Prerequisites -->
-      <div v-if="stepWarnings[currentStep]" class="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+      <div v-else-if="stepWarnings[currentStep]" class="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
         <div class="flex items-start">
           <svg class="h-5 w-5 text-yellow-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -285,11 +314,13 @@
         <div :class="hasPDFPreview ? 'lg:col-span-1' : 'w-full max-w-3xl'">
           <Step1W4Form 
             v-if="currentStep === 1" 
+            :session-signature="sessionSignature"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
           />
           <Step2I9Form 
             v-if="currentStep === 2" 
+            :session-signature="sessionSignature"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
           />
@@ -305,11 +336,13 @@
           />
           <Step5AcknowledgementsForm 
             v-if="currentStep === 5" 
+            :session-signature="sessionSignature"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
           />
           <Step68850Form 
             v-if="currentStep === 6" 
+            :session-signature="sessionSignature"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
           />
@@ -409,6 +442,7 @@ import Step4DirectDepositForm from '../components/forms/Step4DirectDepositForm.v
 import Step5AcknowledgementsForm from '../components/forms/Step5AcknowledgementsForm.vue'
 import Step68850Form from '../components/forms/Step68850Form.vue'
 import api from '../services/api.js'
+import { getSessionSignature } from '../utils/sessionSignature.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -426,6 +460,8 @@ const generatingPreview = ref(false)
 const previewError = ref(null)
 const loadingProgress = ref(false)
 const loadingApplicant = ref(false)
+const sessionSignature = ref(null)
+const templateStatus = ref({ w4: true, i9: true, 8850: true })
 let previewDebounceTimer = null
 
 const stepLabels = {
@@ -468,9 +504,25 @@ watch(currentStep, () => {
   })
 })
 
+const loadTemplateStatus = async () => {
+  try {
+    const res = await api.get('/forms/template-status')
+    templateStatus.value = { w4: !!res.data.w4, i9: !!res.data.i9, 8850: !!res.data['8850'] }
+  } catch {
+    templateStatus.value = { w4: false, i9: false, 8850: false }
+  }
+}
+
 onMounted(async () => {
+  await loadTemplateStatus()
   await loadProgress()
   await loadApplicantData()
+  
+  // Auto-populate signature from onboarding modal (session storage) if not already set from draft
+  if (!sessionSignature.value) {
+    const stored = getSessionSignature()
+    if (stored) sessionSignature.value = stored
+  }
   
   // Check for step query parameter
   if (route.query.step) {
@@ -604,6 +656,26 @@ const getStepLabel = (step) => {
 // Steps that have PDF previews (W-4, I-9, Form 8850)
 const stepsWithPDF = [1, 2, 6]
 
+// Steps blocked when signature placement not configured (admin-only setting)
+const signaturePlacementBlockedSteps = computed(() => {
+  const s = templateStatus.value
+  const steps = []
+  if (!s.w4) steps.push(1)
+  if (!s.i9) steps.push(2)
+  if (!s['8850']) steps.push(6)
+  return steps
+})
+const signaturePlacementBlockedStepsLabel = computed(() => {
+  const labels = []
+  if (!templateStatus.value.w4) labels.push('W-4')
+  if (!templateStatus.value.i9) labels.push('I-9')
+  if (!templateStatus.value['8850']) labels.push('Form 8850')
+  return labels.join(', ') || ''
+})
+function isStepBlockedBySignaturePlacement(step) {
+  return signaturePlacementBlockedSteps.value.includes(step)
+}
+
 // Check if current step has PDF preview
 const hasPDFPreview = computed(() => {
   return stepsWithPDF.includes(currentStep.value)
@@ -662,6 +734,9 @@ const getStepStatus = (step) => {
 }
 
 const navigateToStep = async (step) => {
+  if (isStepBlockedBySignaturePlacement(step)) {
+    return
+  }
   // Validate prerequisites before navigating
   const dependency = stepDependencies[step]
   
@@ -737,7 +812,10 @@ const navigateToRequiredStep = () => {
 const handleFormDataChange = (formData) => {
   // Store current form data
   currentFormData.value = formData
-  
+  if (formData.signatureData) {
+    sessionSignature.value = formData.signatureData
+  }
+
   // Only generate preview for steps with PDFs
   if (!hasPDFPreview.value) {
     return
@@ -792,13 +870,18 @@ const generatePreview = async (formData) => {
   }
   
   generatingPreview.value = true
+
+  const formDataWithSignature = { ...formData }
+  if (stepsWithPDF.includes(currentStep.value) && sessionSignature.value && !formDataWithSignature.signatureData) {
+    formDataWithSignature.signatureData = sessionSignature.value
+  }
   
   try {
     let response
     try {
       response = await api.post(
         `/forms/preview/${currentStep.value}`,
-        { formData },
+        { formData: formDataWithSignature },
         {
           responseType: 'blob',
           headers: {

@@ -116,6 +116,35 @@
         </div>
       </div>
 
+      <!-- Signature Placement Not Configured -->
+      <div 
+        v-if="alerts.missingSignaturePlacement && alerts.missingSignaturePlacement.length > 0"
+        class="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+        @click="$emit('navigate', 'system', { tab: 'pdf-templates' })"
+      >
+        <div class="flex items-start">
+          <div class="flex-shrink-0">
+            <svg class="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </div>
+          <div class="ml-3 flex-1">
+            <h3 class="text-sm font-semibold text-amber-800">Signature placement required</h3>
+            <p class="mt-1 text-sm text-amber-700">
+              Forms cannot be submitted until signature location is set for:
+              <span class="font-medium">{{ formatMissingPlacement(alerts.missingSignaturePlacement) }}</span>.
+              Configure in System → PDF Templates.
+            </p>
+            <p class="mt-2 text-xs text-amber-600 flex items-center">
+              Click to configure
+              <svg class="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- System Errors Alert -->
       <div 
         v-if="alerts.systemErrors > 0"
@@ -173,19 +202,26 @@ const props = defineProps({
       incompleteOnboarding: 0,
       staleOnboarding: 0,
       complianceIssues: 0,
-      systemErrors: 0
+      systemErrors: 0,
+      missingSignaturePlacement: []
     })
   }
 })
 
 defineEmits(['navigate'])
 
+function formatMissingPlacement(types) {
+  if (!types || !types.length) return ''
+  return types.map(t => t === '8850' ? 'Form 8850' : t === 'W4' ? 'W-4' : 'I-9').join(', ')
+}
+
 const hasAlerts = computed(() => {
   return props.alerts.failedLogins > 0 ||
          props.alerts.incompleteOnboarding > 0 ||
          props.alerts.staleOnboarding > 0 ||
          props.alerts.complianceIssues > 0 ||
-         props.alerts.systemErrors > 0
+         props.alerts.systemErrors > 0 ||
+         (props.alerts.missingSignaturePlacement && props.alerts.missingSignaturePlacement.length > 0)
 })
 </script>
 

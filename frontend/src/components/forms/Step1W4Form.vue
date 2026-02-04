@@ -1,6 +1,6 @@
 <template>
   <div>
-    <SSNConsentModal :open="showConsentModal" v-model:consented="ssnConsented" />
+    <SSNConsentModal :open="showConsentModal" v-model:consented="ssnConsented" @signature="onOnboardingSignature" />
     <!-- W-4 Disclaimer -->
     <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
       <h3 class="text-sm font-semibold text-gray-900 mb-2">Federal W-4 - Employee's Withholding Certificate</h3>
@@ -395,6 +395,17 @@
           </p>
         </div>
       </div>
+
+      <div class="mt-6">
+        <SignaturePad
+          :model-value="formData.signatureData"
+          @update:model-value="formData.signatureData = $event"
+          label="Signature"
+          description="Sign above or type your full legal name. This signature will be placed on your W-4 and other forms."
+          :required="true"
+          :initial-image="formData.signatureData || (sessionSignature || null)"
+        />
+      </div>
       
       <div class="flex justify-between items-center">
         <div class="flex items-center space-x-4">
@@ -429,17 +440,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import SSNConsentModal from '../SSNConsentModal.vue'
 import AddressSearch from '../ui/AddressSearch.vue'
+import SignaturePad from '../ui/SignaturePad.vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { formatPhoneNumber, validatePhoneNumber, validateEmail as validateEmailUtil, formatEmail } from '../../utils/validation.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 
+const props = defineProps({
+  sessionSignature: { type: String, default: null }
+})
 const emit = defineEmits(['submitted', 'form-data-change'])
-
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
 const formData = ref({
@@ -457,7 +471,8 @@ const formData = ref({
   filingStatus: 'single',
   multipleJobs: false,
   qualifyingChildren: 0,
-  dependents: 0
+  dependents: 0,
+  signatureData: ''
 })
 
 const ssnConsented = ref(false)
@@ -547,6 +562,13 @@ onMounted(async () => {
   if (savedSSN && savedSSN.match(/^\d{3}-\d{2}-\d{4}$/)) {
     formData.value.ssn = savedSSN
   }
+
+  // After draft load (nextTick), use session signature if we don't have one
+  nextTick(() => {
+    if (!formData.value.signatureData && props.sessionSignature) {
+      formData.value.signatureData = props.sessionSignature
+    }
+  })
 })
 
 watch(ssnConsented, (value) => {
@@ -554,6 +576,13 @@ watch(ssnConsented, (value) => {
     sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
   }
 })
+
+function onOnboardingSignature(signatureDataUrl) {
+  if (signatureDataUrl) {
+    formData.value.signatureData = signatureDataUrl
+    emit('form-data-change', { ...formData.value })
+  }
+}
 
 const showConsentModal = computed(() => !ssnConsented.value)
 
@@ -695,7 +724,10 @@ const handleSubmit = async () => {
   if (!formData.value.filingStatus) {
     errors.push('Filing status is required (Section C)')
   }
-  
+  if (!formData.value.signatureData) {
+    errors.push('Signature is required')
+  }
+
   // Validate phone if provided and not locked
   if (!phoneLocked.value && formData.value.phone) {
     const phoneValidation = validatePhoneNumber(formData.value.phone)

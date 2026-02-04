@@ -25,6 +25,90 @@ const __dirname = path.dirname(__filename)
 // Local storage directory for encrypted PDFs when Google Drive is not configured
 const LOCAL_STORAGE_DIR = path.join(__dirname, '../../storage/encrypted-pdfs')
 
+/** Form types that support signature placement */
+const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850']
+
+/**
+ * Normalize stored placement value to array of placements.
+ * Supports legacy single object or new { placements: [] } format.
+ * @param {string} formType - W4, I9, or 8850
+ * @returns {{ pageIndex: number, x: number, y: number, width: number, height: number }[]}
+ */
+export function getSignaturePlacements(formType) {
+  if (!SIGNATURE_PLACEMENT_FORM_TYPES.includes(formType)) return []
+  const db = getDatabase()
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(`signature_placement_${formType}`)
+  if (!row || !row.value) return []
+  try {
+    const parsed = JSON.parse(row.value)
+    if (parsed.placements && Array.isArray(parsed.placements)) {
+      return parsed.placements.filter(
+        p => typeof p.pageIndex === 'number' && typeof p.x === 'number' && typeof p.y === 'number' && typeof p.width === 'number' && typeof p.height === 'number'
+      )
+    }
+    if (parsed.mode === 'free_place' && typeof parsed.pageIndex === 'number') {
+      return [{
+        pageIndex: parsed.pageIndex,
+        x: parsed.x ?? 72,
+        y: parsed.y ?? 120,
+        width: parsed.width ?? 180,
+        height: parsed.height ?? 40
+      }]
+    }
+    return []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Get first signature placement for a form type (backward compat / "has any").
+ * @param {string} formType - W4, I9, or 8850
+ * @returns {{ pageIndex: number, x: number, y: number, width: number, height: number } | null}
+ */
+export function getSignaturePlacement(formType) {
+  const placements = getSignaturePlacements(formType)
+  return placements.length > 0 ? placements[0] : null
+}
+
+/**
+ * Draw signature image on PDF at all configured positions (one per page optional).
+ * @param {PDFDocument} pdfDoc - Loaded PDF document
+ * @param {string} formType - W4, I9, or 8850
+ * @param {string} signatureBase64 - Base64 PNG (with or without data URL prefix)
+ */
+async function drawSignatureOnPdf(pdfDoc, formType, signatureBase64) {
+  const placements = getSignaturePlacements(formType)
+  if (placements.length === 0 || !signatureBase64) return
+
+  let base64 = signatureBase64.trim()
+  if (base64.startsWith('data:image/png;base64,')) {
+    base64 = base64.slice('data:image/png;base64,'.length)
+  } else if (base64.startsWith('data:image/')) {
+    const comma = base64.indexOf(',')
+    if (comma !== -1) base64 = base64.slice(comma + 1)
+  }
+  if (!base64) return
+
+  const pages = pdfDoc.getPages()
+  const buf = Buffer.from(base64, 'base64')
+  const image = await pdfDoc.embedPng(buf)
+  const { width: imgW, height: imgH } = image.scale(1)
+
+  for (const placement of placements) {
+    const pageIndex = Math.max(0, Math.min(placement.pageIndex, pages.length - 1))
+    const page = pages[pageIndex]
+    const placeW = placement.width || 180
+    const placeH = placement.height || 40
+    const scale = Math.min(placeW / imgW, placeH / imgH, 1)
+    const drawW = imgW * scale
+    const drawH = imgH * scale
+    const x = placement.x ?? 72
+    const y = placement.y ?? 120
+    page.drawImage(image, { x, y, width: drawW, height: drawH })
+  }
+}
+
 /**
  * Generate standardized filename
  * Format: FirstnameLastname-FormType-MMDDYYYY-HHMM.pdf
@@ -204,6 +288,10 @@ async function fillW4Template(templateBuffer, formData) {
       console.warn(`W-4: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
     }
 
+    if (formData.signatureData) {
+      await drawSignatureOnPdf(pdfDoc, 'W4', formData.signatureData)
+    }
+
     const pdfBytes = await pdfDoc.save()
     return pdfBytes
   } catch (error) {
@@ -379,6 +467,10 @@ async function fillI9Template(templateBuffer, formData) {
 
     if (result.failedFields.length > 0) {
       console.warn(`I-9: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
+    }
+
+    if (formData.signatureData) {
+      await drawSignatureOnPdf(pdfDoc, 'I9', formData.signatureData)
     }
 
     const pdfBytes = await pdfDoc.save()
@@ -562,6 +654,10 @@ async function fill8850Template(templateBuffer, formData) {
 
     if (result.failedFields.length > 0) {
       console.warn(`8850: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
+    }
+
+    if (formData.signatureData) {
+      await drawSignatureOnPdf(pdfDoc, '8850', formData.signatureData)
     }
 
     const pdfBytes = await pdfDoc.save()

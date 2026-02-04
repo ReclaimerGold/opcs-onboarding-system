@@ -4,6 +4,7 @@ import DashboardView from '../views/DashboardView.vue'
 import FormWizardView from '../views/FormWizardView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import AdminDashboardView from '../views/AdminDashboardView.vue'
+import AdminOnboardingView from '../views/AdminOnboardingView.vue'
 import PasswordSetupView from '../views/PasswordSetupView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
@@ -53,6 +54,12 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
+    path: '/admin/setup',
+    name: 'AdminSetup',
+    component: AdminOnboardingView,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/password-setup',
     name: 'PasswordSetup',
     component: PasswordSetupView,
@@ -68,11 +75,11 @@ const router = createRouter({
 // Auth guard
 router.beforeEach(async (to, from, next) => {
   const isAuthenticated = localStorage.getItem('authToken')
-  
+
   // Import auth store
   const { useAuthStore } = await import('../stores/auth.js')
   const authStore = useAuthStore()
-  
+
   // Fetch user info if authenticated but not loaded
   if (isAuthenticated && !authStore.user) {
     try {
@@ -87,13 +94,13 @@ router.beforeEach(async (to, from, next) => {
       }
     }
   }
-  
+
   // Check authentication
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
     return
   }
-  
+
   // Check admin access
   if (to.meta.requiresAdmin) {
     if (!isAuthenticated) {
@@ -105,7 +112,7 @@ router.beforeEach(async (to, from, next) => {
       next('/dashboard')
       return
     }
-    
+
     // Check if password setup is required (except for password-setup route itself)
     if (to.path !== '/password-setup') {
       try {
@@ -120,8 +127,23 @@ router.beforeEach(async (to, from, next) => {
         console.error('Failed to check password status:', error)
       }
     }
+
+    // Require admin setup (signature placement) before dashboard/settings; only /admin/setup is allowed until complete
+    if (to.path !== '/admin/setup' && to.path !== '/password-setup') {
+      try {
+        const api = (await import('../services/api.js')).default
+        const setupStatus = await api.get('/admin/setup-status')
+        if (!setupStatus.data.signaturePlacementComplete) {
+          next('/admin/setup')
+          return
+        }
+      } catch (error) {
+        console.error('Failed to check admin setup status:', error)
+        // On error, allow access so admins are not locked out
+      }
+    }
   }
-  
+
   // Redirect authenticated users away from login
   if (to.path === '/login' && isAuthenticated) {
     if (authStore.isAdmin) {
@@ -131,7 +153,7 @@ router.beforeEach(async (to, from, next) => {
     }
     return
   }
-  
+
   next()
 })
 

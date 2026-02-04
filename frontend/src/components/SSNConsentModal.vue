@@ -171,6 +171,59 @@
               </div>
             </form>
           </template>
+
+          <!-- Slide 3: Add your Signature -->
+          <template v-if="slide === 3">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                <svg class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">
+                  Add your signature
+                </h3>
+                <p class="text-sm text-gray-600">
+                  Your signature will be used on W-4, I-9, and other forms so you won't need to re-enter it each time.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-5 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
+              <p class="text-sm text-blue-800">
+                <strong>One-time setup:</strong> Draw or type your signature below. It will auto-populate on all onboarding forms.
+              </p>
+            </div>
+
+            <div class="mt-5">
+              <SignaturePad
+                v-model="onboardingSignature"
+                label="Your signature"
+                :required="true"
+                :width="360"
+                :height="120"
+              />
+            </div>
+
+            <div class="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                @click="slide = 2"
+                class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                :disabled="!onboardingSignature"
+                class="px-4 py-2 rounded-md text-white bg-primary hover:bg-primary-light disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                @click="handleSignatureContinue"
+              >
+                Continue
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -180,6 +233,8 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import api from '../services/api.js'
+import SignaturePad from './ui/SignaturePad.vue'
+import { setSessionSignature } from '../utils/sessionSignature.js'
 
 const props = defineProps({
   open: {
@@ -192,12 +247,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:consented'])
+const emit = defineEmits(['update:consented', 'signature'])
 
-// Slide state: 1 = consent, 2 = password setup
+// Slide state: 1 = consent, 2 = password setup, 3 = add signature
 const slide = ref(1)
 const localConsented = ref(false)
 const checkingPassword = ref(false)
+const onboardingSignature = ref(null)
 
 // Password form state
 const password = ref('')
@@ -223,11 +279,12 @@ watch(
       password.value = ''
       confirmPassword.value = ''
       passwordError.value = ''
+      onboardingSignature.value = null
     }
   }
 )
 
-// Handle consent click - check if password is already set
+// Handle consent click - check if password is already set, then show signature step
 const handleConsentClick = async () => {
   if (!localConsented.value) {
     return
@@ -236,19 +293,17 @@ const handleConsentClick = async () => {
   checkingPassword.value = true
   
   try {
-    // Check if user already has a password set
     const response = await api.get('/auth/password-status')
     
     if (response.data.passwordSet) {
-      // Password already set, emit consent and close
-      emit('update:consented', true)
+      // Password already set, go to signature step
+      slide.value = 3
     } else {
-      // No password set, show password setup slide
+      // No password set, show password setup then signature
       slide.value = 2
     }
   } catch (error) {
     console.error('Failed to check password status:', error)
-    // On error, still allow continuing - show password setup
     slide.value = 2
   } finally {
     checkingPassword.value = false
@@ -271,8 +326,8 @@ const handleSetPassword = async () => {
     })
 
     if (response.data.success) {
-      // Password set successfully, emit consent and close
-      emit('update:consented', true)
+      // Password set successfully, go to signature step
+      slide.value = 3
     }
   } catch (error) {
     const errorData = error.response?.data || {}
@@ -280,5 +335,13 @@ const handleSetPassword = async () => {
   } finally {
     settingPassword.value = false
   }
+}
+
+// Handle signature step complete - save for session, notify parent, and close modal
+function handleSignatureContinue() {
+  if (!onboardingSignature.value) return
+  setSessionSignature(onboardingSignature.value)
+  emit('signature', onboardingSignature.value)
+  emit('update:consented', true)
 }
 </script>

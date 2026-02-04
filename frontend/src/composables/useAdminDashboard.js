@@ -14,7 +14,7 @@ export function useAdminDashboard() {
   const allSubmissions = ref([])
   const allI9Documents = ref([])
   const complianceReport = ref(null)
-  
+
   // Loading states
   const loading = ref({
     dashboard: false,
@@ -49,12 +49,16 @@ export function useAdminDashboard() {
       complianceIssues = complianceReport.value.summary.criticalIssues || 0
     }
 
+    const ready = dashboardStats.value.signaturePlacementReady || {}
+    const missingSignaturePlacement = ['W4', 'I9', '8850'].filter(t => !ready[t])
+
     return {
       failedLogins: dashboardStats.value.activity?.failedLogins || 0,
       incompleteOnboarding: dashboardStats.value.onboarding?.inProgress || 0,
       staleOnboarding: staleCount,
       complianceIssues,
-      systemErrors: systemHealth.value.recentErrors?.length || 0
+      systemErrors: systemHealth.value.recentErrors?.length || 0,
+      missingSignaturePlacement
     }
   })
 
@@ -200,7 +204,7 @@ export function useAdminDashboard() {
     errors.value.users = null
     try {
       const response = await api.get('/admin/users', { params })
-      const {data} = response
+      const { data } = response
       if (!data || typeof data !== 'object') {
         errors.value.users = 'Invalid response from server'
         return { users: [], pagination: { total: 0 } }
@@ -307,12 +311,12 @@ export function useAdminDashboard() {
     complianceReport,
     loading,
     errors,
-    
+
     // Computed
     alerts,
     workflowGroups,
     quickStats,
-    
+
     // Methods
     loadDashboardStats,
     loadOnboardingStatus,

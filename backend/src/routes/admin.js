@@ -18,7 +18,7 @@ import {
 } from '../services/pdfTemplateService.js'
 import { runAllComplianceChecks } from '../services/complianceService.js'
 import { fixAllFilePermissions, isGoogleDriveConfigured, deleteFromGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.js'
-import { generateW4PDF, generateI9PDF, generate8850PDF, generateGenericPDF, generateFilename, calculateRetentionDate } from '../services/pdfService.js'
+import { generateW4PDF, generateI9PDF, generate8850PDF, generateGenericPDF, generateFilename, calculateRetentionDate, getSignaturePlacement, getSignaturePlacements } from '../services/pdfService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -99,11 +99,36 @@ router.get('/dashboard', async (req, res) => {
         failedLogins,
         totalSubmissions,
         recentAuditLogs
+      },
+      signaturePlacementReady: {
+        w4: !!getSignaturePlacement('W4'),
+        i9: !!getSignaturePlacement('I9'),
+        8850: !!getSignaturePlacement('8850')
       }
     })
   } catch (error) {
     console.error('Dashboard error:', error)
     res.status(500).json({ error: 'Failed to retrieve dashboard data' })
+  }
+})
+
+/**
+ * GET /api/admin/setup-status
+ * Whether required admin setup is complete. At least one signature placement per document (W-4, I-9, 8850) is required before admins can use the dashboard. Not every page needs a signature.
+ */
+router.get('/setup-status', async (req, res) => {
+  try {
+    const w4 = !!getSignaturePlacement('W4')
+    const i9 = !!getSignaturePlacement('I9')
+    const o8850 = !!getSignaturePlacement('8850')
+    const signaturePlacementComplete = w4 && i9 && o8850
+    res.json({
+      signaturePlacementComplete,
+      signaturePlacementReady: { w4, i9, 8850: o8850 }
+    })
+  } catch (error) {
+    console.error('Setup status error:', error)
+    res.status(500).json({ error: 'Failed to retrieve setup status' })
   }
 })
 
@@ -1602,6 +1627,111 @@ router.get('/pdf-templates/:formType/archive/:filename', async (req, res) => {
   }
 })
 
+/** Valid form types for signature placement */
+const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850']
+
+/**
+ * GET /api/admin/settings/signature-placement
+ * Get signature placement config for a form type (or all).
+ * Query: formType (optional) - W4, I9, or 8850. If omitted, returns all.
+ */
+router.get('/settings/signature-placement', async (req, res) => {
+  try {
+    const { formType } = req.query
+
+    if (formType) {
+      if (!SIGNATURE_PLACEMENT_FORM_TYPES.includes(formType)) {
+        return res.status(400).json({
+          error: `Invalid form type: ${formType}. Use W4, I9, or 8850.`
+        })
+      }
+      const placements = getSignaturePlacements(formType)
+      return res.json({ formType, placements })
+    }
+
+    const result = {}
+    for (const type of SIGNATURE_PLACEMENT_FORM_TYPES) {
+      result[type] = getSignaturePlacements(type)
+    }
+    res.json(result)
+  } catch (error) {
+    console.error('Get signature placement error:', error)
+    res.status(500).json({ error: 'Failed to retrieve signature placement', details: error.message })
+  }
+})
+
+/**
+ * PUT /api/admin/settings/signature-placement
+ * Set signature placement for a form type (free-place).
+ * Body: { formType: 'W4'|'I9'|'8850', placement: { mode: 'free_place', pageIndex: number, x: number, y: number, width: number, height: number } }
+ * PDF coordinates: origin bottom-left; Y increases upward. pageIndex is 0-based.
+ */
+router.put('/settings/signature-placement', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const { formType, placement, placements: bodyPlacements } = req.body
+
+    if (!formType || !SIGNATURE_PLACEMENT_FORM_TYPES.includes(formType)) {
+      return res.status(400).json({
+        error: 'formType is required and must be W4, I9, or 8850.'
+      })
+    }
+
+    let placements
+    if (Array.isArray(bodyPlacements)) {
+      placements = bodyPlacements.map((p) => {
+        const pageIndex = Number(p.pageIndex)
+        const x = Number(p.x)
+        const y = Number(p.y)
+        const width = Number(p.width)
+        const height = Number(p.height)
+        if (!Number.isInteger(pageIndex) || pageIndex < 0 || Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(width) || Number.isNaN(height) || width <= 0 || height <= 0) {
+          return null
+        }
+        return { pageIndex, x, y, width, height }
+      }).filter(Boolean)
+    } else if (placement && placement.mode === 'free_place') {
+      const pageIndex = Number(placement.pageIndex)
+      const x = Number(placement.x)
+      const y = Number(placement.y)
+      const width = Number(placement.width)
+      const height = Number(placement.height)
+      if (!Number.isInteger(pageIndex) || pageIndex < 0 || Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(width) || Number.isNaN(height) || width <= 0 || height <= 0) {
+        return res.status(400).json({ error: 'placement.pageIndex, x, y, width, height must be valid; width and height positive.' })
+      }
+      placements = [{ pageIndex, x, y, width, height }]
+    } else {
+      return res.status(400).json({
+        error: 'placements array or placement object (mode: "free_place") is required.'
+      })
+    }
+
+    const key = `signature_placement_${formType}`
+    const value = JSON.stringify({ mode: 'free_place', placements })
+
+    db.prepare(`
+      INSERT INTO settings (key, value, is_encrypted, updated_at)
+      VALUES (?, ?, 0, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+    `).run(key, value, value)
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'UPDATE',
+      resourceType: 'SETTINGS',
+      resourceId: key,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { formType, count: placements.length }
+    })
+
+    res.json({ success: true, formType, placements })
+  } catch (error) {
+    console.error('Update signature placement error:', error)
+    res.status(500).json({ error: 'Failed to update signature placement', details: error.message })
+  }
+})
+
 /**
  * POST /api/admin/tests/run
  * Run unit tests and return results
@@ -2309,13 +2439,13 @@ router.post('/regenerate-pdfs', async (req, res) => {
   try {
     // Check if Google Drive is configured
     if (!isGoogleDriveConfigured()) {
-      return res.status(400).json({ 
-        error: 'Google Drive is not configured. Please configure credentials in Settings first.' 
+      return res.status(400).json({
+        error: 'Google Drive is not configured. Please configure credentials in Settings first.'
       })
     }
 
     const db = getDatabase()
-    
+
     // Get all submissions with Google Drive IDs
     // Include all applicant fields needed for PDF generation
     const submissions = db.prepare(`
@@ -2354,7 +2484,7 @@ router.post('/regenerate-pdfs', async (req, res) => {
 
         // 2. Parse stored form data and build applicant data with all needed fields
         const formData = JSON.parse(sub.form_data)
-        
+
         // For I-9 forms, we need SSN which is stored in the W-4 submission (not in applicants table)
         let ssn = formData.ssn || ''
         if (!ssn && sub.form_type === 'I9') {
@@ -2371,7 +2501,7 @@ router.post('/regenerate-pdfs', async (req, res) => {
             } catch (e) { /* ignore parse errors */ }
           }
         }
-        
+
         const applicantData = {
           first_name: sub.first_name,
           last_name: sub.last_name,
@@ -2467,9 +2597,9 @@ router.post('/regenerate-pdfs', async (req, res) => {
     })
   } catch (error) {
     console.error('Regenerate PDFs error:', error)
-    res.status(500).json({ 
-      error: 'Failed to regenerate PDFs', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Failed to regenerate PDFs',
+      details: error.message
     })
   }
 })
@@ -2483,8 +2613,8 @@ router.post('/fix-gdrive-permissions', async (req, res) => {
   try {
     // Check if Google Drive is configured
     if (!isGoogleDriveConfigured()) {
-      return res.status(400).json({ 
-        error: 'Google Drive is not configured. Please configure credentials in Settings first.' 
+      return res.status(400).json({
+        error: 'Google Drive is not configured. Please configure credentials in Settings first.'
       })
     }
 
@@ -2508,9 +2638,9 @@ router.post('/fix-gdrive-permissions', async (req, res) => {
     })
   } catch (error) {
     console.error('Fix GDrive permissions error:', error)
-    res.status(500).json({ 
-      error: 'Failed to fix Google Drive permissions', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Failed to fix Google Drive permissions',
+      details: error.message
     })
   }
 })

@@ -224,6 +224,17 @@
           </div>
         </div>
       </div>
+
+      <div class="mt-6">
+        <SignaturePad
+          :model-value="formData.signatureData"
+          @update:model-value="formData.signatureData = $event"
+          label="Signature"
+          description="Sign above or type your full legal name. This signature will be placed on your Form 8850."
+          :required="true"
+          :initial-image="formData.signatureData || (sessionSignature || null)"
+        />
+      </div>
       
       <!-- Show missing required fields warning -->
       <div v-if="missingRequiredFields.length > 0 && !loading" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md">
@@ -259,15 +270,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import SSNConsentModal from '../SSNConsentModal.vue'
+import SignaturePad from '../ui/SignaturePad.vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 import { formatPhoneNumber, validatePhoneNumber } from '../../utils/validation.js'
 
+const props = defineProps({
+  sessionSignature: { type: String, default: null }
+})
 const emit = defineEmits(['submitted', 'form-data-change'])
-
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
 const formData = ref({
@@ -286,7 +300,8 @@ const formData = ref({
   question1: false,
   question2: false,
   question3: false,
-  previousEmployment: 'no'
+  previousEmployment: 'no',
+  signatureData: ''
 })
 
 const ssnConsented = ref(false)
@@ -415,6 +430,12 @@ onMounted(async () => {
   if (savedSSN && savedSSN.match(/^\d{3}-\d{2}-\d{4}$/)) {
     formData.value.ssn = savedSSN
   }
+
+  nextTick(() => {
+    if (!formData.value.signatureData && props.sessionSignature) {
+      formData.value.signatureData = props.sessionSignature
+    }
+  })
 })
 
 watch(ssnConsented, (value) => {
@@ -431,6 +452,7 @@ const missingRequiredFields = computed(() => {
   if (!formData.value.ssn) missing.push('Social Security Number')
   if (!formData.value.email) missing.push('Email')
   if (!formData.value.county) missing.push('County')
+  if (!formData.value.signatureData) missing.push('Signature')
   // Check phone validation if phone is provided but not locked
   if (formData.value.phone && !phoneLocked.value && phoneError.value) {
     missing.push('Valid Phone Number')
@@ -491,6 +513,11 @@ const handleSubmit = async () => {
   // Check for missing required fields
   if (missingRequiredFields.value.length > 0) {
     alert('Please complete all required fields before submitting.')
+    return
+  }
+
+  if (!formData.value.signatureData) {
+    alert('Signature is required.')
     return
   }
   

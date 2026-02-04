@@ -811,9 +811,10 @@
               </div>
             </div>
 
-            <!-- PDF Templates -->
-            <div v-if="systemTab === 'templates'">
+            <!-- PDF Templates and Signature Placement -->
+            <div v-if="systemTab === 'templates'" class="space-y-6">
               <PdfTemplatesPanel />
+              <SignaturePlacementPanel />
             </div>
           </div>
         </div>
@@ -837,6 +838,7 @@ import DataTable from '../components/admin/DataTable.vue'
 import ComplianceChecker from '../components/admin/ComplianceChecker.vue'
 import TestResultsPanel from '../components/admin/TestResultsPanel.vue'
 import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
+import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -1528,6 +1530,9 @@ const regeneratePdfs = async () => {
 
 const handleAlertNavigation = (tab, options = {}) => {
   activeTab.value = tab
+  if (options.tab === 'pdf-templates' && tab === 'system') {
+    systemTab.value = 'templates'
+  }
   if (options.filter === 'failed-logins') {
     activityTab.value = 'logins'
     loginsFilters.value = { success: 'false' }

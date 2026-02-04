@@ -21,9 +21,10 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 - **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
-- **SSN Consent Modal**: Two-slide modal flow:
-  - Slide 1: Non-dismissable SSN consent required before W-4 and 8850 forms
-  - Slide 2: Password setup required after consent (secures account for future logins)
+- **Applicant onboarding modal** (SSN consent flow): Three-step flow when first using the forms:
+  - Step 1: SSN collection notice and consent (required before W-4 and 8850)
+  - Step 2: Password setup (if not already set; secures account for future logins)
+  - Step 3: Add your signature once; it is stored for the session and auto-populates on W-4, I-9, 8850, and Acknowledgements
 
 ### Form Features
 - **6-step form workflow**: W-4, I-9, Background Check, Direct Deposit, Acknowledgements, Form 8850
@@ -32,6 +33,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Google Address Validation**: Address validation with auto-fill of city, state, and zip code (optional API - falls back to manual parsing when not configured)
 - **Comprehensive Disclaimers**: All disclaimers from original JotForms included
 - **SSN Privacy Protection**: SSNs only included in PDFs, never stored in database
+- **E-Signatures**: Draw or type your signature on W-4, I-9, Acknowledgements, and Form 8850; the same signature is imprinted on each PDF at admin-configured positions (free-place)
 
 ### Technical Features
 - **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data
@@ -47,6 +49,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - Session-based authentication with persistent SQLite session store
 - **Admin Settings Panel**: Central configuration for Google Drive and Address Validation APIs with status indicators and connection test buttons
 - **Google Drive Folder Browser**: Browse and search your Google Drive folders to select a base folder for document storage
+- **Signature Placement (Admin, required)**: Per-document, optional per-page configuration for where the e-signature image is drawn on W-4, I-9, and Form 8850 PDFs (Admin → System → PDF Templates). High-resolution PDF preview; sidebar lists pages and a draggable “Signature field” to drop onto any page. Signature box can be moved and resized horizontally. Admins must complete the setup wizard (/admin/setup) before using the dashboard; API keys are optional and can be set later in Settings.
 - **Liability Compliance Checker**: Comprehensive compliance verification for Federal and South Dakota state requirements
 
 ## Tech Stack
@@ -392,7 +395,8 @@ This system is designed to comply with:
   - Body: `{ token, password, confirmPassword }` → sets new password
 
 ### Forms
-- `POST /api/forms/submit/:step` - Submit form step (1-6)
+- `GET /api/forms/template-status` - Returns whether signature placement is configured for W-4, I-9, and Form 8850 (`{ w4, i9, 8850 }` booleans). Used by the form wizard to block steps until an admin sets placement.
+- `POST /api/forms/submit/:step` - Submit form step (1-6). Returns 503 if signature placement is not configured for that form type (W-4, I-9, 8850).
 - `GET /api/forms/submissions` - Get all form submissions (includes `web_view_link` for Google Drive direct links)
 - `GET /api/forms/submissions/:id/view` - View form submission PDF (or redirects to Google Drive if `web_view_link` available)
 - `POST /api/forms/draft/:step` - Save draft for step
@@ -426,6 +430,7 @@ This system is designed to comply with:
 - `GET /api/address/status` - Check if address validation is configured (authenticated)
 
 ### Admin (Admin Only)
+- `GET /api/admin/setup-status` - Returns whether required admin setup is complete (`{ signaturePlacementComplete: boolean, signaturePlacementReady: { w4, i9, 8850 } }`). Used to enforce the admin onboarding wizard; admins are redirected to `/admin/setup` until at least one signature placement is set per document (W-4, I-9, 8850). Not every page needs a placement.
 - `GET /api/admin/dashboard` - Get dashboard statistics
 - `GET /api/admin/login-attempts` - Get login attempts with filtering, search, and pagination
   - Query params: `search`, `success`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
@@ -450,6 +455,8 @@ This system is designed to comply with:
 - `GET /api/admin/pdf-templates/:formType/preview` - Preview/download current PDF template (W4, I9, 8850)
 - `GET /api/admin/pdf-templates/:formType/archive` - List archived versions of a template
 - `GET /api/admin/pdf-templates/:formType/archive/:filename` - Preview/download an archived template version
+- `GET /api/admin/settings/signature-placement` - Get signature placements (query: `formType` optional — W4, I9, 8850). Returns `{ formType, placements: [ { pageIndex, x, y, width, height }, ... ] }` or all form types as arrays.
+- `PUT /api/admin/settings/signature-placement` - Set signature placements for a form type (body: `{ formType, placements: [ { pageIndex, x, y, width, height }, ... ] }`). Legacy single placement also accepted: `{ formType, placement: { mode: "free_place", pageIndex, x, y, width, height } }`. PDF coordinates: origin bottom-left, Y up; pageIndex 0-based. Signature is optional per page.
 - `GET /api/admin/compliance-check` - Run comprehensive compliance check for Federal and SD state requirements
 
 ### Admin Export Endpoints (CSV)
