@@ -228,8 +228,8 @@ async function fillPDFTemplate(pdfDoc, fieldMapping, mappedData) {
     }
   }
 
-  // Flatten the form to prevent further editing (optional)
-  // form.flatten()
+  // Flatten the form so the document is not editable after submission or export
+  form.flatten()
 
   return { filledCount, failedFields }
 }
@@ -568,6 +568,33 @@ async function generateI9PDFFallback(formData, applicantData) {
       size: fontSize,
       font: helveticaFont
     })
+    if (formData.listADocumentNumber) {
+      yPos -= 16
+      page.drawText(`List A Document Number: ${formData.listADocumentNumber}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
+    if (formData.listAIssuingAuthority) {
+      yPos -= 16
+      page.drawText(`List A Issuing Authority: ${formData.listAIssuingAuthority}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
+    if (formData.listAExpiration) {
+      yPos -= 16
+      page.drawText(`List A Expiration: ${formatDateForPDF(formData.listAExpiration)}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
   }
 
   if (formData.listBDocument) {
@@ -578,6 +605,33 @@ async function generateI9PDFFallback(formData, applicantData) {
       size: fontSize,
       font: helveticaFont
     })
+    if (formData.listBDocumentNumber) {
+      yPos -= 16
+      page.drawText(`List B Document Number: ${formData.listBDocumentNumber}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
+    if (formData.listBIssuingAuthority) {
+      yPos -= 16
+      page.drawText(`List B Issuing Authority: ${formData.listBIssuingAuthority}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
+    if (formData.listBExpiration) {
+      yPos -= 16
+      page.drawText(`List B Expiration: ${formatDateForPDF(formData.listBExpiration)}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
   }
 
   if (formData.listCDocument) {
@@ -588,6 +642,15 @@ async function generateI9PDFFallback(formData, applicantData) {
       size: fontSize,
       font: helveticaFont
     })
+    if (formData.listCDocumentNumber) {
+      yPos -= 16
+      page.drawText(`List C Document Number: ${formData.listCDocumentNumber}`, {
+        x: 50,
+        y: yPos,
+        size: fontSize,
+        font: helveticaFont
+      })
+    }
   }
 
   yPos -= 40

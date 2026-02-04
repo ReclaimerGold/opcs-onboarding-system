@@ -73,7 +73,12 @@ function validatePreviewFormData(formData, step) {
       if (!formData.firstName || !formData.lastName || !formData.authorizationType) {
         return { valid: false, error: 'Complete name and employment authorization before viewing preview' }
       }
-      if (formData.listADocument) return { valid: true }
+      if (formData.listADocument) {
+        if (!formData.listADocumentNumber) {
+          return { valid: false, error: 'Complete List A document number before viewing preview' }
+        }
+        return { valid: true }
+      }
       if (formData.listBDocument && formData.listCDocument) {
         if (!formData.listBDocumentNumber || !formData.listBIssuingAuthority || !formData.listCDocumentNumber) {
           return { valid: false, error: 'Complete all List B and List C document fields before viewing preview' }
@@ -116,6 +121,9 @@ function validateSubmitFormData(formData, step, applicantId, db) {
         return { valid: false, error: 'Complete name and employment authorization before submitting' }
       }
       if (formData.listADocument) {
+        if (!formData.listADocumentNumber) {
+          return { valid: false, error: 'Complete List A document number before submitting' }
+        }
         const listA = db.prepare(`
           SELECT id FROM i9_documents WHERE applicant_id = ? AND document_category = 'listA'
         `).get(applicantId)

@@ -276,7 +276,7 @@ import SignaturePad from '../ui/SignaturePad.vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
-import { formatPhoneNumber, validatePhoneNumber } from '../../utils/validation.js'
+import { formatPhoneNumber, formatSSN as formatSSNUtil, validatePhoneNumber } from '../../utils/validation.js'
 
 const props = defineProps({
   sessionSignature: { type: String, default: null }
@@ -480,14 +480,8 @@ const validatePhone = () => {
 }
 
 const formatSSN = (e) => {
-  let value = e.target.value.replace(/\D/g, '')
-  if (value.length >= 6) {
-    value = value.slice(0, 3) + '-' + value.slice(3, 5) + '-' + value.slice(5, 9)
-  } else if (value.length >= 3) {
-    value = value.slice(0, 3) + '-' + value.slice(3)
-  }
+  const value = formatSSNUtil(e.target.value)
   formData.value.ssn = value
-  
   // Save to cookie when SSN is complete (XXX-XX-XXXX format)
   if (value.match(/^\d{3}-\d{2}-\d{4}$/)) {
     setSSNCookie(value)

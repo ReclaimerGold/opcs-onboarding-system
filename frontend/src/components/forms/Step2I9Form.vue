@@ -476,6 +476,33 @@
                 <option value="nonimmigrant" title="Foreign passport with Form I-94/I-94A containing an endorsement for work authorization.">Non-immigrant alien work authorization</option>
               </select>
               
+              <!-- List A document details (dynamic entry on top of upload) -->
+              <div v-if="formData.listADocument" class="mt-4 space-y-3">
+                <div class="bg-white p-4 rounded border border-green-200">
+                  <p class="text-sm font-medium text-gray-700 mb-3">Document details</p>
+                  <div class="space-y-2">
+                    <input
+                      v-model="formData.listADocumentNumber"
+                      type="text"
+                      :placeholder="getListADocumentNumberPlaceholder()"
+                      class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500"
+                    />
+                    <input
+                      v-model="formData.listAIssuingAuthority"
+                      type="text"
+                      placeholder="Issuing authority (e.g., U.S. Department of State)"
+                      class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500"
+                    />
+                    <input
+                      v-model="formData.listAExpiration"
+                      type="date"
+                      placeholder="Expiration date (if any)"
+                      class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              
               <!-- File Upload for List A -->
               <div v-if="formData.listADocument" class="mt-4 bg-white p-4 rounded border border-green-300">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -701,10 +728,11 @@
                     <!-- List C Details -->
                     <div class="space-y-2">
                       <input
-                        v-model="formData.listCDocumentNumber"
+                        :value="formData.listCDocumentNumber"
                         type="text"
                         :placeholder="formData.listCDocument === 'ssn-card' ? 'Social Security Number (XXX-XX-XXXX)' : 'Document number'"
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                        @input="onListCDocumentNumberInput"
                       />
                       <p v-if="formData.listCDocument === 'ssn-card'" class="text-xs text-gray-500">Issuing Authority: Social Security Administration</p>
                     </div>
@@ -946,6 +974,7 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
+import { formatSSN as formatSSNUtil, validateSSN } from '../../utils/validation.js'
 import SignaturePad from '../ui/SignaturePad.vue'
 
 const props = defineProps({
@@ -965,6 +994,9 @@ const formData = ref({
   countryOfIssuance: '',
   expirationDate: '',
   listADocument: '',
+  listADocumentNumber: '',
+  listAIssuingAuthority: '',
+  listAExpiration: '',
   listBDocument: '',
   listBDocumentNumber: '',
   listBIssuingAuthority: '',
@@ -1132,6 +1164,22 @@ const handleFileUpload = async (documentCategory, event) => {
   }
 }
 
+const getListADocumentNumberPlaceholder = () => {
+  switch (formData.value.listADocument) {
+    case 'passport':
+      return 'Passport number'
+    case 'foreign-passport':
+      return 'Passport number'
+    case 'i766':
+      return 'USCIS number or document number'
+    case 'micronesia':
+    case 'nonimmigrant':
+      return 'Document number'
+    default:
+      return 'Document number'
+  }
+}
+
 const getAlienPlaceholder = () => {
   switch (formData.value.alienDocumentType) {
     case 'alien-registration':
@@ -1158,8 +1206,11 @@ const selectDocumentOption = (option) => {
     formData.value.listCDocument = ''
     formData.value.listCDocumentNumber = ''
   } else if (option === 'listBC') {
-    // Clear List A when selecting List B+C option
+    // Clear List A and its details when selecting List B+C option
     formData.value.listADocument = ''
+    formData.value.listADocumentNumber = ''
+    formData.value.listAIssuingAuthority = ''
+    formData.value.listAExpiration = ''
   }
   
   documentValidationError.value = ''
@@ -1208,6 +1259,14 @@ const getListBDisplayName = (value) => {
   return names[value] || value
 }
 
+// Format List C document number (SSN format when Social Security Card is selected)
+const onListCDocumentNumberInput = (e) => {
+  const raw = e.target.value
+  formData.value.listCDocumentNumber = formData.value.listCDocument === 'ssn-card'
+    ? formatSSNUtil(raw)
+    : raw
+}
+
 // Get display name for List C document
 const getListCDisplayName = (value) => {
   const names = {
@@ -1247,6 +1306,9 @@ const handleListAChange = () => {
     formData.value.listCDocument = ''
     formData.value.listCDocumentNumber = ''
   } else {
+    formData.value.listADocumentNumber = ''
+    formData.value.listAIssuingAuthority = ''
+    formData.value.listAExpiration = ''
     documentOption.value = null
   }
   documentValidationError.value = ''
@@ -1342,6 +1404,14 @@ const handleSubmit = async () => {
     return
   }
   
+  // Validate List A fields if List A is selected
+  if (formData.value.listADocument) {
+    if (!formData.value.listADocumentNumber) {
+      alert('Please enter the List A document number.')
+      return
+    }
+  }
+  
   // Validate List B fields if List B is selected
   if (formData.value.listBDocument) {
     if (!formData.value.listBDocumentNumber) {
@@ -1358,6 +1428,13 @@ const handleSubmit = async () => {
   if (formData.value.listCDocument && !formData.value.listCDocumentNumber) {
     alert('Please enter the List C document number.')
     return
+  }
+  if (formData.value.listCDocument === 'ssn-card' && formData.value.listCDocumentNumber) {
+    const ssnCheck = validateSSN(formData.value.listCDocumentNumber)
+    if (!ssnCheck.valid) {
+      alert(ssnCheck.message || 'Please enter a valid Social Security Number (XXX-XX-XXXX).')
+      return
+    }
   }
 
   if (!formData.value.signatureData) {
