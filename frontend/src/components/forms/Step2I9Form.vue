@@ -1119,6 +1119,13 @@ onMounted(async () => {
   })
 })
 
+watch(() => props.sessionSignature, (sig) => {
+  if (sig && !formData.value.signatureData) {
+    formData.value.signatureData = sig
+    emit('form-data-change', { ...formData.value })
+  }
+})
+
 // Load uploaded documents
 const loadUploadedDocuments = async () => {
   try {

@@ -451,7 +451,9 @@ import { formatPhoneNumber, formatSSN as formatSSNUtil, validatePhoneNumber, val
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 
 const props = defineProps({
-  sessionSignature: { type: String, default: null }
+  sessionSignature: { type: String, default: null },
+  /** When true, consent was already given (e.g. dashboard onboarding); don't show consent modal */
+  consentAlreadyGiven: { type: Boolean, default: false }
 })
 const emit = defineEmits(['submitted', 'form-data-change'])
 const { applicantData, loading: loadingApplicant } = useApplicantData()
@@ -500,8 +502,16 @@ watch(formData, () => {
   }, 300) // 300ms debounce for form data changes
 }, { deep: true })
 
+// Sync consent from parent (dashboard onboarding) or sessionStorage
+watch(() => props.consentAlreadyGiven, (v) => {
+  if (v) ssnConsented.value = true
+}, { immediate: true })
+
 // Load applicant data and settings
 onMounted(async () => {
+  if (props.consentAlreadyGiven) {
+    ssnConsented.value = true
+  }
   const storedConsent = sessionStorage.getItem(CONSENT_STORAGE_KEY)
   if (storedConsent === 'true') {
     ssnConsented.value = true
@@ -571,6 +581,13 @@ onMounted(async () => {
   })
 })
 
+watch(() => props.sessionSignature, (sig) => {
+  if (sig && !formData.value.signatureData) {
+    formData.value.signatureData = sig
+    emit('form-data-change', { ...formData.value })
+  }
+})
+
 watch(ssnConsented, (value) => {
   if (value) {
     sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
@@ -584,7 +601,7 @@ function onOnboardingSignature(signatureDataUrl) {
   }
 }
 
-const showConsentModal = computed(() => !ssnConsented.value)
+const showConsentModal = computed(() => !props.consentAlreadyGiven && !ssnConsented.value)
 
 const formatTime = (dateString) => {
   if (!dateString) return ''

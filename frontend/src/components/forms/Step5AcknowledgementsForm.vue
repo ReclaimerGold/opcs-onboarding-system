@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
@@ -121,6 +121,13 @@ const formData = ref({
 
 const loading = ref(false)
 useFormDraft(5, formData)
+
+watch(() => props.sessionSignature, (sig) => {
+  if (sig && !formData.value.signatureData) {
+    formData.value.signatureData = sig
+    emit('form-data-change', { ...formData.value })
+  }
+})
 
 // Load applicant data to sync name fields (after draft may have loaded)
 onMounted(async () => {
@@ -143,6 +150,11 @@ onMounted(async () => {
       console.error('Error loading applicant data:', error)
     }
   }
+  nextTick(() => {
+    if (!formData.value.signatureData && props.sessionSignature) {
+      formData.value.signatureData = props.sessionSignature
+    }
+  })
 })
 
 const handleSubmit = async () => {

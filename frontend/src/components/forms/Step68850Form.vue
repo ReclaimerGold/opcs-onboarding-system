@@ -279,7 +279,9 @@ import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 import { formatPhoneNumber, formatSSN as formatSSNUtil, validatePhoneNumber } from '../../utils/validation.js'
 
 const props = defineProps({
-  sessionSignature: { type: String, default: null }
+  sessionSignature: { type: String, default: null },
+  /** When true, consent was already given (e.g. dashboard onboarding); don't show consent modal */
+  consentAlreadyGiven: { type: Boolean, default: false }
 })
 const emit = defineEmits(['submitted', 'form-data-change'])
 const { applicantData, loading: loadingApplicant } = useApplicantData()
@@ -327,8 +329,15 @@ watch(formData, () => {
   }, 300) // 300ms debounce for form data changes
 }, { deep: true })
 
+watch(() => props.consentAlreadyGiven, (v) => {
+  if (v) ssnConsented.value = true
+}, { immediate: true })
+
 // Load applicant data and previous form data to auto-populate all available fields
 onMounted(async () => {
+  if (props.consentAlreadyGiven) {
+    ssnConsented.value = true
+  }
   const storedConsent = sessionStorage.getItem(CONSENT_STORAGE_KEY)
   if (storedConsent === 'true') {
     ssnConsented.value = true
@@ -438,13 +447,20 @@ onMounted(async () => {
   })
 })
 
+watch(() => props.sessionSignature, (sig) => {
+  if (sig && !formData.value.signatureData) {
+    formData.value.signatureData = sig
+    emit('form-data-change', { ...formData.value })
+  }
+})
+
 watch(ssnConsented, (value) => {
   if (value) {
     sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
   }
 })
 
-const showConsentModal = computed(() => !ssnConsented.value)
+const showConsentModal = computed(() => !props.consentAlreadyGiven && !ssnConsented.value)
 
 // Computed property to check which required fields are missing
 const missingRequiredFields = computed(() => {

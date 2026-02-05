@@ -351,6 +351,7 @@
           <Step1W4Form 
             v-if="currentStep === 1" 
             :session-signature="sessionSignature"
+            :consent-already-given="!!dashboardOnboarding.ssnConsentGiven?.value"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
           />
@@ -379,6 +380,7 @@
           <Step68850Form 
             v-if="currentStep === 6" 
             :session-signature="sessionSignature"
+            :consent-already-given="!!dashboardOnboarding.ssnConsentGiven?.value"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
           />
@@ -493,6 +495,8 @@ const dashboardConsented = ref(false)
 const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboardingModal?.value)
 const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
 
+const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
+
 async function onDashboardOnboardingComplete(signatureData) {
   if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
   const wasSignatureOnly = !!dashboardOnboarding.startAtSignatureOnly?.value
@@ -502,11 +506,13 @@ async function onDashboardOnboardingComplete(signatureData) {
     console.error('Failed to save signature', err)
     return
   }
+  sessionSignature.value = signatureData
   dashboardConsented.value = true
   if (!wasSignatureOnly) {
     dashboardOnboarding.ssnConsentGiven.value = true
     try {
       await dashboardOnboarding.recordConsent()
+      sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
     } catch (err) {
       console.error('Failed to record SSN consent', err)
       dashboardOnboarding.ssnConsentGiven.value = false

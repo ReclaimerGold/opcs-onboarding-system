@@ -736,6 +736,8 @@ const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboarding
 const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
 const onboardingLoading = computed(() => !!dashboardOnboarding.loading?.value)
 
+const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
+
 async function onDashboardOnboardingComplete(signatureData) {
   if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
   const wasSignatureOnly = !!dashboardOnboarding.startAtSignatureOnly?.value
@@ -750,6 +752,7 @@ async function onDashboardOnboardingComplete(signatureData) {
     dashboardOnboarding.ssnConsentGiven.value = true
     try {
       await dashboardOnboarding.recordConsent()
+      sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
     } catch (err) {
       console.error('Failed to record SSN consent', err)
       dashboardOnboarding.ssnConsentGiven.value = false
