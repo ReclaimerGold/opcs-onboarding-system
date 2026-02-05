@@ -147,6 +147,8 @@
 import { ref, onMounted } from 'vue'
 import api from '../../services/api.js'
 
+const emit = defineEmits(['status-change'])
+
 const templates = ref({})
 const loading = ref(false)
 const updating = ref(false)
@@ -157,6 +159,7 @@ const loadTemplateStatus = async () => {
   try {
     const response = await api.get('/admin/pdf-templates/status')
     templates.value = response.data.templates || {}
+    emit('status-change', templates.value)
   } catch (error) {
     console.error('Error loading PDF template status:', error)
   } finally {

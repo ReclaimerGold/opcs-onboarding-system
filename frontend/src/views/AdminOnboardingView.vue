@@ -17,32 +17,56 @@
 
     <div class="w-full overflow-x-auto">
       <div class="mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8 min-w-[1000px] max-w-[1400px]">
-        <!-- Show signature placement only after PDF templates are ready -->
-        <template v-if="pdfTemplatesReady">
-          <!-- Progress: Step X of 3 -->
-          <div class="mb-6">
-            <div class="flex items-center gap-2 text-sm text-gray-600 mb-1">
-              <span class="font-medium">Signature placement (required)</span>
-              <span>— Step {{ signatureStep }} of 3</span>
-            </div>
-            <div class="flex gap-2">
-              <div
-                v-for="s in 3"
-                :key="s"
-                :class="[
-                  'h-2 flex-1 rounded-full transition-colors',
-                  s < signatureStep ? 'bg-green-500' : s === signatureStep ? 'bg-primary' : 'bg-gray-200'
-                ]"
-              />
-            </div>
-            <div class="flex justify-between mt-1 text-xs text-gray-500">
-              <span>W-4</span>
-              <span>I-9</span>
-              <span>Form 8850</span>
-            </div>
+        <!-- Progress: Step X of 4 (1 = PDF templates, 2–4 = signature placement) -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 text-sm text-gray-600 mb-1">
+            <span class="font-medium">Setup progress</span>
+            <span>— Step {{ setupStep }} of 4</span>
           </div>
+          <div class="flex gap-2">
+            <div
+              v-for="s in 4"
+              :key="s"
+              :class="[
+                'h-2 flex-1 rounded-full transition-colors',
+                s < setupStep ? 'bg-green-500' : s === setupStep ? 'bg-primary' : 'bg-gray-200'
+              ]"
+            />
+          </div>
+          <div class="flex justify-between mt-1 text-xs text-gray-500">
+            <span>PDF templates</span>
+            <span>W-4</span>
+            <span>I-9</span>
+            <span>Form 8850</span>
+          </div>
+        </div>
 
-          <!-- Current step: one form at a time -->
+        <!-- Step 1: Download PDF templates (same as admin area: scan + download) -->
+        <template v-if="setupStep === 1">
+          <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-1">Step 1: Download PDF templates</h2>
+            <p class="text-sm text-gray-600 mb-4">
+              Scan for and download the official IRS and USCIS form templates. Use <strong>Refresh</strong> to check status and <strong>Check for Updates</strong> to download or update all forms. You can also update a single form with its <strong>Update</strong> button.
+            </p>
+          </div>
+          <PdfTemplatesPanel @status-change="onTemplateStatusChange" />
+          <div class="mt-8 flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              :disabled="!allTemplatesReady"
+              class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="setupStep = 2"
+            >
+              Continue to signature placement
+            </button>
+            <span v-if="!allTemplatesReady" class="text-sm text-gray-500">
+              Download all three templates (W-4, I-9, Form 8850) to continue.
+            </span>
+          </div>
+        </template>
+
+        <!-- Steps 2–4: Signature placement (W-4, I-9, 8850) -->
+        <template v-else>
           <div class="mb-8">
             <h2 class="text-lg font-semibold text-gray-900 mb-1">
               Set up signature placement: {{ currentStepLabel }}
@@ -59,19 +83,18 @@
           <!-- Step navigation -->
           <div class="flex flex-wrap items-center gap-4 mb-8">
             <button
-              v-if="signatureStep > 1"
               type="button"
               class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              @click="signatureStep--"
+              @click="setupStep--"
             >
               Back
             </button>
             <button
-              v-if="signatureStep < 3"
+              v-if="setupStep < 4"
               type="button"
               :disabled="!currentStepComplete"
               class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              @click="signatureStep++"
+              @click="setupStep++"
             >
               Next: {{ nextStepLabel }}
             </button>
@@ -85,7 +108,7 @@
                 Continue to dashboard
               </button>
             </template>
-            <span v-if="signatureStep < 3 && !currentStepComplete" class="text-sm text-gray-500">
+            <span v-if="setupStep < 4 && !currentStepComplete" class="text-sm text-gray-500">
               Add at least one signature placement for {{ currentStepLabel }} to continue.
             </span>
           </div>
@@ -114,29 +137,8 @@
             </div>
           </div>
         </template>
-
-        <!-- Loading state: PDF templates not ready yet (modal may be open downloading) -->
-        <div v-else class="flex flex-col items-center justify-center py-16 text-gray-600">
-          <svg class="w-12 h-12 animate-spin text-primary mb-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <p class="text-lg font-medium">Loading PDF form templates</p>
-          <p class="text-sm mt-1">Signature placement will appear once documents are ready.</p>
-        </div>
       </div>
     </div>
-
-    <!-- Step 1: Prompt user to start PDF template downloads -->
-    <PdfDownloadPromptDialog
-      :open="showPdfDownloadPrompt"
-      @start-download="onStartPdfDownload"
-    />
-    <!-- Step 2: Download progress; after close, signature placement is shown -->
-    <PdfTemplateDownloadModal
-      :open="showPdfDownloadModal"
-      @close="onPdfDownloadModalClose"
-    />
   </div>
 </template>
 
@@ -144,17 +146,14 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
-import PdfDownloadPromptDialog from '../components/admin/PdfDownloadPromptDialog.vue'
-import PdfTemplateDownloadModal from '../components/admin/PdfTemplateDownloadModal.vue'
+import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
 import api from '../services/api.js'
 
 const router = useRouter()
-const signatureStep = ref(1)
-/** Shown first when templates are missing; user must click to start downloads. */
-const showPdfDownloadPrompt = ref(false)
-const showPdfDownloadModal = ref(false)
-/** True only after PDF templates exist (or user finished the download modal). Signature placement UI is gated on this. */
-const pdfTemplatesReady = ref(false)
+/** 1 = PDF templates, 2 = W-4 signature, 3 = I-9 signature, 4 = 8850 signature */
+const setupStep = ref(1)
+/** Template status from PdfTemplatesPanel (status-change). Used to enable "Continue" on step 1. */
+const templateStatus = ref({})
 const setupStatus = ref({
   signaturePlacementComplete: false,
   signaturePlacementReady: { w4: false, i9: false, 8850: false }
@@ -163,11 +162,18 @@ const setupStatus = ref({
 const stepFormTypes = ['W4', 'I9', '8850']
 const stepLabels = { W4: 'W-4', I9: 'I-9', 8850: 'Form 8850' }
 
-const currentFormType = computed(() => stepFormTypes[signatureStep.value - 1] || 'W4')
+/** All three PDF templates exist (from panel status). */
+const allTemplatesReady = computed(() => {
+  const t = templateStatus.value
+  return Object.keys(t).length >= 3 && Object.values(t).every((x) => x && x.exists === true)
+})
+
+/** For setupStep 2–4, the form type for signature placement. */
+const currentFormType = computed(() => stepFormTypes[setupStep.value - 2] || 'W4')
 const currentStepLabel = computed(() => stepLabels[currentFormType.value] || currentFormType.value)
 const nextStepLabel = computed(() => {
-  if (signatureStep.value >= 3) return ''
-  return stepLabels[stepFormTypes[signatureStep.value]] || stepFormTypes[signatureStep.value]
+  if (setupStep.value >= 4) return ''
+  return stepLabels[stepFormTypes[setupStep.value - 1]] || stepFormTypes[setupStep.value - 1]
 })
 
 const currentStepComplete = computed(() => {
@@ -176,6 +182,10 @@ const currentStepComplete = computed(() => {
   if (key === 'i9') return !!setupStatus.value.signaturePlacementReady.i9
   return !!setupStatus.value.signaturePlacementReady['8850']
 })
+
+function onTemplateStatusChange(templates) {
+  templateStatus.value = templates || {}
+}
 
 async function fetchSetupStatus() {
   try {
@@ -195,31 +205,7 @@ function goToDashboard() {
   router.push('/admin')
 }
 
-function onStartPdfDownload() {
-  showPdfDownloadPrompt.value = false
-  showPdfDownloadModal.value = true
-}
-
-function onPdfDownloadModalClose() {
-  showPdfDownloadModal.value = false
-  pdfTemplatesReady.value = true
-}
-
-onMounted(async () => {
-  try {
-    const statusRes = await api.get('/admin/pdf-templates/status')
-    const templates = statusRes.data?.templates || {}
-    const anyMissing = Object.values(templates).some((t) => t && t.exists === false)
-    if (anyMissing) {
-      showPdfDownloadPrompt.value = true
-      // User must click "Download PDF templates" to open download modal; then signature placement after close
-    } else {
-      pdfTemplatesReady.value = true
-    }
-  } catch (error) {
-    console.error('Error checking PDF template status:', error)
-    pdfTemplatesReady.value = true
-  }
+onMounted(() => {
   fetchSetupStatus()
 })
 </script>

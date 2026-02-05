@@ -224,18 +224,45 @@ const signaturePreviewStyle = computed(() => {
 
 async function loadPdfJs() {
   const pdfjsLib = await import('pdfjs-dist')
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
-  }
+  if (pdfjsLib.GlobalWorkerOptions.workerSrc) return pdfjsLib
+  // Serve worker via blob URL so the browser gets application/javascript regardless of nginx MIME.
+  const res = await fetch(pdfjsWorkerUrl)
+  const script = await res.text()
+  const blob = new Blob([script], { type: 'application/javascript' })
+  pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob)
   return pdfjsLib
+}
+
+function pdfLoadErrorMessage(err) {
+  const status = err.response?.status
+  if (status === 404) return 'Template not found. Complete Step 1 to download the PDF templates first.'
+  if (status === 401) return 'Please log in again.'
+  if (status === 403) return 'You don’t have permission to view this template.'
+  if (status >= 500) return 'Server error loading template. Complete Step 1 to download templates, then try again.'
+  if (err.response?.data?.error) return err.response.data.error
+  const msg = err?.message || ''
+  if (/worker|module script|MIME|octet-stream/i.test(msg)) {
+    return 'PDF viewer failed to load. Rebuild the frontend Docker image so the PDF worker is served correctly, or complete Step 1 and refresh.'
+  }
+  return 'Failed to load PDF. Complete Step 1 to download templates, then try again.'
 }
 
 async function fetchPdf() {
   loadingPdf.value = true
   pdfLoadError.value = ''
   canvasReady.value = false
+  let data
   try {
-    const { data } = await api.get('/admin/pdf-templates/' + selectedFormType.value + '/preview', { responseType: 'arraybuffer' })
+    const res = await api.get('/admin/pdf-templates/' + selectedFormType.value + '/preview', { responseType: 'arraybuffer' })
+    data = res.data
+  } catch (err) {
+    console.error('PDF template request error:', err)
+    pdfLoadError.value = pdfLoadErrorMessage(err)
+    numPages.value = 0
+    loadingPdf.value = false
+    return
+  }
+  try {
     const pdfjsLib = await loadPdfJs()
     pdfDoc = await pdfjsLib.getDocument({ data }).promise
     numPages.value = pdfDoc.numPages
@@ -245,7 +272,7 @@ async function fetchPdf() {
     await renderPage()
   } catch (err) {
     console.error('PDF load error:', err)
-    pdfLoadError.value = err.response?.status === 404 ? 'Template not found. Download the template first.' : 'Failed to load PDF.'
+    pdfLoadError.value = pdfLoadErrorMessage(err)
     numPages.value = 0
   } finally {
     loadingPdf.value = false
