@@ -1,14 +1,15 @@
 # Production Docker Compose – uses images from GitHub Container Registry (GHCR).
-# Usage: set OPCS_IMAGE_PREFIX to your image prefix (e.g. ghcr.io/your-org/opcs-onboarding-system), then:
+# Default prefix matches this repo: https://github.com/ReclaimerGold/opcs-onboarding-system
+# After a release (tag v*), images are at ghcr.io/reclaimergold/opcs-onboarding-system-{frontend|backend}:latest
 #   docker-compose up -d
 # Access at: http://localhost (port 80, or FRONTEND_PORT if set)
 # Use FRONTEND_PORT and BACKEND_PORT to avoid conflicts (e.g. FRONTEND_PORT=8080 BACKEND_PORT=3001)
 #
-# For local builds from source, use: docker-compose -f docker-compose.local.yml up -d --build
+# If images are not yet published, build from source: docker-compose -f docker-compose.local.yml up -d --build
 
 services:
   frontend:
-    image: ${OPCS_IMAGE_PREFIX:-ghcr.io/your-org/opcs-onboarding-system}-frontend:${OPCS_IMAGE_TAG:-latest}
+    image: ${OPCS_IMAGE_PREFIX:-ghcr.io/reclaimergold/opcs-onboarding-system}-frontend:${OPCS_IMAGE_TAG:-latest}
     ports:
       - "${FRONTEND_PORT:-80}:80"
     depends_on:
@@ -19,7 +20,7 @@ services:
       - opcs-network
 
   backend:
-    image: ${OPCS_IMAGE_PREFIX:-ghcr.io/your-org/opcs-onboarding-system}-backend:${OPCS_IMAGE_TAG:-latest}
+    image: ${OPCS_IMAGE_PREFIX:-ghcr.io/reclaimergold/opcs-onboarding-system}-backend:${OPCS_IMAGE_TAG:-latest}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
