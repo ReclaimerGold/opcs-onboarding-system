@@ -26,6 +26,9 @@ RUN npm install --omit=dev
 # =============================================================================
 FROM node:22-bookworm-slim
 
+ARG VERSION=dev
+ENV VERSION=$VERSION
+
 WORKDIR /app
 
 # Copy built node_modules from builder

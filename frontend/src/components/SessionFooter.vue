@@ -28,6 +28,7 @@
           >
             Continue session
           </button>
+          <span v-if="appVersion" class="text-xs text-gray-500">Version {{ appVersion }}</span>
         </div>
       </div>
     </div>
@@ -53,6 +54,8 @@ const props = defineProps({
 })
 
 defineEmits(['extend'])
+
+const appVersion = import.meta.env.VITE_APP_VERSION || ''
 
 const formattedRemaining = computed(() => {
   const totalSeconds = Math.max(0, Math.ceil(props.remainingMs / 1000))

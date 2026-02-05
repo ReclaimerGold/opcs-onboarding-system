@@ -70,6 +70,9 @@ docker build -t opcs-test .
 docker run -p 8888:80 -e SESSION_SECRET=test-secret opcs-test
 
 # Access at http://localhost:8888
+
+# Optionally pass a version for footer display (e.g. to match a release):
+# docker build --build-arg VERSION=1.0.0 -t opcs-test .
 ```
 
 ## Code Style

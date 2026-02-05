@@ -158,6 +158,7 @@
       <div class="max-w-full mx-auto flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
         <div class="text-sm text-gray-600">
           © {{ currentYear }} Optimal Prime Services. All rights reserved.
+          <span v-if="appVersion" class="ml-2 text-gray-500">· Version {{ appVersion }}</span>
         </div>
         <div>
           <router-link
@@ -199,6 +200,7 @@ const loginCopy = {
 }
 
 const currentYear = new Date().getFullYear()
+const appVersion = import.meta.env.VITE_APP_VERSION || ''
 const firstName = ref('')
 const lastName = ref('')
 const email = ref('')

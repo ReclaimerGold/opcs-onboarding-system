@@ -22,6 +22,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 - **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
+- **Release version display**: Login footer and session (time clock) footer show the deployed app version when the image is built from a GitHub release; the version comes from the Git tag (e.g. `v1.2.3`) via Docker build-arg
 - **User onboarding gate**: Dashboard and forms are **locked** until the user completes: (1) SSN consent (once, documented in DB), (2) password set (admins redirected to password-setup if needed), (3) signature (once, stored in DB). User cannot continue until consent and signature are filled.
 - **Applicant onboarding modal** (SSN consent flow): Shown when the gate is not satisfied. Three-step flow:
   - Step 1: SSN collection notice and consent (required once; recorded in `privacy_consents`).
@@ -627,7 +628,7 @@ docker build -t opcs-frontend -f frontend/Dockerfile frontend/
 
 ### Health Checks
 
-The backend includes a health check endpoint at `/api/health`. Docker will automatically restart unhealthy containers.
+The backend includes a health check endpoint at `/api/health`. It returns `{ status: 'ok' }` and, when the image was built from a GitHub release tag, `{ status: 'ok', version: '<tag>' }`. Docker will automatically restart unhealthy containers.
 
 ### Data Persistence
 

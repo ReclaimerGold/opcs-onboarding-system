@@ -115,9 +115,13 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/diagnostics', diagnosticsRoutes)
 app.use('/api/address', addressRoutes)
 
-// Health check
+// Health check (version from Docker build-arg when built from release tag)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' })
+  const payload = { status: 'ok' }
+  if (process.env.VERSION) {
+    payload.version = process.env.VERSION
+  }
+  res.json(payload)
 })
 
 app.listen(PORT, () => {

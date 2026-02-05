@@ -17,6 +17,10 @@ RUN npm install --legacy-peer-deps
 # Copy source
 COPY . .
 
+# Inject release version for footer display (from GitHub tag via build-arg)
+ARG VERSION=dev
+ENV VITE_APP_VERSION=$VERSION
+
 # Build for production
 RUN npm run build
 

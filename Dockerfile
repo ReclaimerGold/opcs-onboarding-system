@@ -113,12 +113,13 @@ directory=/app
 user=opcs
 autostart=true
 autorestart=true
-environment=NODE_ENV=production,PORT=3000,VERSION="%(ENV_VERSION)s"
+environment=NODE_ENV=production,PORT=3000,VERSION="__VERSION_PLACEHOLDER__"
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 EOF
+RUN sed -i "s/__VERSION_PLACEHOLDER__/${VERSION}/g" /etc/supervisor/conf.d/supervisord.conf
 
 # Environment variables
 ENV NODE_ENV=production

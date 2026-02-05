@@ -150,6 +150,7 @@
       <div class="max-w-full mx-auto text-center">
         <p class="text-sm text-gray-600">
           &copy; {{ currentYear }} Optimal Prime Services. All rights reserved.
+          <span v-if="appVersion" class="ml-2 text-gray-500">· Version {{ appVersion }}</span>
         </p>
       </div>
     </footer>
@@ -164,6 +165,7 @@ import api from '../services/api.js'
 const route = useRoute()
 const router = useRouter()
 const currentYear = new Date().getFullYear()
+const appVersion = import.meta.env.VITE_APP_VERSION || ''
 
 const token = ref('')
 const password = ref('')
