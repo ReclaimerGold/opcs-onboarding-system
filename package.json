@@ -48,7 +48,10 @@
   },
   "lint-staged": {
     "frontend/src/**/*.{js,vue}": [
-      "eslint --config frontend/.eslintrc.cjs --fix"
+      "bun run lint:frontend"
+    ],
+    "backend/src/**/*.js": [
+      "bun run lint:backend"
     ]
   }
 }

@@ -1,3 +1,6 @@
+# CI: lint, test, build (no Docker publish). Docker images built/published only on release tag (see release.yml).
+# Aligned with unified ESLint flat config and hoisted Vitest (root install) from PR #5.
+
 name: CI
 
 on:
@@ -21,7 +24,7 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install dependencies
+      - name: Install dependencies (root; ESLint/Vitest hoisted)
         run: bun install --frozen-lockfile
 
       - name: Lint frontend
@@ -40,13 +43,11 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install dependencies
-        working-directory: backend
+      - name: Install dependencies (root; Vitest hoisted for workspaces)
         run: bun install --frozen-lockfile
 
       - name: Run backend tests
-        working-directory: backend
-        run: bun run test:run
+        run: bun run test:backend
 
       - name: Upload backend coverage
         uses: codecov/codecov-action@v4
@@ -66,13 +67,11 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install dependencies
-        working-directory: frontend
+      - name: Install dependencies (root; Vitest hoisted for workspaces)
         run: bun install --frozen-lockfile
 
       - name: Run frontend tests
-        working-directory: frontend
-        run: bun run test:run
+        run: bun run test:frontend
 
       - name: Upload frontend coverage
         uses: codecov/codecov-action@v4
@@ -93,12 +92,10 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install frontend dependencies
-        working-directory: frontend
+      - name: Install dependencies (root)
         run: bun install --frozen-lockfile
 
       - name: Build frontend
-        working-directory: frontend
         run: bun run build
 
       - name: Upload build artifacts

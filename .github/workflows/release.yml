@@ -1,3 +1,6 @@
+# Release: on tag v* run tests, build Docker images, push to GHCR, create GitHub Release.
+# Aligned with unified ESLint and hoisted Vitest (root install) from PR #5.
+
 name: Release
 
 on:
@@ -20,21 +23,14 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install backend dependencies
-        working-directory: backend
+      - name: Install dependencies (root; Vitest hoisted for workspaces)
         run: bun install --frozen-lockfile
 
       - name: Test backend
-        working-directory: backend
-        run: bun run test:run
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: bun install --frozen-lockfile
+        run: bun run test:backend
 
       - name: Test frontend
-        working-directory: frontend
-        run: bun run test:run
+        run: bun run test:frontend
 
   release:
     name: Release
