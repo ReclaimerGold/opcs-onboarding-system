@@ -106,7 +106,7 @@ function getTemplatePath(formType) {
 async function extractPDFInfo(pdfBuffer) {
   try {
     const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true })
-    
+
     // Get document info
     const title = pdfDoc.getTitle() || ''
     const author = pdfDoc.getAuthor() || ''
@@ -116,7 +116,7 @@ async function extractPDFInfo(pdfBuffer) {
     const creationDate = pdfDoc.getCreationDate()
     const modificationDate = pdfDoc.getModificationDate()
     const pageCount = pdfDoc.getPageCount()
-    
+
     // Try to extract revision from title or subject
     // IRS forms often have format like "Form W-4 (Rev. December 2024)"
     let revision = null
@@ -124,7 +124,7 @@ async function extractPDFInfo(pdfBuffer) {
     if (revisionMatch) {
       revision = revisionMatch[1].trim()
     }
-    
+
     // Get form fields info
     let formFieldCount = 0
     let formFieldNames = []
@@ -136,7 +136,7 @@ async function extractPDFInfo(pdfBuffer) {
     } catch (e) {
       // Form might not have fillable fields
     }
-    
+
     return {
       title,
       author,
@@ -198,17 +198,17 @@ async function saveMetadata(formType, metadata) {
  */
 async function archiveCurrentTemplate(formType, metadata) {
   if (!metadata) return null
-  
+
   const templatePath = getTemplatePath(formType)
   const archiveDir = getArchiveDir(formType)
-  
+
   try {
     // Check if current template exists
     await fs.access(templatePath)
-    
+
     // Create archive directory
     await fs.mkdir(archiveDir, { recursive: true })
-    
+
     // Generate archive filename with revision and date
     const date = new Date(metadata.downloadedAt || Date.now())
     const dateStr = date.toISOString().split('T')[0].replace(/-/g, '')
@@ -217,13 +217,13 @@ async function archiveCurrentTemplate(formType, metadata) {
     const source = TEMPLATE_SOURCES[formType]
     const ext = path.extname(source.filename)
     const baseName = path.basename(source.filename, ext)
-    
+
     const archiveFilename = `${baseName}-${revision}-${dateStr}-${checksumShort}${ext}`
     const archivePath = path.join(archiveDir, archiveFilename)
-    
+
     // Copy current template to archive
     await fs.copyFile(templatePath, archivePath)
-    
+
     // Save archive metadata
     const archiveMetadata = {
       ...metadata,
@@ -232,7 +232,7 @@ async function archiveCurrentTemplate(formType, metadata) {
     }
     const archiveMetadataPath = path.join(archiveDir, `${archiveFilename}.json`)
     await fs.writeFile(archiveMetadataPath, JSON.stringify(archiveMetadata, null, 2))
-    
+
     console.log(`Archived previous ${source.name} template as ${archiveFilename}`)
     return archiveFilename
   } catch (error) {
@@ -252,24 +252,24 @@ async function archiveCurrentTemplate(formType, metadata) {
 export async function getArchivedVersions(formType) {
   const archiveDir = getArchiveDir(formType)
   const versions = []
-  
+
   try {
     const files = await fs.readdir(archiveDir)
     const pdfFiles = files.filter(f => f.endsWith('.pdf'))
-    
+
     for (const pdfFile of pdfFiles) {
       const metadataPath = path.join(archiveDir, `${pdfFile}.json`)
       let metadata = null
-      
+
       try {
         const data = await fs.readFile(metadataPath, 'utf-8')
         metadata = JSON.parse(data)
       } catch (e) {
         // Metadata file might not exist for old archives
       }
-      
+
       const stat = await fs.stat(path.join(archiveDir, pdfFile))
-      
+
       versions.push({
         filename: pdfFile,
         filePath: path.join(archiveDir, pdfFile),
@@ -280,7 +280,7 @@ export async function getArchivedVersions(formType) {
         downloadedAt: metadata?.downloadedAt || null
       })
     }
-    
+
     // Sort by archived date, newest first
     versions.sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt))
   } catch (error) {
@@ -288,7 +288,7 @@ export async function getArchivedVersions(formType) {
       console.warn(`Error reading archive for ${formType}:`, error.message)
     }
   }
-  
+
   return versions
 }
 
@@ -304,7 +304,7 @@ async function downloadTemplate(formType) {
   }
 
   console.log(`Downloading ${source.name} from ${source.agency}...`)
-  
+
   const response = await fetch(source.url, {
     headers: {
       'User-Agent': 'OPCS-Onboarding-System/1.0'
@@ -317,7 +317,7 @@ async function downloadTemplate(formType) {
 
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
-  
+
   // Verify it's a valid PDF
   if (!buffer.slice(0, 5).toString().startsWith('%PDF-')) {
     throw new Error(`Downloaded file for ${source.name} is not a valid PDF`)
@@ -337,22 +337,22 @@ async function downloadTemplate(formType) {
 async function saveTemplate(formType, pdfBuffer, previousMetadata = null) {
   const formDir = getFormDir(formType)
   const templatePath = getTemplatePath(formType)
-  
+
   // Ensure directory exists
   await fs.mkdir(formDir, { recursive: true })
-  
+
   // Archive the previous version if it exists and checksum is different
   let archivedAs = null
   if (previousMetadata) {
     archivedAs = await archiveCurrentTemplate(formType, previousMetadata)
   }
-  
+
   // Save the PDF
   await fs.writeFile(templatePath, pdfBuffer)
-  
+
   // Extract PDF info for revision tracking
   const pdfInfo = await extractPDFInfo(pdfBuffer)
-  
+
   // Calculate and save metadata
   const checksum = calculateChecksum(pdfBuffer)
   const metadata = {
@@ -381,12 +381,12 @@ async function saveTemplate(formType, pdfBuffer, previousMetadata = null) {
       }] : [])
     ].slice(-10) // Keep last 10 versions in history
   }
-  
+
   await saveMetadata(formType, metadata)
-  
+
   // Clear from in-memory cache so it gets reloaded
   templateCache.delete(formType)
-  
+
   console.log(`Saved ${metadata.name} template (revision: ${pdfInfo.revision || 'unknown'}, checksum: ${checksum.substring(0, 8)}...)`)
   return metadata
 }
@@ -398,16 +398,16 @@ async function saveTemplate(formType, pdfBuffer, previousMetadata = null) {
  */
 async function needsUpdate(formType) {
   const metadata = await loadMetadata(formType)
-  
+
   // No metadata means no template - definitely needs download
   if (!metadata) {
     return true
   }
-  
+
   // Check if last check was more than UPDATE_CHECK_INTERVAL ago
   const lastChecked = new Date(metadata.lastCheckedAt)
   const timeSinceCheck = Date.now() - lastChecked.getTime()
-  
+
   return timeSinceCheck > UPDATE_CHECK_INTERVAL
 }
 
@@ -424,7 +424,7 @@ export async function updateTemplate(formType, force = false) {
   }
 
   const currentMetadata = await loadMetadata(formType)
-  
+
   // Check if update is needed
   if (!force && currentMetadata) {
     const timeSinceCheck = Date.now() - new Date(currentMetadata.lastCheckedAt).getTime()
@@ -441,23 +441,23 @@ export async function updateTemplate(formType, force = false) {
     // Download the template
     const pdfBuffer = await downloadTemplate(formType)
     const newChecksum = calculateChecksum(pdfBuffer)
-    
+
     // Check if it's actually different
     if (currentMetadata && currentMetadata.checksum === newChecksum) {
       // Update last checked time but don't save new file
       currentMetadata.lastCheckedAt = new Date().toISOString()
       await saveMetadata(formType, currentMetadata)
-      
+
       return {
         updated: false,
         reason: 'No changes detected',
         metadata: currentMetadata
       }
     }
-    
+
     // Save the new template (will archive the old one)
     const metadata = await saveTemplate(formType, pdfBuffer, currentMetadata)
-    
+
     return {
       updated: true,
       reason: currentMetadata ? 'New version available' : 'Initial download',
@@ -468,7 +468,7 @@ export async function updateTemplate(formType, force = false) {
     }
   } catch (error) {
     console.error(`Error updating ${source.name} template:`, error.message)
-    
+
     // Update last checked time even on failure to prevent constant retries
     if (currentMetadata) {
       currentMetadata.lastCheckedAt = new Date().toISOString()
@@ -476,7 +476,7 @@ export async function updateTemplate(formType, force = false) {
       currentMetadata.lastErrorAt = new Date().toISOString()
       await saveMetadata(formType, currentMetadata)
     }
-    
+
     return {
       updated: false,
       error: error.message,
@@ -492,7 +492,7 @@ export async function updateTemplate(formType, force = false) {
  */
 export async function updateAllTemplates(force = false) {
   const results = {}
-  
+
   for (const formType of Object.keys(TEMPLATE_SOURCES)) {
     try {
       results[formType] = await updateTemplate(formType, force)
@@ -503,7 +503,7 @@ export async function updateAllTemplates(force = false) {
       }
     }
   }
-  
+
   return results
 }
 
@@ -517,22 +517,22 @@ export async function getTemplate(formType) {
   if (templateCache.has(formType)) {
     return templateCache.get(formType)
   }
-  
+
   const templatePath = getTemplatePath(formType)
-  
+
   try {
     const buffer = await fs.readFile(templatePath)
-    
+
     // Cache in memory
     templateCache.set(formType, buffer)
-    
+
     return buffer
   } catch (error) {
     if (error.code === 'ENOENT') {
       // Template doesn't exist - try to download it
       console.log(`Template for ${formType} not found, attempting download...`)
       const result = await updateTemplate(formType, true)
-      
+
       if (result.updated || result.metadata) {
         // Try to load again
         try {
@@ -543,7 +543,7 @@ export async function getTemplate(formType) {
           return null
         }
       }
-      
+
       return null
     }
     throw error
@@ -559,7 +559,7 @@ export async function getTemplate(formType) {
 export async function getArchivedTemplate(formType, filename) {
   const archiveDir = getArchiveDir(formType)
   const filePath = path.join(archiveDir, filename)
-  
+
   try {
     return await fs.readFile(filePath)
   } catch (error) {
@@ -591,12 +591,12 @@ export async function hasTemplate(formType) {
  */
 export async function getTemplateStatus() {
   const status = {}
-  
+
   for (const [formType, source] of Object.entries(TEMPLATE_SOURCES)) {
     const metadata = await loadMetadata(formType)
     const exists = await hasTemplate(formType)
     const archivedVersions = await getArchivedVersions(formType)
-    
+
     status[formType] = {
       name: source.name,
       agency: source.agency,
@@ -609,7 +609,7 @@ export async function getTemplateStatus() {
       versionCount: archivedVersions.length + (exists ? 1 : 0)
     }
   }
-  
+
   return status
 }
 
@@ -619,19 +619,19 @@ export async function getTemplateStatus() {
  */
 export async function initializeTemplates() {
   console.log('Initializing PDF templates...')
-  
+
   // Ensure base directory exists
   await fs.mkdir(TEMPLATE_DIR, { recursive: true })
-  
+
   const results = {
     initialized: [],
     skipped: [],
     errors: []
   }
-  
+
   for (const formType of Object.keys(TEMPLATE_SOURCES)) {
     const exists = await hasTemplate(formType)
-    
+
     if (!exists) {
       try {
         const result = await updateTemplate(formType, true)
@@ -656,9 +656,61 @@ export async function initializeTemplates() {
       results.skipped.push(formType)
     }
   }
-  
+
   console.log('PDF template initialization complete:', results)
   return results
+}
+
+/**
+ * Download only missing templates and report progress via callback.
+ * Used for first-admin setup UI with progress bar.
+ * @param {Function} onProgress - Async callback receiving { formType?, name?, message?, current, total, status? }
+ * @returns {Promise<{ initialized: string[], errors: Array<{ formType: string, error: string }> }>}
+ */
+export async function ensureTemplatesWithProgress(onProgress) {
+  await fs.mkdir(TEMPLATE_DIR, { recursive: true })
+
+  const formTypes = Object.keys(TEMPLATE_SOURCES)
+  const missing = []
+  for (const formType of formTypes) {
+    const exists = await hasTemplate(formType)
+    if (!exists) missing.push(formType)
+  }
+
+  const total = missing.length
+  const initialized = []
+  const errors = []
+
+  if (total === 0) {
+    if (onProgress) await onProgress({ status: 'done', current: 0, total: 0, message: 'All templates already present' })
+    return { initialized, errors }
+  }
+
+  for (let i = 0; i < missing.length; i++) {
+    const formType = missing[i]
+    const source = TEMPLATE_SOURCES[formType]
+    const name = source.name
+    const current = i + 1
+
+    if (onProgress) await onProgress({ formType, name, message: `Downloading ${name}...`, current, total, status: 'started' })
+
+    try {
+      const result = await updateTemplate(formType, true)
+      if (result.updated || result.metadata) {
+        initialized.push(formType)
+        if (onProgress) await onProgress({ formType, name, message: `${name} complete`, current, total, status: 'complete' })
+      } else if (result.error) {
+        errors.push({ formType, error: result.error })
+        if (onProgress) await onProgress({ formType, name, message: `${name} failed`, current, total, status: 'error', error: result.error })
+      }
+    } catch (error) {
+      errors.push({ formType, error: error.message })
+      if (onProgress) await onProgress({ formType, name, message: `${name} failed`, current, total, status: 'error', error: error.message })
+    }
+  }
+
+  if (onProgress) await onProgress({ status: 'done', current: total, total, message: total > 0 ? 'Download complete' : null })
+  return { initialized, errors }
 }
 
 /**
@@ -693,6 +745,7 @@ export default {
   updateAllTemplates,
   getTemplateStatus,
   initializeTemplates,
+  ensureTemplatesWithProgress,
   clearTemplateCache,
   getSupportedFormTypes,
   getTemplateDirectory

@@ -120,60 +120,27 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-const TEMPLATE_INIT_RETRIES = 3
-const TEMPLATE_INIT_RETRY_DELAY_MS = 5000
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
+  startRetentionScheduler()
 
-async function ensurePdfTemplatesThenStart() {
-  // Initialize PDF templates (download if not present) before accepting connections
-  let lastError = null
-  for (let attempt = 1; attempt <= TEMPLATE_INIT_RETRIES; attempt++) {
+  // PDF templates are downloaded when the first admin opens the dashboard (see admin download-stream endpoint)
+
+  // Schedule periodic template update checks (every 24 hours)
+  const TEMPLATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
+  setInterval(async () => {
+    console.log('Running scheduled PDF template update check...')
     try {
-      const results = await initializeTemplates()
-      const hasErrors = results.errors && results.errors.length > 0
-      if (hasErrors && attempt < TEMPLATE_INIT_RETRIES) {
-        console.warn(`PDF template init had errors (attempt ${attempt}/${TEMPLATE_INIT_RETRIES}), retrying in ${TEMPLATE_INIT_RETRY_DELAY_MS / 1000}s...`)
-        await new Promise((r) => setTimeout(r, TEMPLATE_INIT_RETRY_DELAY_MS))
-        continue
+      const results = await updateAllTemplates(false)
+      const updated = Object.entries(results).filter(([, r]) => r.updated)
+      if (updated.length > 0) {
+        console.log('Template updates:', updated.map(([type]) => type).join(', '))
+      } else {
+        console.log('All templates are up to date')
       }
-      if (hasErrors) {
-        console.warn('PDF template init completed with errors:', results.errors)
-      }
-      break
     } catch (error) {
-      lastError = error
-      console.error(`Failed to initialize PDF templates (attempt ${attempt}/${TEMPLATE_INIT_RETRIES}):`, error.message)
-      if (attempt < TEMPLATE_INIT_RETRIES) {
-        console.log(`Retrying in ${TEMPLATE_INIT_RETRY_DELAY_MS / 1000}s...`)
-        await new Promise((r) => setTimeout(r, TEMPLATE_INIT_RETRY_DELAY_MS))
-      }
+      console.error('Scheduled template update check failed:', error.message)
     }
-  }
-  if (lastError) {
-    console.log('PDF generation will use fallback method until templates are available')
-  }
-
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
-    startRetentionScheduler()
-
-    // Schedule periodic template update checks (every 24 hours)
-    const TEMPLATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
-    setInterval(async () => {
-      console.log('Running scheduled PDF template update check...')
-      try {
-        const results = await updateAllTemplates(false)
-        const updated = Object.entries(results).filter(([, r]) => r.updated)
-        if (updated.length > 0) {
-          console.log('Template updates:', updated.map(([type]) => type).join(', '))
-        } else {
-          console.log('All templates are up to date')
-        }
-      } catch (error) {
-        console.error('Scheduled template update check failed:', error.message)
-      }
-    }, TEMPLATE_CHECK_INTERVAL)
-  })
-}
-
-ensurePdfTemplatesThenStart()
+  }, TEMPLATE_CHECK_INTERVAL)
+})
 

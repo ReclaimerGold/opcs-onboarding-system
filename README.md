@@ -145,8 +145,9 @@ opcs-onboarding-system/
 │   ├── Dockerfile               # Frontend-only Docker image
 │   └── package.json
 ├── Dockerfile                    # Combined full-stack Docker image
-├── docker-compose.yml            # Production Docker Compose
-├── docker-compose.dev.yml        # Development Docker Compose
+├── docker-compose.yml            # Production Compose (GHCR images)
+├── docker-compose.local.yml      # Local build and run from source
+├── docker-compose.dev.yml        # Development Docker Compose (hot reload)
 ├── .dockerignore                 # Root Docker build exclusions
 └── package.json                  # Root package.json with dev scripts
 ```
@@ -460,6 +461,7 @@ This system is designed to comply with:
 - `GET /api/admin/diagnose-login` - Diagnostic endpoint for login issues (query params: firstName, lastName, email)
 - `POST /api/admin/tests/run` - Run unit tests and return results
 - `GET /api/admin/pdf-templates/status` - Get status of all PDF templates (IRS/USCIS forms)
+- `GET /api/admin/pdf-templates/download-stream` - Server-Sent Events stream to download missing templates with progress (used by first-admin setup modal)
 - `POST /api/admin/pdf-templates/update` - Manually trigger PDF template updates (query params: formType, force)
 - `GET /api/admin/pdf-templates/:formType/preview` - Preview/download current PDF template (W4, I9, 8850)
 - `GET /api/admin/pdf-templates/:formType/archive` - List archived versions of a template
@@ -509,13 +511,26 @@ cd frontend && npm run build
 
 ### Quick Start with Docker Compose
 
-The recommended way to deploy the application is using Docker Compose:
+**Production (pull from GitHub Container Registry):**
 
 ```bash
-# Production deployment (combined image on port 80)
-docker-compose up -d
+# Set your GHCR image prefix (e.g. ghcr.io/your-org/opcs-onboarding-system)
+export OPCS_IMAGE_PREFIX=ghcr.io/YOUR_ORG/opcs-onboarding-system
+# Optional: use a specific tag (default is latest)
+# export OPCS_IMAGE_TAG=v1.0.0
 
-# Development with hot reload
+docker-compose up -d
+```
+
+**Local testing (build from source):**
+
+```bash
+docker-compose -f docker-compose.local.yml up -d --build
+```
+
+**Development with hot reload:**
+
+```bash
 docker-compose -f docker-compose.dev.yml up
 ```
 
@@ -535,11 +550,14 @@ Configure the application using environment variables in `docker-compose.yml` or
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `OPCS_IMAGE_PREFIX` | For GHCR | `ghcr.io/your-org/opcs-onboarding-system` | Image prefix for frontend/backend (e.g. `ghcr.io/org/repo`) |
+| `OPCS_IMAGE_TAG` | No | `latest` | Image tag when using GHCR |
 | `SESSION_SECRET` | **Yes** | `change-me-in-production` | Session encryption key (generate with `openssl rand -hex 32`) |
 | `ENCRYPTION_KEY` | No | Auto-generated | AES-256 key for data encryption |
 | `NODE_ENV` | No | `production` | Environment mode |
 | `PORT` | No | `3000` | Backend server port |
-| `FRONTEND_URL` | No | - | Frontend URL for CORS |
+| `FRONTEND_URL` | No | `http://localhost` | Frontend URL for CORS (set when using non-default port) |
+| `FRONTEND_PORT` / `BACKEND_PORT` | No | `80` / `3000` | Host ports (use to avoid conflicts) |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | No | - | Google Service Account email |
 | `GOOGLE_PRIVATE_KEY` | No | - | Google Service Account private key |
 | `GOOGLE_DRIVE_FOLDER_ID` | No | - | Google Drive folder for documents |
@@ -561,38 +579,35 @@ docker run -d \
   ghcr.io/YOUR_ORG/opcs-onboarding-system:latest
 ```
 
-3. **Or use docker-compose.yml:**
-```yaml
-services:
-  opcs:
-    image: ghcr.io/YOUR_ORG/opcs-onboarding-system:latest
-    ports:
-      - "80:80"
-    environment:
-      - SESSION_SECRET=your-secure-secret-here
-      - GOOGLE_SERVICE_ACCOUNT_EMAIL=${GOOGLE_SERVICE_ACCOUNT_EMAIL}
-      - GOOGLE_PRIVATE_KEY=${GOOGLE_PRIVATE_KEY}
-    volumes:
-      - sqlite-data:/app/database
-      - storage-data:/app/storage
-    restart: unless-stopped
+3. **Or use docker-compose.yml** (pulls frontend and backend images from GHCR):
 
-volumes:
-  sqlite-data:
-  storage-data:
+```bash
+export OPCS_IMAGE_PREFIX=ghcr.io/YOUR_ORG/opcs-onboarding-system
+docker-compose up -d
 ```
 
 ### Docker Compose Services
 
-**Production** (`docker-compose.yml`):
+**Production** (`docker-compose.yml`): uses images from GHCR. Set `OPCS_IMAGE_PREFIX` to your `ghcr.io/org/repo`.
 - `frontend`: nginx serving Vue app on port 80, proxies `/api` to backend
 - `backend`: Node.js Express API on port 3000
+
+**Local testing** (`docker-compose.local.yml`): builds from source and runs with local image tags.
+- Same services as production; use when testing image builds or changes before publishing.
 
 **Development** (`docker-compose.dev.yml`):
 - `frontend`: Vite dev server on port 9999 with hot reload
 - `backend`: Bun with file watching on port 3000
 
 ### Building Images Locally
+
+For **local run** without pushing to GHCR, use the local compose file:
+
+```bash
+docker-compose -f docker-compose.local.yml up -d --build
+```
+
+To build images manually:
 
 ```bash
 # Build combined image

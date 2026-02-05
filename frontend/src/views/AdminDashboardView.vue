@@ -820,6 +820,16 @@
         </div>
       </div>
     </div>
+
+    <!-- Prompt to start PDF template downloads (user must click, then progress modal) -->
+    <PdfDownloadPromptDialog
+      :open="showPdfDownloadPrompt"
+      @start-download="onStartPdfDownload"
+    />
+    <PdfTemplateDownloadModal
+      :open="showPdfDownloadModal"
+      @close="showPdfDownloadModal = false"
+    />
   </div>
 </template>
 
@@ -838,6 +848,8 @@ import DataTable from '../components/admin/DataTable.vue'
 import ComplianceChecker from '../components/admin/ComplianceChecker.vue'
 import TestResultsPanel from '../components/admin/TestResultsPanel.vue'
 import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
+import PdfDownloadPromptDialog from '../components/admin/PdfDownloadPromptDialog.vue'
+import PdfTemplateDownloadModal from '../components/admin/PdfTemplateDownloadModal.vue'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
 
 const router = useRouter()
@@ -862,6 +874,13 @@ const deactivatingUserId = ref(null)
 const usersIncludeInactive = ref(false)
 const currentUserId = ref(null)
 const testResults = ref(null)
+const showPdfDownloadPrompt = ref(false)
+const showPdfDownloadModal = ref(false)
+
+function onStartPdfDownload() {
+  showPdfDownloadPrompt.value = false
+  showPdfDownloadModal.value = true
+}
 
 // Computed loading state
 const isLoading = computed(() => {
@@ -1663,6 +1682,18 @@ onMounted(async () => {
     currentUserId.value = userResponse.data.id
   } catch (error) {
     console.error('Error fetching current user:', error)
+  }
+
+  // If any PDF templates are missing, show prompt dialog first; user clicks to start download
+  try {
+    const statusRes = await api.get('/admin/pdf-templates/status')
+    const templates = statusRes.data?.templates || {}
+    const anyMissing = Object.values(templates).some((t) => t && t.exists === false)
+    if (anyMissing) {
+      showPdfDownloadPrompt.value = true
+    }
+  } catch (error) {
+    console.error('Error checking PDF template status:', error)
   }
   
   await dashboard.loadAllData()

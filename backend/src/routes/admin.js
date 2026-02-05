@@ -14,7 +14,8 @@ import {
   getTemplate,
   getArchivedTemplate,
   getArchivedVersions,
-  getTemplateDirectory
+  getTemplateDirectory,
+  ensureTemplatesWithProgress
 } from '../services/pdfTemplateService.js'
 import { runAllComplianceChecks } from '../services/complianceService.js'
 import { fixAllFilePermissions, isGoogleDriveConfigured, deleteFromGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.js'
@@ -1405,6 +1406,44 @@ router.get('/diagnose-login', async (req, res) => {
   } catch (error) {
     console.error('Diagnose login error:', error)
     res.status(500).json({ error: 'Failed to diagnose login issue', details: error.message })
+  }
+})
+
+/**
+ * GET /api/admin/pdf-templates/download-stream
+ * Server-Sent Events stream: download missing PDF templates and emit progress.
+ * Used by the first-admin setup modal to show progress bar and current download.
+ */
+router.get('/pdf-templates/download-stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  const send = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`)
+    if (typeof res.flush === 'function') res.flush()
+  }
+
+  try {
+    await ensureTemplatesWithProgress(async (event) => {
+      send(event)
+    })
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'DOWNLOAD_PDF_TEMPLATES',
+      resourceType: 'PDF_TEMPLATES',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { endpoint: 'pdf-templates/download-stream' }
+    })
+  } catch (error) {
+    console.error('PDF template download stream error:', error)
+    send({ status: 'error', message: error.message })
+  } finally {
+    res.end()
   }
 })
 
