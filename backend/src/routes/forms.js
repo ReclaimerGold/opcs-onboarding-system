@@ -118,8 +118,12 @@ function validateSubmitFormData(formData, step, applicantId, db) {
       return { valid: true }
     }
     case 2: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
       if (!formData.firstName || !formData.lastName || !formData.authorizationType) {
         return { valid: false, error: 'Complete name and employment authorization before submitting' }
+      }
+      if (!ssnValid) {
+        return { valid: false, error: 'Social Security Number is required for the I-9. Complete Step 1 (W-4) first so your SSN can be used on the I-9.' }
       }
       if (formData.listADocument) {
         if (!formData.listADocumentNumber) {

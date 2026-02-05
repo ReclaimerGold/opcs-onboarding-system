@@ -9,8 +9,8 @@ export function redactFormDataForStorage(formData, stepNumber) {
   if (!formData || typeof formData !== 'object') return formData
   const copy = { ...formData }
 
-  // Step 1 (W-4) and Step 6 (8850) collect SSN
-  if (stepNumber === 1 || stepNumber === 6) {
+  // Step 1 (W-4), Step 2 (I-9), and Step 6 (8850) may contain SSN — never store in DB
+  if (stepNumber === 1 || stepNumber === 2 || stepNumber === 6) {
     delete copy.ssn
   }
 

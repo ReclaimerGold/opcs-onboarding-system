@@ -975,6 +975,7 @@ import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { formatSSN as formatSSNUtil, validateSSN } from '../../utils/validation.js'
+import { getSSNCookie } from '../../utils/cookies.js'
 import SignaturePad from '../ui/SignaturePad.vue'
 
 const props = defineProps({
@@ -988,6 +989,7 @@ const formData = ref({
   middleName: '',
   lastName: '',
   otherLastNames: '',
+  ssn: '', // Required for I-9 Section 1; loaded from cookie (collected in Step 1)
   authorizationType: 'citizen',
   alienNumber: '',
   alienDocumentType: '',
@@ -1085,6 +1087,12 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error('Error loading Step 1 draft for middle name:', error)
+  }
+
+  // Load SSN from cookie for I-9 Section 1 (SSN is collected in Step 1 W-4, not stored in DB)
+  const savedSSN = getSSNCookie()
+  if (savedSSN && savedSSN.match(/^\d{3}-\d{2}-\d{4}$/)) {
+    formData.value.ssn = savedSSN
   }
 
   // Set document option and substep based on existing data (draft restoration)

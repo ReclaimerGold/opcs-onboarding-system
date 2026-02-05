@@ -48,10 +48,10 @@
   },
   "lint-staged": {
     "frontend/src/**/*.{js,vue}": [
-      "bun run lint:frontend"
+      "npm run lint:frontend"
     ],
     "backend/src/**/*.js": [
-      "bun run lint:backend"
+      "npm run lint:backend"
     ]
   }
 }
