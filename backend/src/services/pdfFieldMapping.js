@@ -57,6 +57,11 @@ export const I9_FIELD_MAPPING = {
   middleInitial: ['Employee Middle Initial (if any)', 'Middle initial if any from Section 1', 'Middle Initial', 'form1[0].#subform[0].MiddleInitial[0]', 'MiddleInitial[0]'],
   otherLastNames: ['Employee Other Last Names Used (if any)', 'Other Last Names Used', 'form1[0].#subform[0].OtherNames[0]', 'OtherNames[0]'],
 
+  // I-9 Digital (Section 1-2): same data as Section 1 so both copies auto-populate
+  lastNameSection1_2: ['Last Name Family Name from Section 1-2'],
+  firstNameSection1_2: ['First Name Given Name from Section 1-2'],
+  middleInitialSection1_2: ['Middle initial if any from Section 1-2'],
+
   // Address
   address: ['Address Street Number and Name', 'Address (Street Number and Name)', 'form1[0].#subform[0].Address[0]', 'Address[0]'],
   aptNumber: ['Apt. Number', 'form1[0].#subform[0].AptNumber[0]', 'AptNumber[0]'],
@@ -406,6 +411,11 @@ export function mapI9FormData(formData) {
     firstName: formData.firstName || '',
     middleInitial: formData.middleName ? formData.middleName.charAt(0) : '',
     otherLastNames: formData.otherLastNames || '',
+
+    // I-9 Digital (Section 1-2): mirror Section 1 so both copies auto-populate
+    lastNameSection1_2: formData.lastName || '',
+    firstNameSection1_2: formData.firstName || '',
+    middleInitialSection1_2: formData.middleName ? formData.middleName.charAt(0) : '',
 
     address: formData.address || '',
     aptNumber: formData.aptNumber || '',
