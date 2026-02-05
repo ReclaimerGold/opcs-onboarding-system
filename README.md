@@ -167,13 +167,15 @@ cd backend && npm install
 cd ../frontend && npm install
 ```
 
-2. **Create `.env` file in `backend/` directory:**
+2. **Create `.env` file in project root (or `backend/` for backend-only runs).** Copy from `.env.example`:
 ```env
 PORT=3000
 SESSION_SECRET=your-secret-key-here-change-in-production
 FRONTEND_URL=http://localhost:9999
 NODE_ENV=development
+ENCRYPTION_KEY=your-32-byte-encryption-key-here
 ```
+   **User accounts:** There are no admin username/password in env. The first user to sign up becomes admin; they sign in with **email** and set their **password** during the initial onboarding flow (password setup step). All other users are created the same way (sign up with name/email, then set password when required).
 
 3. **Run development servers:**
 
@@ -554,6 +556,7 @@ Configure the application using environment variables in `docker-compose.yml` or
 | `OPCS_IMAGE_TAG` | No | `latest` | Image tag when using GHCR |
 | `SESSION_SECRET` | **Yes** | `change-me-in-production` | Session encryption key (generate with `openssl rand -hex 32`) |
 | `ENCRYPTION_KEY` | No | Auto-generated | AES-256 key for data encryption |
+| `SECURE_COOKIES` | No | `false` | Set to `true` when serving over HTTPS |
 | `NODE_ENV` | No | `production` | Environment mode |
 | `PORT` | No | `3000` | Backend server port |
 | `FRONTEND_URL` | No | `http://localhost` | Frontend URL for CORS (set when using non-default port) |
@@ -561,6 +564,8 @@ Configure the application using environment variables in `docker-compose.yml` or
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | No | - | Google Service Account email |
 | `GOOGLE_PRIVATE_KEY` | No | - | Google Service Account private key |
 | `GOOGLE_DRIVE_FOLDER_ID` | No | - | Google Drive folder for documents |
+
+User accounts (including admin) are created by signing up with **email**; the first user becomes admin. Passwords are set during the initial onboarding flow (password setup), not via environment variables.
 
 ### Production Deployment
 
