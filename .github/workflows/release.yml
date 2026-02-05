@@ -24,7 +24,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies (root; Vitest hoisted for workspaces)
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Test backend
         run: bun run test:backend
