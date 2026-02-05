@@ -1065,7 +1065,17 @@ onMounted(async () => {
   if (loadingApplicant.value) {
     await new Promise(resolve => setTimeout(resolve, 500))
   }
-  
+
+  // Load step-2 draft first so List A/B/C and other fields are available before we set document option and SSN
+  try {
+    const draftRes = await api.get('/forms/draft/2')
+    if (draftRes.data.success && draftRes.data.formData) {
+      Object.assign(formData.value, draftRes.data.formData)
+    }
+  } catch (error) {
+    console.error('Error loading Step 2 draft:', error)
+  }
+
   if (applicantData.value) {
     formData.value.firstName = applicantData.value.firstName || ''
     formData.value.lastName = applicantData.value.lastName || ''
@@ -1093,6 +1103,10 @@ onMounted(async () => {
   const savedSSN = getSSNCookie()
   if (savedSSN && savedSSN.match(/^\d{3}-\d{2}-\d{4}$/)) {
     formData.value.ssn = savedSSN
+    // Pre-fill List C document number when SSN card is selected (e.g. from draft) so SSN appears in the box
+    if (formData.value.listCDocument === 'ssn-card' && !formData.value.listCDocumentNumber) {
+      formData.value.listCDocumentNumber = savedSSN
+    }
   }
 
   // Set document option and substep based on existing data (draft restoration)
@@ -1126,17 +1140,39 @@ watch(() => props.sessionSignature, (sig) => {
   }
 })
 
-// Load uploaded documents
+// When SSN card is selected, pre-fill the List C document number from SSN (cookie) so it appears in the box
+watch(
+  () => [formData.value.listCDocument, formData.value.ssn],
+  () => {
+    if (
+      formData.value.listCDocument === 'ssn-card' &&
+      formData.value.ssn &&
+      !formData.value.listCDocumentNumber
+    ) {
+      formData.value.listCDocumentNumber = formData.value.ssn
+    }
+  },
+  { deep: true }
+)
+
+// Load uploaded documents and populate form fields from document metadata (digitally provided details)
 const loadUploadedDocuments = async () => {
   try {
     const response = await api.get('/forms/i9/documents')
     response.data.forEach(doc => {
       if (doc.document_category === 'listA') {
         uploadedDocuments.value.listA = doc.file_name
+        if (doc.document_number != null && doc.document_number !== '') formData.value.listADocumentNumber = doc.document_number
+        if (doc.issuing_authority != null && doc.issuing_authority !== '') formData.value.listAIssuingAuthority = doc.issuing_authority
+        if (doc.expiration_date != null && doc.expiration_date !== '') formData.value.listAExpiration = doc.expiration_date.slice(0, 10)
       } else if (doc.document_category === 'listB') {
         uploadedDocuments.value.listB = doc.file_name
+        if (doc.document_number != null && doc.document_number !== '') formData.value.listBDocumentNumber = doc.document_number
+        if (doc.issuing_authority != null && doc.issuing_authority !== '') formData.value.listBIssuingAuthority = doc.issuing_authority
+        if (doc.expiration_date != null && doc.expiration_date !== '') formData.value.listBExpiration = doc.expiration_date.slice(0, 10)
       } else if (doc.document_category === 'listC') {
         uploadedDocuments.value.listC = doc.file_name
+        if (doc.document_number != null && doc.document_number !== '') formData.value.listCDocumentNumber = doc.document_number
       }
     })
   } catch (error) {
@@ -1166,13 +1202,29 @@ const handleFileUpload = async (documentCategory, event) => {
   uploading.value[documentCategory] = true
 
   try {
-    const formData = new FormData()
-    formData.append('document', file)
-    formData.append('documentType', 'I9')
-    formData.append('documentCategory', documentCategory)
-    formData.append('documentName', file.name)
+    const payload = new FormData()
+    payload.append('document', file)
+    payload.append('documentType', 'I9')
+    payload.append('documentCategory', documentCategory)
+    payload.append('documentName', file.name)
 
-    const response = await api.post('/forms/i9/upload-document', formData, {
+    // Send document metadata so backend can store in i9_documents (SSN never sent for List C SSN card)
+    if (documentCategory === 'listA') {
+      if (formData.value.listADocumentNumber?.trim()) payload.append('documentNumber', formData.value.listADocumentNumber.trim())
+      if (formData.value.listAIssuingAuthority?.trim()) payload.append('issuingAuthority', formData.value.listAIssuingAuthority.trim())
+      if (formData.value.listAExpiration) payload.append('expirationDate', String(formData.value.listAExpiration).trim())
+    } else if (documentCategory === 'listB') {
+      if (formData.value.listBDocumentNumber?.trim()) payload.append('documentNumber', formData.value.listBDocumentNumber.trim())
+      if (formData.value.listBIssuingAuthority?.trim()) payload.append('issuingAuthority', formData.value.listBIssuingAuthority.trim())
+      if (formData.value.listBExpiration) payload.append('expirationDate', String(formData.value.listBExpiration).trim())
+    } else if (documentCategory === 'listC') {
+      // Compliance: do not send document number when List C is SSN card (it is the SSN; never store in DB)
+      if (formData.value.listCDocument !== 'ssn-card' && formData.value.listCDocumentNumber?.trim()) {
+        payload.append('documentNumber', formData.value.listCDocumentNumber.trim())
+      }
+    }
+
+    const response = await api.post('/forms/i9/upload-document', payload, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }

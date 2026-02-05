@@ -81,10 +81,13 @@ app.use(session({
   }
 }))
 
-// Rate limiting - more lenient for auth endpoints
+// Rate limiting - per-user for authenticated requests so form wizard burst doesn't hit limit
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200 // limit each IP to 200 requests per windowMs
+  max: 500, // requests per window per key (higher for form wizard: progress, drafts, applicant, i9 docs, etc.)
+  keyGenerator: (req) => (req.session?.applicantId ? `user-${req.session.applicantId}` : req.ip),
+  standardHeaders: true,
+  legacyHeaders: false
 })
 
 const authLimiter = rateLimit({

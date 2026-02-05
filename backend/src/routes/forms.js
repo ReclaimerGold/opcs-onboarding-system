@@ -683,6 +683,43 @@ function updateI9FormDataForDocument(db, applicantId, documentCategory, document
 }
 
 /**
+ * Update step-2 form draft with document metadata so draft stays in sync with uploaded documents.
+ * Does not write SSN (frontend omits listCDocumentNumber for SSN card; backend never receives it).
+ * @param {object} db - Database instance
+ * @param {number} applicantId
+ * @param {string} documentCategory - listA, listB, or listC
+ * @param {string|null} documentNumber
+ * @param {string|null} issuingAuthority
+ * @param {string|null} expirationDate
+ */
+function updateI9DraftForDocument(db, applicantId, documentCategory, documentNumber, issuingAuthority, expirationDate) {
+  const draft = db.prepare(`
+    SELECT id, form_data FROM form_drafts
+    WHERE applicant_id = ? AND step_number = 2
+  `).get(applicantId)
+  if (!draft || !draft.form_data) return
+  let formData
+  try {
+    formData = JSON.parse(draft.form_data)
+  } catch {
+    return
+  }
+  if (documentCategory === 'listA') {
+    if (documentNumber != null) formData.listADocumentNumber = documentNumber
+    if (issuingAuthority != null) formData.listAIssuingAuthority = issuingAuthority
+    if (expirationDate != null) formData.listAExpiration = expirationDate
+  } else if (documentCategory === 'listB') {
+    if (documentNumber != null) formData.listBDocumentNumber = documentNumber
+    if (issuingAuthority != null) formData.listBIssuingAuthority = issuingAuthority
+    if (expirationDate != null) formData.listBExpiration = expirationDate
+  } else if (documentCategory === 'listC') {
+    if (documentNumber != null) formData.listCDocumentNumber = documentNumber
+  }
+  const redacted = redactFormDataForStorage(formData, 2)
+  db.prepare('UPDATE form_drafts SET form_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(redacted), draft.id)
+}
+
+/**
  * POST /api/forms/i9/upload-document
  * Upload an I-9 identity document
  */
@@ -810,6 +847,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         existing.id
       )
       updateI9FormDataForDocument(db, req.applicantId, documentCategory, docNumber, issuingAuth, expDate)
+      updateI9DraftForDocument(db, req.applicantId, documentCategory, docNumber, issuingAuth, expDate)
     } else {
       // Insert new row (first upload or post-onboarding new version)
       db.prepare(`
@@ -832,6 +870,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         expDate
       )
       updateI9FormDataForDocument(db, req.applicantId, documentCategory, docNumber, issuingAuth, expDate)
+      updateI9DraftForDocument(db, req.applicantId, documentCategory, docNumber, issuingAuth, expDate)
     }
 
     const resourceId = duringOnboarding && existing ? existing.id : db.prepare('SELECT last_insert_rowid()').get()['last_insert_rowid()']

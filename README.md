@@ -17,7 +17,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Manual save**: Save draft button available on each form
 - **Resume anytime**: Pick up where you left off with saved drafts
 - **Field Auto-population**: Name, email, and phone auto-populate from signup and are locked after first entry
-- **Shared fields across forms**: Name, email, phone, address, date of birth, and (where applicable) SSN and signature auto-fill consistently across all six steps. The applicant API (`/applicants/me`) is updated on Step 1 submit (and Step 3 for address); the Step 1 draft is used as fallback for middle name and for address/DOB when the applicant record does not yet have them. SSN is provided via temporary browser cookie (not stored in the database); signature is stored in session and reused on W-4, I-9, Acknowledgements, and Form 8850.
+- **Shared fields across forms**: Name, email, phone, address, date of birth, and (where applicable) SSN and signature auto-fill consistently across all six steps. The applicant API (`/applicants/me`) is updated on Step 1 submit (and Step 3 for address); the Step 1 draft is used as fallback for middle name and for address/DOB when the applicant record does not yet have them. SSN is provided via temporary browser cookie (not stored in the database); signature is stored in session and reused on W-4, I-9, Acknowledgements, and Form 8850. If the SSN cookie expires (e.g. after 1 hour), the form wizard re-prompts for SSN when the user is on Step 1 (W-4), Step 2 (I-9), or Step 6 (8850) so that documents can be filled correctly.
 - **Loading Banners**: Clear indicators show when pre-fill data or settings are still loading
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
@@ -41,7 +41,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 
 ### Technical Features
 - **Document submission behavior**: During initial onboarding (before all 6 steps are complete), submitting the same form step again **overwrites** the existing submission (one PDF per step; no duplicates). After onboarding is complete, submitting again **creates a new version** (duplicate) for history. Progress and "onboarding complete" are based on **distinct steps** (0–6), not total submission rows.
-- **I-9 identity documents**: During onboarding, replacing an I-9 document (List A, B, or C) **overwrites** the existing file. After onboarding, replacing saves a **new version** on the backend while the UI shows a single "current" document per slot. The dashboard **re-upload flow** re-captures document number, issuing authority, and expiration date (same as initial I-9 submission) so updated documents (e.g. new driver's license) are recorded correctly.
+- **I-9 identity documents**: During onboarding, replacing an I-9 document (List A, B, or C) **overwrites** the existing file. The onboarding I-9 step sends document number, issuing authority, and expiration date with each upload so metadata is stored in `i9_documents`. After onboarding, the dashboard **re-upload flow** re-captures the same fields. When the I-9 step loads, it populates List A/B/C detail fields from `GET /api/forms/i9/documents` when document metadata is available. (List C Social Security Card: document number is not stored in the DB for compliance; SSN appears only on the generated I-9 PDF.)
 - **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data; generated PDFs and uploaded PDFs (e.g. I-9 identity documents) are flattened so stored copies are non-editable
 - **Automatic Template Updates**: Checks for new form versions daily, downloads and caches updates
 - **Template Version History**: Archives previous template versions when updates are detected, allowing admin preview of historical forms
@@ -415,8 +415,8 @@ This system is designed to comply with:
 - `POST /api/forms/draft/:step` - Save draft for step
 - `GET /api/forms/draft/:step` - Load draft for step
 - `GET /api/forms/drafts` - Get all drafts
-- `POST /api/forms/i9/upload-document` - Upload I-9 identity document. Optional body fields: `documentNumber`, `issuingAuthority`, `expirationDate` (for dashboard re-upload). During onboarding overwrites existing document for that category; after onboarding inserts a new version. Returns current document metadata.
-- `GET /api/forms/i9/documents` - Get **current** I-9 documents (latest version per List A/B/C). Includes `document_number`, `issuing_authority`, `expiration_date`, and `web_view_link` for Google Drive.
+- `POST /api/forms/i9/upload-document` - Upload I-9 identity document. Body may include `documentNumber`, `issuingAuthority`, `expirationDate` (sent during onboarding and in dashboard re-upload; stored in `i9_documents`). During onboarding overwrites existing document for that category; after onboarding inserts a new version. Returns current document metadata.
+- `GET /api/forms/i9/documents` - Get **current** I-9 documents (latest version per List A/B/C). Includes `document_number`, `issuing_authority`, `expiration_date`, and `web_view_link` for Google Drive. The I-9 onboarding form populates List A/B/C detail fields from this response when loading.
 - `GET /api/forms/i9/documents/:id/view` - View I-9 document (or redirects to Google Drive if `web_view_link` available)
 
 ### Applicants

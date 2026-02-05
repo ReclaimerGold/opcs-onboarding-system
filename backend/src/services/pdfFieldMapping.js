@@ -104,7 +104,23 @@ export const I9_FIELD_MAPPING = {
   preparerAddress: ['Preparer or Translator Address (Street Number and Name) 0', 'Preparer Address', 'form1[0].#subform[1].PreparerAddress[0]', 'PreparerAddress[0]'],
   preparerCity: ['Preparer or Translator City or Town 0', 'Preparer City', 'form1[0].#subform[1].PreparerCity[0]', 'PreparerCity[0]'],
   preparerState: ['Preparer State 0', 'Preparer State', 'form1[0].#subform[1].PreparerState[0]', 'PreparerState[0]'],
-  preparerZip: ['Zip Code 0', 'Preparer ZIP', 'form1[0].#subform[1].PreparerZip[0]', 'PreparerZip[0]']
+  preparerZip: ['Zip Code 0', 'Preparer ZIP', 'form1[0].#subform[1].PreparerZip[0]', 'PreparerZip[0]'],
+
+  // Section 2: List A row 1 — PDF column order differs from field names; map by visual column
+  listADocumentTitle: ['Issuing Authority 1'],           // first column (Document Title) in form
+  listAIssuingAuthority: ['Document Number 0 (if any)'], // second column (Issuing Authority) in form
+  listADocumentNumber: ['Document Title 0'],            // third column (Document Number) in form
+  listAExpirationDate: ['Expiration Date 0'],
+  // List B
+  listBDocumentTitle: ['List B Document 1 Title'],
+  listBIssuingAuthority: ['List B Issuing Authority 1'],
+  listBDocumentNumber: ['List B Document Number 1'],
+  listBExpirationDate: ['List B Expiration Date 1'],
+  // List C
+  listCDocumentTitle: ['List C Document Title 1'],
+  listCIssuingAuthority: ['List C Issuing Authority 1'],
+  listCDocumentNumber: ['List C Document Number 1'],
+  listCExpirationDate: ['List C Expiration Date 1']
 }
 
 /**
@@ -398,6 +414,37 @@ export function mapW4FormData(formData) {
   }
 }
 
+/** Display titles for I-9 List A document types (Section 2) */
+const I9_LIST_A_TITLES = {
+  passport: 'U.S. Passport or U.S. Passport Card',
+  'foreign-passport': 'Foreign Passport with I-551',
+  i766: 'Employment Authorization Document (Form I-766)',
+  micronesia: 'Passport from FSM or RMI with I-94',
+  nonimmigrant: 'Foreign Passport with I-94 (work authorized)'
+}
+
+/** Display titles for I-9 List B document types (Section 2) */
+const I9_LIST_B_TITLES = {
+  'drivers-license': "Driver's License",
+  'state-id': 'State ID Card',
+  'school-id': 'School ID Card',
+  voter: "Voter's Registration Card",
+  military: 'U.S. Military Card',
+  'coast-guard': 'Military Dependent ID',
+  tribal: 'Native American Tribal Document',
+  canadian: "Canadian Driver's License"
+}
+
+/** Display titles for I-9 List C document types (Section 2) */
+const I9_LIST_C_TITLES = {
+  'ssn-card': 'Social Security Card',
+  'birth-certificate': 'U.S. Birth Certificate',
+  tribal: 'Native American Tribal Document',
+  'citizen-id': 'U.S. Citizen ID Card (Form I-197)',
+  'resident-id': 'Resident ID (Form I-179)',
+  ead: 'Employment Authorization (DHS)'
+}
+
 /**
  * Map I-9 form data to PDF field values
  * @param {Object} formData - Application form data
@@ -406,7 +453,7 @@ export function mapW4FormData(formData) {
 export function mapI9FormData(formData) {
   const ssnParts = splitSSNForI9(formData.ssn)
 
-  return {
+  const out = {
     lastName: formData.lastName || '',
     firstName: formData.firstName || '',
     middleInitial: formData.middleName ? formData.middleName.charAt(0) : '',
@@ -450,6 +497,32 @@ export function mapI9FormData(formData) {
     // Signature date
     signatureDateEmployee: formatDateForPDF(new Date())
   }
+
+  // Section 2: List A (one document)
+  if (formData.listADocument) {
+    out.listADocumentTitle = I9_LIST_A_TITLES[formData.listADocument] || formData.listADocument
+    out.listAIssuingAuthority = formData.listAIssuingAuthority || ''
+    out.listADocumentNumber = formData.listADocumentNumber || ''
+    out.listAExpirationDate = formatDateForPDF(formData.listAExpiration) || ''
+  }
+
+  // Section 2: List B (identity document)
+  if (formData.listBDocument) {
+    out.listBDocumentTitle = I9_LIST_B_TITLES[formData.listBDocument] || formData.listBDocument
+    out.listBIssuingAuthority = formData.listBIssuingAuthority || ''
+    out.listBDocumentNumber = formData.listBDocumentNumber || ''
+    out.listBExpirationDate = formatDateForPDF(formData.listBExpiration) || ''
+  }
+
+  // Section 2: List C (work authorization)
+  if (formData.listCDocument) {
+    out.listCDocumentTitle = I9_LIST_C_TITLES[formData.listCDocument] || formData.listCDocument
+    out.listCIssuingAuthority = formData.listCDocument === 'ssn-card' ? 'Social Security Administration' : (formData.listCIssuingAuthority || '')
+    out.listCDocumentNumber = formData.listCDocumentNumber || ''
+    out.listCExpirationDate = formatDateForPDF(formData.listCExpiration) || ''
+  }
+
+  return out
 }
 
 /**

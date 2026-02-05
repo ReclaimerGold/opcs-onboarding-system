@@ -8,6 +8,11 @@
       v-model:consented="dashboardConsented"
       @signature="onDashboardOnboardingComplete"
     />
+    <!-- Re-prompt for SSN when cookie has expired so forms can be filled -->
+    <SSNRePromptModal
+      :open="showSSNRePromptModal"
+      @saved="onSSNRePromptSaved"
+    />
     <nav class="bg-white shadow">
       <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
         <div class="flex justify-between h-16">
@@ -375,6 +380,7 @@
         <div :class="hasPDFPreview ? 'lg:col-span-1' : 'w-full max-w-3xl'">
           <Step1W4Form 
             v-if="currentStep === 1" 
+            :key="'step1-' + stepRemountKey"
             :session-signature="sessionSignature"
             :consent-already-given="!!dashboardOnboarding.ssnConsentGiven?.value"
             @submitted="handleStepComplete"
@@ -382,6 +388,7 @@
           />
           <Step2I9Form 
             v-if="currentStep === 2" 
+            :key="'step2-' + stepRemountKey"
             :session-signature="sessionSignature"
             @submitted="handleStepComplete"
             @form-data-change="handleFormDataChange"
@@ -404,6 +411,7 @@
           />
           <Step68850Form 
             v-if="currentStep === 6" 
+            :key="'step6-' + stepRemountKey"
             :session-signature="sessionSignature"
             :consent-already-given="!!dashboardOnboarding.ssnConsentGiven?.value"
             @submitted="handleStepComplete"
@@ -500,6 +508,8 @@ import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import SSNConsentModal from '../components/SSNConsentModal.vue'
+import SSNRePromptModal from '../components/SSNRePromptModal.vue'
+import { getSSNCookie, setSSNCookie } from '../utils/cookies.js'
 import Step1W4Form from '../components/forms/Step1W4Form.vue'
 import Step2I9Form from '../components/forms/Step2I9Form.vue'
 import Step3BackgroundForm from '../components/forms/Step3BackgroundForm.vue'
@@ -519,6 +529,27 @@ const dashboardConsented = ref(false)
 // Unwrap composable refs so template gets booleans (SSNConsentModal expects open: Boolean)
 const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboardingModal?.value)
 const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
+
+// SSN re-prompt when cookie expired (steps 1, 2, 6 need SSN for forms)
+const STEPS_REQUIRING_SSN = [1, 2, 6]
+const showSSNRePromptModal = ref(false)
+const stepRemountKey = ref(0)
+
+function checkSSNExpiredAndShowRePrompt() {
+  if (!dashboardOnboarding.ssnConsentGiven?.value) return
+  if (showOnboardingModal.value) return
+  if (!STEPS_REQUIRING_SSN.includes(currentStep.value)) return
+  if (getSSNCookie()) return
+  showSSNRePromptModal.value = true
+}
+
+function onSSNRePromptSaved(ssn) {
+  if (ssn && String(ssn).match(/^\d{3}-\d{2}-\d{4}$/)) {
+    setSSNCookie(ssn)
+    stepRemountKey.value += 1
+  }
+  showSSNRePromptModal.value = false
+}
 
 const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
 
@@ -606,7 +637,13 @@ const stepDependencies = {
 watch(currentStep, () => {
   nextTick(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
+    checkSSNExpiredAndShowRePrompt()
   })
+})
+
+// When consent state loads and we're on an SSN step with no cookie, show re-prompt
+watch(() => dashboardOnboarding.ssnConsentGiven?.value, (given) => {
+  if (given) nextTick(checkSSNExpiredAndShowRePrompt)
 })
 
 const loadTemplateStatus = async (isRetry = false) => {
@@ -653,6 +690,7 @@ onMounted(async () => {
   }
 
   updatePreviewForStep(currentStep.value)
+  nextTick(checkSSNExpiredAndShowRePrompt)
 })
 
 onBeforeUnmount(() => {
@@ -1134,9 +1172,9 @@ const validateAllRequiredFieldsForPreview = (formData, step) => {
     }
     case 2: { // I-9 - document choice + all required fields
       if (!formData.firstName || !formData.lastName || !formData.authorizationType) return false
-      // List A path
+      // List A path - require document number (and issuing authority) for preview
       if (formData.listADocument) {
-        return true
+        return !!(formData.listADocumentNumber && formData.listAIssuingAuthority)
       }
       // List B + List C path
       if (formData.listBDocument && formData.listCDocument) {
