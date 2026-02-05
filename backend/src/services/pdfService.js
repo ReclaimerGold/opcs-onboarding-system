@@ -72,6 +72,19 @@ export function getSignaturePlacement(formType) {
   return placements.length > 0 ? placements[0] : null
 }
 
+/**
+ * Single source of truth for whether signature placement is configured per form type.
+ * Used by both GET /api/forms/template-status and GET /api/admin/setup-status so behavior is identical for all users.
+ * @returns {{ w4: boolean, i9: boolean, 8850: boolean }}
+ */
+export function getSignaturePlacementStatus() {
+  return {
+    w4: !!getSignaturePlacement('W4'),
+    i9: !!getSignaturePlacement('I9'),
+    8850: !!getSignaturePlacement('8850')
+  }
+}
+
 /** Default content width for generated PDFs (page width minus margins). */
 const DEFAULT_PDF_CONTENT_WIDTH = 512
 

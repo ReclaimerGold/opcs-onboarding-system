@@ -38,6 +38,31 @@
       </div>
     </div>
 
+    <!-- Could not load template status (e.g. network) – show retry, not "admin must configure" -->
+    <div v-else-if="templateStatusError" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16">
+      <div class="max-w-xl mx-auto bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-sm">
+        <h2 class="text-lg font-semibold text-amber-800 mb-2">Could not verify form availability</h2>
+        <p class="text-sm text-amber-700 mb-4">
+          We couldn't load whether forms are ready. This may be a temporary connection issue. Please refresh the page or try again later. If the problem continues, contact your administrator.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <button
+            type="button"
+            class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light"
+            @click="templateStatusLoaded = false; loadTemplateStatus()"
+          >
+            Refresh
+          </button>
+          <router-link
+            to="/dashboard"
+            class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50"
+          >
+            Go to Dashboard
+          </router-link>
+        </div>
+      </div>
+    </div>
+
     <!-- Forms not yet available: admin must set signature placement for all documents -->
     <div v-else-if="!allSignaturePlacementsReady" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16">
       <div class="max-w-xl mx-auto bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-sm">
@@ -536,6 +561,8 @@ const loadingApplicant = ref(false)
 const sessionSignature = ref(null)
 const templateStatus = ref({ w4: false, i9: false, 8850: false })
 const templateStatusLoaded = ref(false)
+/** True when template-status request failed (e.g. network); distinct from "placements not configured" */
+const templateStatusError = ref(false)
 let previewDebounceTimer = null
 
 const allSignaturePlacementsReady = computed(() =>
@@ -582,11 +609,17 @@ watch(currentStep, () => {
   })
 })
 
-const loadTemplateStatus = async () => {
+const loadTemplateStatus = async (isRetry = false) => {
+  templateStatusError.value = false
   try {
     const res = await api.get('/forms/template-status')
     templateStatus.value = { w4: !!res.data.w4, i9: !!res.data.i9, 8850: !!res.data['8850'] }
-  } catch {
+  } catch (err) {
+    if (!isRetry) {
+      await new Promise(r => setTimeout(r, 1000))
+      return loadTemplateStatus(true)
+    }
+    templateStatusError.value = true
     templateStatus.value = { w4: false, i9: false, 8850: false }
   } finally {
     templateStatusLoaded.value = true

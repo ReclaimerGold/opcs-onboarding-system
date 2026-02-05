@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { requireAuth } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
-import { generateAndSavePDF, getSignaturePlacement, flattenPdfBuffer } from '../services/pdfService.js'
+import { generateAndSavePDF, getSignaturePlacement, getSignaturePlacementStatus, flattenPdfBuffer } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
 import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from '../services/googleDriveService.js'
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
@@ -33,11 +33,8 @@ router.use(requireAuth)
  */
 router.get('/template-status', async (req, res) => {
   try {
-    res.json({
-      w4: !!getSignaturePlacement('W4'),
-      i9: !!getSignaturePlacement('I9'),
-      8850: !!getSignaturePlacement('8850')
-    })
+    // Use shared helper so result is identical to admin setup-status (consistent for all users)
+    res.json(getSignaturePlacementStatus())
   } catch (error) {
     console.error('Template status error:', error)
     res.status(500).json({ error: 'Failed to retrieve template status' })

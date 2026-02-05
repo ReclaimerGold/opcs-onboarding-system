@@ -19,7 +19,7 @@ import {
 } from '../services/pdfTemplateService.js'
 import { runAllComplianceChecks } from '../services/complianceService.js'
 import { fixAllFilePermissions, isGoogleDriveConfigured, deleteFromGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.js'
-import { generateW4PDF, generateI9PDF, generate8850PDF, generateGenericPDF, generateFilename, calculateRetentionDate, getSignaturePlacement, getSignaturePlacements } from '../services/pdfService.js'
+import { generateW4PDF, generateI9PDF, generate8850PDF, generateGenericPDF, generateFilename, calculateRetentionDate, getSignaturePlacement, getSignaturePlacements, getSignaturePlacementStatus } from '../services/pdfService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -101,11 +101,7 @@ router.get('/dashboard', async (req, res) => {
         totalSubmissions,
         recentAuditLogs
       },
-      signaturePlacementReady: {
-        w4: !!getSignaturePlacement('W4'),
-        i9: !!getSignaturePlacement('I9'),
-        8850: !!getSignaturePlacement('8850')
-      }
+      signaturePlacementReady: getSignaturePlacementStatus()
     })
   } catch (error) {
     console.error('Dashboard error:', error)
@@ -119,13 +115,11 @@ router.get('/dashboard', async (req, res) => {
  */
 router.get('/setup-status', async (req, res) => {
   try {
-    const w4 = !!getSignaturePlacement('W4')
-    const i9 = !!getSignaturePlacement('I9')
-    const o8850 = !!getSignaturePlacement('8850')
-    const signaturePlacementComplete = w4 && i9 && o8850
+    const ready = getSignaturePlacementStatus()
+    const signaturePlacementComplete = ready.w4 && ready.i9 && ready['8850']
     res.json({
       signaturePlacementComplete,
-      signaturePlacementReady: { w4, i9, 8850: o8850 }
+      signaturePlacementReady: ready
     })
   } catch (error) {
     console.error('Setup status error:', error)
