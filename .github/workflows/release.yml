@@ -74,6 +74,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           tags: |
             ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}
             ghcr.io/${{ steps.meta.outputs.repo }}:latest
@@ -86,6 +88,8 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           tags: |
             ghcr.io/${{ steps.meta.outputs.repo }}-backend:${{ steps.meta.outputs.version }}
             ghcr.io/${{ steps.meta.outputs.repo }}-backend:latest
@@ -98,6 +102,8 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           tags: |
             ghcr.io/${{ steps.meta.outputs.repo }}-frontend:${{ steps.meta.outputs.version }}
             ghcr.io/${{ steps.meta.outputs.repo }}-frontend:latest

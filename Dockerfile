@@ -17,6 +17,10 @@ RUN npm install --legacy-peer-deps
 # Copy frontend source
 COPY frontend/ ./
 
+# Inject release version for footer display (from GitHub tag via build-arg)
+ARG VERSION=dev
+ENV VITE_APP_VERSION=$VERSION
+
 # Build frontend for production
 RUN npm run build
 
@@ -47,6 +51,9 @@ COPY backend/src ./src
 # Stage 3: Production runtime
 # =============================================================================
 FROM node:22-bookworm-slim AS production
+
+ARG VERSION=dev
+ENV VERSION=$VERSION
 
 # Install nginx and supervisor for running multiple processes
 RUN apt-get update && apt-get install -y \
@@ -106,7 +113,7 @@ directory=/app
 user=opcs
 autostart=true
 autorestart=true
-environment=NODE_ENV=production,PORT=3000
+environment=NODE_ENV=production,PORT=3000,VERSION="%(ENV_VERSION)s"
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
