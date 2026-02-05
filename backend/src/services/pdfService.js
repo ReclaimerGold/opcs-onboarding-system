@@ -72,6 +72,55 @@ export function getSignaturePlacement(formType) {
   return placements.length > 0 ? placements[0] : null
 }
 
+/** Default content width for generated PDFs (page width minus margins). */
+const DEFAULT_PDF_CONTENT_WIDTH = 512
+
+/**
+ * Wrap text to fit within maxWidth at given font size. Returns array of lines.
+ * Breaks on spaces when possible; breaks by character for long words (e.g. URLs).
+ * @param {string} text - Text to wrap
+ * @param {PDFFont} font - pdf-lib font instance
+ * @param {number} fontSize - Font size in points
+ * @param {number} maxWidth - Maximum line width in points
+ * @returns {string[]} Lines that fit within maxWidth
+ */
+function wrapText(text, font, fontSize, maxWidth) {
+  if (text === undefined || text === null) return []
+  const s = String(text).trim()
+  if (!s) return []
+  const words = s.split(/\s+/)
+  const lines = []
+  let currentLine = ''
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word
+    const w = font.widthOfTextAtSize(candidate, fontSize)
+    if (w <= maxWidth) {
+      currentLine = candidate
+    } else {
+      if (currentLine) lines.push(currentLine)
+      const wordWidth = font.widthOfTextAtSize(word, fontSize)
+      if (wordWidth <= maxWidth) {
+        currentLine = word
+      } else {
+        currentLine = ''
+        let chunk = ''
+        for (const char of word) {
+          const trial = chunk + char
+          if (font.widthOfTextAtSize(trial, fontSize) <= maxWidth) {
+            chunk = trial
+          } else {
+            if (chunk) lines.push(chunk)
+            chunk = char
+          }
+        }
+        if (chunk) lines.push(chunk)
+      }
+    }
+  }
+  if (currentLine) lines.push(currentLine)
+  return lines
+}
+
 /**
  * Draw signature image on PDF at all configured positions (one per page optional).
  * @param {PDFDocument} pdfDoc - Loaded PDF document
@@ -355,28 +404,32 @@ async function generateW4PDFFallback(formData, applicantData) {
   page.drawText(`Name: ${formData.firstName} ${formData.middleName || ''} ${formData.lastName}`.trim(), {
     x: 50,
     y: yPos,
-    size: fontSize
+    size: fontSize,
+    font: helveticaFont
   })
 
   yPos -= 20
   page.drawText(`SSN: ${formData.ssn}`, {
     x: 50,
     y: yPos,
-    size: fontSize
+    size: fontSize,
+    font: helveticaFont
   })
 
   yPos -= 20
   page.drawText(`Address: ${formData.address}`, {
     x: 50,
     y: yPos,
-    size: fontSize
+    size: fontSize,
+    font: helveticaFont
   })
 
   yPos -= 20
   page.drawText(`City, State, ZIP: ${formData.city}, ${formData.state} ${formData.zipCode}`, {
     x: 50,
     y: yPos,
-    size: fontSize
+    size: fontSize,
+    font: helveticaFont
   })
 
   yPos -= 40
@@ -871,16 +924,22 @@ export async function generateGenericPDF(formData, formType, applicantData) {
   let yPos = height - 100
   const formDataStr = JSON.stringify(formData, null, 2)
   const lines = formDataStr.split('\n').slice(0, 30) // Limit lines
+  const lineHeight = 14
+  const maxWidth = width - 100
 
   for (const line of lines) {
     if (yPos < 50) break
-    page.drawText(line, {
-      x: 50,
-      y: yPos,
-      size: 10,
-      font: helveticaFont
-    })
-    yPos -= 15
+    const wrapped = wrapText(line, helveticaFont, 10, maxWidth)
+    for (const wrappedLine of wrapped) {
+      if (yPos < 50) break
+      page.drawText(wrappedLine, {
+        x: 50,
+        y: yPos,
+        size: 10,
+        font: helveticaFont
+      })
+      yPos -= lineHeight
+    }
   }
 
   const pdfBytes = await pdfDoc.save()
