@@ -1,4 +1,5 @@
-# Release: on tag v* run Docker build test, then full build and publish to GHCR.
+# Release: on tag push (v* or semver-like) run Docker build test, then build and publish to GHCR.
+# Trigger: push a tag e.g. v1.0.0 or 1.0.0 (v-prefix preferred for version extraction).
 
 name: Release
 
@@ -6,6 +7,7 @@ on:
   push:
     tags:
       - "v*"
+      - "[0-9]+.[0-9]+.[0-9]*"
 
 jobs:
   docker-build-test:
@@ -65,7 +67,9 @@ jobs:
       - name: Extract version and image repo (GHCR requires lowercase)
         id: meta
         run: |
-          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "repo=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Build and push combined image
