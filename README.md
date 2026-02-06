@@ -21,6 +21,11 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Loading Banners**: Clear indicators show when pre-fill data or settings are still loading
 - **Field Descriptions**: Clear descriptions indicating which fields are pre-filled and cannot be changed
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
+- **Centralized Notification System**: In-app notifications with bell icon, toast popups, and configurable email notifications via Mailgun
+  - Admin/manager alerts: no bank account, non-Gmail email, new signups, onboarding complete, document approval needed, stale onboarding, failed login security, document retention expiring, I-9 uploads
+  - Applicant notifications: welcome message, form approved/rejected, onboarding reminders, completion confirmation
+  - Per-user preferences: toggle in-app and email independently per notification type, choose real-time or daily digest email frequency
+  - Scheduled checks: daily stale onboarding, onboarding reminders, document retention, and digest email batching
 - **Session Timeout Countdown**: Footer shows 15-minute inactivity timer with a 3-minute warning before logout
 - **Release version display**: Login footer and session (time clock) footer show the deployed app version when the image is built from a GitHub release; the version comes from the Git tag (e.g. `v1.2.3`) via Docker build-arg
 - **User onboarding gate**: Dashboard and forms are **locked** until the user completes: (1) SSN consent (once, documented in DB), (2) password set (admins redirected to password-setup if needed), (3) signature (once, stored in DB). User cannot continue until consent and signature are filled.
@@ -489,6 +494,38 @@ This system is designed to comply with:
 - `GET /api/approvals/:id/pdf` - View/download the submission PDF for review
 - `POST /api/approvals/:id/approve` - Approve and sign a document (body: `{ signatureData?: string }`)
 - `POST /api/approvals/:id/reject` - Reject a document with reason (body: `{ reason: string }`)
+
+### Notifications
+- `GET /api/notifications` - List notifications for current user (paginated). Query params: `unreadOnly` (boolean), `limit`, `offset`
+- `GET /api/notifications/unread-count` - Get unread notification count (for bell badge)
+- `POST /api/notifications/:id/read` - Mark a single notification as read
+- `POST /api/notifications/read-all` - Mark all notifications as read
+- `DELETE /api/notifications/:id` - Dismiss/delete a notification
+- `GET /api/notifications/preferences` - Get user's notification preferences (merged with defaults)
+- `PUT /api/notifications/preferences` - Update preferences (batch). Body: `{ preferences: [{ type, in_app_enabled, email_enabled, email_frequency }] }`
+- `POST /api/notifications/preferences/reset` - Reset all preferences to defaults
+
+#### Notification Types (Admin/Manager)
+| Type | Trigger | Recipients |
+|------|---------|------------|
+| `no_bank_account` | Applicant selects "I DO NOT HAVE A BANK ACCOUNT" on Step 4 | Assigned manager + all admins |
+| `non_gmail_email` | Applicant signs up with non-Gmail email | All admins |
+| `new_applicant_signup` | New account created | Assigned manager + all admins |
+| `onboarding_complete` | All 7 steps completed | Assigned manager + all admins |
+| `document_approval_needed` | Form requires manager signature | Assigned manager + all admins |
+| `stale_onboarding` | Applicant inactive 7+ days (scheduled) | Assigned manager + all admins |
+| `failed_login_security` | 5+ failed logins from same IP in 1 hour | All admins |
+| `document_retention_expiring` | Retention expires within 30 days (scheduled) | All admins |
+| `i9_document_uploaded` | I-9 document uploaded | Assigned manager + all admins |
+
+#### Notification Types (Applicant)
+| Type | Trigger | Default Email |
+|------|---------|---------------|
+| `welcome_message` | After signup | ON |
+| `form_approved` | Manager approves document | ON |
+| `form_rejected` | Manager rejects document | ON |
+| `onboarding_reminder` | 3+ days inactive (scheduled) | ON |
+| `onboarding_complete_confirmation` | All 7 steps completed | ON |
 
 ### Admin Manager Configuration
 - `GET /api/admin/settings/manager-signature-placement` - Get manager signature placement config (query: `formType`)

@@ -9,6 +9,7 @@ import PasswordSetupView from '../views/PasswordSetupView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
 import ApprovalQueueView from '../views/ApprovalQueueView.vue'
+import NotificationPreferences from '../components/NotificationPreferences.vue'
 
 const routes = [
   {
@@ -71,6 +72,12 @@ const routes = [
     name: 'Approvals',
     component: ApprovalQueueView,
     meta: { requiresAuth: true, requiresManager: true }
+  },
+  {
+    path: '/notifications/preferences',
+    name: 'NotificationPreferences',
+    component: NotificationPreferences,
+    meta: { requiresAuth: true }
   }
 ]
 
@@ -130,7 +137,7 @@ router.beforeEach(async (to, from, next) => {
       next('/login')
       return
     }
-    const {role} = authStore
+    const { role } = authStore
     if (role !== 'manager' && role !== 'admin' && !authStore.isAdmin) {
       next('/dashboard')
       return

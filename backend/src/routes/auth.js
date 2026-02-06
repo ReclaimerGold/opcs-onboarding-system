@@ -4,6 +4,7 @@ import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPasswor
 import { auditLog } from '../services/auditService.js'
 import { getDatabase } from '../database/init.js'
 import { sendPasswordResetEmail, isMailgunConfigured } from '../services/mailgunService.js'
+import { createNotification, notifyAdminsAndManagers } from '../services/notificationService.js'
 
 const router = express.Router()
 
@@ -80,6 +81,43 @@ router.post('/signup', async (req, res) => {
     const db = getDatabase()
     const fullApplicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(applicant.id)
 
+    // --- Notification triggers ---
+    try {
+      // Notify admins/managers of new applicant signup
+      notifyAdminsAndManagers({
+        type: 'new_applicant_signup',
+        title: 'New Applicant Signup',
+        message: `${fullApplicant.first_name} ${fullApplicant.last_name} (${fullApplicant.email}) has created an account.`,
+        link: '/admin',
+        sourceUserId: fullApplicant.id,
+        applicantId: fullApplicant.id
+      })
+
+      // Check for non-Gmail email
+      const emailLower = fullApplicant.email.toLowerCase()
+      if (!emailLower.endsWith('@gmail.com')) {
+        notifyAdminsAndManagers({
+          type: 'non_gmail_email',
+          title: 'Non-Gmail Email Address',
+          message: `${fullApplicant.first_name} ${fullApplicant.last_name} signed up with a non-Gmail address: ${fullApplicant.email}`,
+          link: '/admin',
+          sourceUserId: fullApplicant.id,
+          applicantId: fullApplicant.id
+        })
+      }
+
+      // Send welcome notification to the applicant
+      createNotification({
+        recipientId: fullApplicant.id,
+        type: 'welcome_message',
+        title: 'Welcome to Optimal Prime Services!',
+        message: 'Welcome! Please complete your onboarding forms to get started. Click here to begin.',
+        link: '/forms'
+      })
+    } catch (notifError) {
+      console.error('Notification trigger error (signup):', notifError.message)
+    }
+
     const role = fullApplicant.role || (fullApplicant.is_admin === 1 ? 'admin' : 'applicant')
     res.json({
       success: true,
@@ -138,6 +176,32 @@ router.post('/login', async (req, res) => {
         'Account not found',
         null // no applicant_id for failed attempts
       )
+
+      // Check for failed login security alert (5+ failures from same IP in 1 hour)
+      try {
+        const recentFailures = db.prepare(`
+          SELECT COUNT(*) as count FROM login_attempts
+          WHERE ip_address = ? AND success = 0 AND created_at > datetime('now', '-1 hour')
+        `).get(req.ip)
+        if (recentFailures && recentFailures.count >= 5) {
+          // Only notify if we haven't already in the past hour
+          const recentAlert = db.prepare(`
+            SELECT id FROM notifications
+            WHERE type = 'failed_login_security' AND message LIKE ? AND created_at > datetime('now', '-1 hour')
+            LIMIT 1
+          `).get(`%${req.ip}%`)
+          if (!recentAlert) {
+            notifyAdminsAndManagers({
+              type: 'failed_login_security',
+              title: 'Failed Login Security Alert',
+              message: `${recentFailures.count} failed login attempts from IP ${req.ip} in the past hour.`,
+              link: '/admin'
+            })
+          }
+        }
+      } catch (notifError) {
+        console.error('Failed login security notification error:', notifError.message)
+      }
 
       return res.status(404).json({
         error: 'No account found with this information. Please sign up to get started.',
@@ -252,6 +316,31 @@ router.post('/login', async (req, res) => {
           'Invalid password',
           applicant.id
         )
+
+        // Check for failed login security alert
+        try {
+          const recentFailures = db.prepare(`
+            SELECT COUNT(*) as count FROM login_attempts
+            WHERE ip_address = ? AND success = 0 AND created_at > datetime('now', '-1 hour')
+          `).get(req.ip)
+          if (recentFailures && recentFailures.count >= 5) {
+            const recentAlert = db.prepare(`
+              SELECT id FROM notifications
+              WHERE type = 'failed_login_security' AND message LIKE ? AND created_at > datetime('now', '-1 hour')
+              LIMIT 1
+            `).get(`%${req.ip}%`)
+            if (!recentAlert) {
+              notifyAdminsAndManagers({
+                type: 'failed_login_security',
+                title: 'Failed Login Security Alert',
+                message: `${recentFailures.count} failed login attempts from IP ${req.ip} in the past hour.`,
+                link: '/admin'
+              })
+            }
+          }
+        } catch (notifError) {
+          console.error('Failed login security notification error:', notifError.message)
+        }
 
         return res.status(401).json({
           error: 'Invalid password',

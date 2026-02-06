@@ -17,10 +17,12 @@ import adminRoutes from './routes/admin.js'
 import approvalRoutes from './routes/approvals.js'
 import diagnosticsRoutes from './routes/diagnostics.js'
 import addressRoutes from './routes/address.js'
+import notificationRoutes from './routes/notifications.js'
 import { initializeDatabase } from './database/init.js'
 import { startRetentionScheduler } from './services/retentionService.js'
 import { auditMiddleware } from './middleware/audit.js'
 import { initializeTemplates, updateAllTemplates } from './services/pdfTemplateService.js'
+import { sendDigestEmails, checkStaleOnboarding, checkOnboardingReminders, checkDocumentRetention } from './services/notificationService.js'
 
 dotenv.config()
 
@@ -119,6 +121,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/approvals', approvalRoutes)
 app.use('/api/diagnostics', diagnosticsRoutes)
 app.use('/api/address', addressRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 // Health check (version from Docker build-arg when built from release tag)
 app.get('/api/health', (req, res) => {
@@ -151,5 +154,45 @@ app.listen(PORT, () => {
       console.error('Scheduled template update check failed:', error.message)
     }
   }, TEMPLATE_CHECK_INTERVAL)
+
+  // Notification scheduled tasks (run daily at startup + every 24 hours)
+  const NOTIFICATION_CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
+
+  const runNotificationChecks = async () => {
+    console.log('Running scheduled notification checks...')
+    try {
+      checkStaleOnboarding()
+      console.log('  Stale onboarding check complete')
+    } catch (error) {
+      console.error('  Stale onboarding check failed:', error.message)
+    }
+
+    try {
+      checkOnboardingReminders()
+      console.log('  Onboarding reminders check complete')
+    } catch (error) {
+      console.error('  Onboarding reminders check failed:', error.message)
+    }
+
+    try {
+      checkDocumentRetention()
+      console.log('  Document retention check complete')
+    } catch (error) {
+      console.error('  Document retention check failed:', error.message)
+    }
+
+    try {
+      await sendDigestEmails()
+      console.log('  Digest emails sent')
+    } catch (error) {
+      console.error('  Digest emails failed:', error.message)
+    }
+  }
+
+  // Run initial check after a 30-second delay (let server finish starting)
+  setTimeout(runNotificationChecks, 30 * 1000)
+
+  // Schedule daily checks
+  setInterval(runNotificationChecks, NOTIFICATION_CHECK_INTERVAL)
 })
 

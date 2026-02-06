@@ -204,6 +204,17 @@ When modifying Docker-related files:
 - After approval, `addManagerSignatureToPdf()` in `pdfService.js` embeds the manager's signature on the existing PDF
 - Onboarding completion logic checks both step count AND approval statuses
 
+### Notification Types
+To add a new notification type:
+1. **Register the type** in `backend/src/services/notificationService.js` → `NOTIFICATION_TYPES` object
+   - Set `key`, `label`, `description`, `category` ('admin' or 'applicant'), `priority`, default channels, and `targetRoles`
+2. **Add a trigger** in the appropriate route or service file
+   - For admin/manager notifications: use `notifyAdminsAndManagers({ type, title, message, link, sourceUserId, applicantId })`
+   - For applicant notifications: use `createNotification({ recipientId, type, title, message, link, sourceUserId })`
+   - Wrap in try/catch so notification failures don't break the main flow
+3. **Add scheduled checks** (if applicable) in `notificationService.js` and register in `backend/src/index.js`
+4. **Update README.md** with the new type in the Notifications API section
+
 ### Dependencies
 1. Install in appropriate directory (backend/ or frontend/)
 2. Update package.json

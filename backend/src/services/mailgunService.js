@@ -144,6 +144,138 @@ Optimal Prime Services Team`
 }
 
 /**
+ * Send a notification email for a single notification event.
+ * @param {string} toEmail - Recipient email
+ * @param {string} firstName - Recipient's first name
+ * @param {Object} notification - { type, title, message, link }
+ */
+export async function sendNotificationEmail(toEmail, firstName, notification) {
+  const subject = `${notification.title} - Optimal Prime Services`
+
+  const text = `Hello ${firstName},
+
+${notification.message}
+
+${notification.link ? `View details: ${process.env.FRONTEND_URL || 'http://localhost:9999'}${notification.link}` : ''}
+
+Best regards,
+Optimal Prime Services Team`
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:9999'
+  const linkUrl = notification.link ? `${frontendUrl}${notification.link}` : null
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <img src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" alt="Optimal Prime Services" style="max-width: 200px; height: auto;">
+  </div>
+
+  <h2 style="color: #1e40af; margin-bottom: 20px;">${notification.title}</h2>
+
+  <p>Hello ${firstName},</p>
+
+  <p>${notification.message}</p>
+
+  ${linkUrl ? `
+  <p style="text-align: center; margin: 30px 0;">
+    <a href="${linkUrl}" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">View Details</a>
+  </p>
+  ` : ''}
+
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+  <p style="color: #666; font-size: 12px; text-align: center;">
+    You can manage your notification preferences in your account settings.
+  </p>
+  <p style="color: #666; font-size: 12px; text-align: center;">
+    &copy; ${new Date().getFullYear()} Optimal Prime Services. All rights reserved.
+  </p>
+</body>
+</html>`
+
+  return await sendEmail({ to: toEmail, subject, text, html })
+}
+
+/**
+ * Send a daily digest email with grouped notifications.
+ * @param {string} toEmail - Recipient email
+ * @param {string} firstName - Recipient's first name
+ * @param {Array} notifications - Array of { id, type, title, message, link, created_at }
+ */
+export async function sendDigestEmail(toEmail, firstName, notifications) {
+  const subject = `Daily Notification Digest (${notifications.length} updates) - Optimal Prime Services`
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:9999'
+
+  const textItems = notifications.map((n, i) =>
+    `${i + 1}. ${n.title}\n   ${n.message}${n.link ? `\n   View: ${frontendUrl}${n.link}` : ''}`
+  ).join('\n\n')
+
+  const text = `Hello ${firstName},
+
+Here is your daily notification digest with ${notifications.length} update(s):
+
+${textItems}
+
+Best regards,
+Optimal Prime Services Team`
+
+  const htmlItems = notifications.map(n => {
+    const linkUrl = n.link ? `${frontendUrl}${n.link}` : null
+    return `
+    <tr>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb;">
+        <strong style="color: #1e40af;">${n.title}</strong>
+        <p style="margin: 4px 0 0; color: #555; font-size: 14px;">${n.message}</p>
+        ${linkUrl ? `<a href="${linkUrl}" style="color: #1e40af; font-size: 13px; text-decoration: underline;">View details</a>` : ''}
+      </td>
+    </tr>`
+  }).join('')
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <img src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" alt="Optimal Prime Services" style="max-width: 200px; height: auto;">
+  </div>
+
+  <h2 style="color: #1e40af; margin-bottom: 10px;">Daily Notification Digest</h2>
+  <p style="color: #666; margin-bottom: 20px;">Hello ${firstName}, you have ${notifications.length} new notification(s).</p>
+
+  <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px;">
+    ${htmlItems}
+  </table>
+
+  <p style="text-align: center; margin: 30px 0;">
+    <a href="${frontendUrl}/dashboard" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Go to Dashboard</a>
+  </p>
+
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+  <p style="color: #666; font-size: 12px; text-align: center;">
+    You can manage your notification preferences in your account settings.
+  </p>
+  <p style="color: #666; font-size: 12px; text-align: center;">
+    &copy; ${new Date().getFullYear()} Optimal Prime Services. All rights reserved.
+  </p>
+</body>
+</html>`
+
+  return await sendEmail({ to: toEmail, subject, text, html })
+}
+
+/**
  * Send test email to verify Mailgun configuration
  * @param {string} toEmail - Recipient email for test
  */

@@ -338,6 +338,40 @@ export function initializeDatabase() {
     // Column already exists, ignore
   }
 
+  // Notifications for centralized notification system
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipient_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      link TEXT,
+      source_user_id INTEGER,
+      is_read INTEGER DEFAULT 0,
+      email_sent INTEGER DEFAULT 0,
+      email_sent_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (recipient_id) REFERENCES applicants(id) ON DELETE CASCADE,
+      FOREIGN KEY (source_user_id) REFERENCES applicants(id) ON DELETE SET NULL
+    )
+  `)
+
+  // Notification preferences per user per notification type
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      applicant_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      in_app_enabled INTEGER DEFAULT 1,
+      email_enabled INTEGER DEFAULT 1,
+      email_frequency TEXT DEFAULT 'realtime' CHECK(email_frequency IN ('realtime', 'daily_digest', 'disabled')),
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE,
+      UNIQUE(applicant_id, type)
+    )
+  `)
+
   // Create indexes for performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_applicants_email ON applicants(email);
@@ -374,6 +408,13 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_document_approvals_status ON document_approvals(status);
     CREATE INDEX IF NOT EXISTS idx_document_approvals_created ON document_approvals(created_at);
     CREATE INDEX IF NOT EXISTS idx_applicants_assigned_manager ON applicants(assigned_manager_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+    CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(recipient_id, is_read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
+    CREATE INDEX IF NOT EXISTS idx_notifications_email ON notifications(email_sent);
+    CREATE INDEX IF NOT EXISTS idx_notification_preferences_applicant ON notification_preferences(applicant_id);
+    CREATE INDEX IF NOT EXISTS idx_notification_preferences_type ON notification_preferences(applicant_id, type);
   `)
 
   console.log('Database initialized successfully')

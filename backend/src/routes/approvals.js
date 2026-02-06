@@ -8,6 +8,7 @@ import { addManagerSignatureToPdf } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
 import { downloadFromGoogleDrive } from '../services/googleDriveService.js'
 import { decryptBuffer } from '../services/encryptionService.js'
+import { createNotification } from '../services/notificationService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -357,6 +358,21 @@ router.post('/:id/approve', requireManager, async (req, res) => {
       }
     })
 
+    // --- Notification trigger: form approved ---
+    try {
+      const approvedApplicant = db.prepare('SELECT first_name, last_name FROM applicants WHERE id = ?').get(approval.applicant_id)
+      createNotification({
+        recipientId: approval.applicant_id,
+        type: 'form_approved',
+        title: 'Form Approved',
+        message: `Your ${approval.form_type} (Step ${approval.step_number}) has been approved and signed by a manager.`,
+        link: '/dashboard',
+        sourceUserId: req.applicantId
+      })
+    } catch (notifError) {
+      console.error('Notification trigger error (approval):', notifError.message)
+    }
+
     res.json({ success: true, message: 'Document approved and signed' })
   } catch (error) {
     console.error('Approve document error:', error)
@@ -380,8 +396,9 @@ router.post('/:id/reject', requireManager, async (req, res) => {
     }
 
     const approval = db.prepare(`
-      SELECT da.*
+      SELECT da.*, fs.form_type
       FROM document_approvals da
+      JOIN form_submissions fs ON da.submission_id = fs.id
       WHERE da.id = ?
     `).get(approvalId)
 
@@ -426,6 +443,20 @@ router.post('/:id/reject', requireManager, async (req, res) => {
         reason: reason.trim()
       }
     })
+
+    // --- Notification trigger: form rejected ---
+    try {
+      createNotification({
+        recipientId: approval.applicant_id,
+        type: 'form_rejected',
+        title: 'Form Rejected',
+        message: `Your ${approval.form_type || 'form'} (Step ${approval.step_number}) was rejected. Reason: ${reason.trim()}`,
+        link: `/forms?step=${approval.step_number}`,
+        sourceUserId: req.applicantId
+      })
+    } catch (notifError) {
+      console.error('Notification trigger error (rejection):', notifError.message)
+    }
 
     res.json({ success: true, message: 'Document rejected' })
   } catch (error) {

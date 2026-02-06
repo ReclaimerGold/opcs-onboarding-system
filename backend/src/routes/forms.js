@@ -10,6 +10,7 @@ import { auditLog } from '../services/auditService.js'
 import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from '../services/googleDriveService.js'
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
 import { redactFormDataForStorage } from '../utils/redactFormData.js'
+import { createNotification, notifyAdminsAndManagers } from '../services/notificationService.js'
 
 // Local storage directory for encrypted documents when Google Drive is not configured
 const LOCAL_I9_STORAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../storage/encrypted-i9-docs')
@@ -386,6 +387,55 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         approvalId
       }
     })
+
+    // --- Notification triggers ---
+    try {
+      // Step 4: No bank account notification
+      if (step === 4 && formData.accountType === 'no-account') {
+        notifyAdminsAndManagers({
+          type: 'no_bank_account',
+          title: 'Applicant Has No Bank Account',
+          message: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) indicated they do not have a bank account on the Direct Deposit form.`,
+          link: '/admin',
+          sourceUserId: req.applicantId,
+          applicantId: req.applicantId
+        })
+      }
+
+      // Document approval needed
+      if (requiresApproval && approvalId) {
+        notifyAdminsAndManagers({
+          type: 'document_approval_needed',
+          title: 'Document Needs Approval',
+          message: `${applicant.first_name} ${applicant.last_name} submitted ${formType} (Step ${step}) which requires manager approval.`,
+          link: '/approvals',
+          sourceUserId: req.applicantId,
+          applicantId: req.applicantId
+        })
+      }
+
+      // Onboarding complete notifications
+      if (isOnboardingComplete) {
+        notifyAdminsAndManagers({
+          type: 'onboarding_complete',
+          title: 'Onboarding Completed',
+          message: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) has completed all onboarding forms.`,
+          link: '/admin',
+          sourceUserId: req.applicantId,
+          applicantId: req.applicantId
+        })
+
+        createNotification({
+          recipientId: req.applicantId,
+          type: 'onboarding_complete_confirmation',
+          title: 'Onboarding Complete!',
+          message: 'Congratulations! You have completed all onboarding forms. Thank you for completing your paperwork.',
+          link: '/dashboard'
+        })
+      }
+    } catch (notifError) {
+      console.error('Notification trigger error (form submit):', notifError.message)
+    }
 
     res.json({
       success: true,
@@ -953,6 +1003,20 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
         filename
       }
     })
+
+    // --- Notification trigger: I-9 document uploaded ---
+    try {
+      notifyAdminsAndManagers({
+        type: 'i9_document_uploaded',
+        title: 'I-9 Document Uploaded',
+        message: `${applicant.first_name} ${applicant.last_name} uploaded an I-9 document (${documentName || documentType}, ${documentCategory}).`,
+        link: '/admin',
+        sourceUserId: req.applicantId,
+        applicantId: req.applicantId
+      })
+    } catch (notifError) {
+      console.error('Notification trigger error (i9 upload):', notifError.message)
+    }
 
     res.json({
       success: true,

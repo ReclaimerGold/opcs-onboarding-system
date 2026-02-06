@@ -34,6 +34,7 @@
             <router-link v-if="authStore.isAdmin" to="/settings" class="text-gray-600 hover:text-gray-900">Settings</router-link>
             <router-link v-if="isManagerOrAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900">Approvals</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-gray-900">Forms</router-link>
+            <NotificationBell />
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
           </div>
         </div>
@@ -334,6 +335,40 @@
         </div>
       </div>
       
+      <!-- Recent Notifications -->
+      <div v-if="recentNotifications.length > 0" class="bg-white shadow rounded-lg p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-gray-900">Recent Notifications</h2>
+          <router-link to="/notifications/preferences" class="text-sm text-primary hover:underline">
+            Manage preferences
+          </router-link>
+        </div>
+        <div class="space-y-3">
+          <div
+            v-for="notif in recentNotifications"
+            :key="notif.id"
+            class="flex items-start space-x-3 p-3 rounded-lg transition-colors"
+            :class="notif.is_read ? 'bg-gray-50' : 'bg-blue-50'"
+          >
+            <div class="flex-shrink-0 mt-0.5">
+              <div class="w-2 h-2 rounded-full mt-1.5" :class="notif.is_read ? 'bg-gray-300' : 'bg-primary'"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-900">{{ notif.title }}</p>
+              <p class="text-xs text-gray-500 mt-0.5">{{ notif.message }}</p>
+              <p class="text-xs text-gray-400 mt-1">{{ formatNotifTime(notif.created_at) }}</p>
+            </div>
+            <router-link
+              v-if="notif.link"
+              :to="notif.link"
+              class="text-xs text-primary hover:underline flex-shrink-0"
+            >
+              View
+            </router-link>
+          </div>
+        </div>
+      </div>
+
       <!-- Document History -->
       <div class="bg-white shadow rounded-lg p-6 mb-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-4">Form Submissions</h2>
@@ -789,6 +824,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
 import SSNConsentModal from '../components/SSNConsentModal.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 import { useDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
 
 const router = useRouter()
@@ -830,6 +866,7 @@ const i9Documents = ref([])
 const completedSteps = ref(new Set())
 const currentStep = ref(null)
 const approvalStatuses = ref([])
+const recentNotifications = ref([])
 const hasRejections = computed(() => approvalStatuses.value.some(a => a.status === 'rejected'))
 const rejectedApprovals = computed(() => approvalStatuses.value.filter(a => a.status === 'rejected'))
 const pendingApprovals = computed(() => approvalStatuses.value.filter(a => a.status === 'pending'))
@@ -1015,6 +1052,14 @@ onMounted(async () => {
       // Approval endpoint may not apply; ignore errors
       approvalStatuses.value = []
     }
+
+    // Fetch recent notifications for the dashboard card
+    try {
+      const notifRes = await api.get('/notifications', { params: { limit: 5 } })
+      recentNotifications.value = notifRes.data.notifications || []
+    } catch {
+      recentNotifications.value = []
+    }
   } catch (error) {
     console.error('Error loading dashboard data:', error)
   }
@@ -1038,6 +1083,21 @@ const loadUploadedDocuments = async () => {
   } catch (error) {
     console.error('Error loading uploaded documents:', error)
   }
+}
+
+function formatNotifTime(dateStr) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'))
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString()
 }
 
 const getDocumentByCategory = (category) => {
