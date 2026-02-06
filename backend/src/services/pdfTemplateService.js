@@ -35,6 +35,12 @@ const TEMPLATE_SOURCES = {
     filename: 'f8850-latest.pdf',
     name: 'Form 8850',
     agency: 'IRS'
+  },
+  '9061': {
+    url: 'https://www.dol.gov/sites/dolgov/files/ETA/wotc/pdfs/ETA-FORM-9061-(ENGLISH).pdf',
+    filename: 'eta9061-latest.pdf',
+    name: 'ETA Form 9061',
+    agency: 'DOL/ETA'
   }
 }
 
@@ -62,7 +68,8 @@ function getFormDir(formType) {
   const dirMap = {
     W4: 'w4',
     I9: 'i9',
-    '8850': '8850'
+    '8850': '8850',
+    '9061': '9061'
   }
   return path.join(TEMPLATE_DIR, dirMap[formType] || formType.toLowerCase())
 }

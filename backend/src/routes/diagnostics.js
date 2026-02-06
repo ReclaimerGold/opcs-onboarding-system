@@ -26,7 +26,7 @@ router.get('/export', async (req, res) => {
     const timestamp = new Date().toISOString()
     const includeTestResults = req.query.includeTestResults === 'true'
     let testResults = null
-    
+
     // Get test results if requested
     if (includeTestResults || req.query.testResults) {
       if (req.query.testResults) {
@@ -37,7 +37,7 @@ router.get('/export', async (req, res) => {
         }
       }
     }
-    
+
     // System Health
     const tableCounts = {
       applicants: db.prepare('SELECT COUNT(*) as count FROM applicants').get().count,
@@ -48,7 +48,7 @@ router.get('/export', async (req, res) => {
       privacy_consents: db.prepare('SELECT COUNT(*) as count FROM privacy_consents').get().count,
       settings: db.prepare('SELECT COUNT(*) as count FROM settings').get().count
     }
-    
+
     // Recent Login Attempts (last 50)
     const loginAttempts = db.prepare(`
       SELECT 
@@ -61,7 +61,7 @@ router.get('/export', async (req, res) => {
       ORDER BY la.created_at DESC
       LIMIT 50
     `).all()
-    
+
     // Onboarding Status
     const onboardingStatus = db.prepare(`
       SELECT 
@@ -78,7 +78,7 @@ router.get('/export', async (req, res) => {
       GROUP BY a.id
       ORDER BY a.created_at DESC
     `).all()
-    
+
     // Recent Audit Logs (last 100)
     const auditLogs = db.prepare(`
       SELECT 
@@ -91,7 +91,7 @@ router.get('/export', async (req, res) => {
       ORDER BY al.created_at DESC
       LIMIT 100
     `).all()
-    
+
     // Recent Errors
     const recentErrors = db.prepare(`
       SELECT * FROM audit_log 
@@ -99,7 +99,7 @@ router.get('/export', async (req, res) => {
       ORDER BY created_at DESC 
       LIMIT 20
     `).all()
-    
+
     // Database file info
     const dbPath = path.join(__dirname, '../../database/onboarding.db')
     let dbSize = 0
@@ -113,7 +113,7 @@ router.get('/export', async (req, res) => {
     } catch (error) {
       // Ignore file size errors
     }
-    
+
     // Format as markdown for Cursor
     const markdown = `## OPCS Diagnostics Export
 Generated: ${timestamp}
@@ -137,42 +137,42 @@ Generated: ${timestamp}
 | Time | Name | Email | Status | IP Address | Error |
 |------|------|-------|--------|------------|-------|
 ${loginAttempts.map(la => {
-  const name = la.applicant_first_name && la.applicant_last_name 
-    ? `${la.applicant_first_name} ${la.applicant_last_name}`
-    : `${la.first_name} ${la.last_name}`
-  const email = la.applicant_email || la.email
-  const status = la.success ? '✅ Success' : '❌ Failed'
-  return `| ${la.created_at} | ${name} | ${email} | ${status} | ${la.ip_address || 'N/A'} | ${la.error_message || ''} |`
-}).join('\n')}
+      const name = la.applicant_first_name && la.applicant_last_name
+        ? `${la.applicant_first_name} ${la.applicant_last_name}`
+        : `${la.first_name} ${la.last_name}`
+      const email = la.applicant_email || la.email
+      const status = la.success ? '✅ Success' : '❌ Failed'
+      return `| ${la.created_at} | ${name} | ${email} | ${status} | ${la.ip_address || 'N/A'} | ${la.error_message || ''} |`
+    }).join('\n')}
 
 ### Onboarding Status
 | ID | Name | Email | Admin | Steps Completed | Progress | Status | Created |
 |----|------|-------|-------|-----------------|----------|--------|---------|
 ${onboardingStatus.map(app => {
-  const progress = Math.round(((app.completed_steps || 0) / 6) * 100)
-  const status = app.completed_steps >= 6 ? '✅ Completed' : app.completed_steps > 0 ? '🔄 In Progress' : '⏸️ Not Started'
-  return `| ${app.id} | ${app.first_name} ${app.last_name} | ${app.email} | ${app.is_admin ? 'Yes' : 'No'} | ${app.completed_steps || 0}/6 | ${progress}% | ${status} | ${app.created_at} |`
-}).join('\n')}
+      const progress = Math.round(((app.completed_steps || 0) / 7) * 100)
+      const status = app.completed_steps >= 7 ? '✅ Completed' : app.completed_steps > 0 ? '🔄 In Progress' : '⏸️ Not Started'
+      return `| ${app.id} | ${app.first_name} ${app.last_name} | ${app.email} | ${app.is_admin ? 'Yes' : 'No'} | ${app.completed_steps || 0}/7 | ${progress}% | ${status} | ${app.created_at} |`
+    }).join('\n')}
 
 ### Recent Audit Logs (last 100)
 | Time | Action | Resource Type | User | IP Address | Details |
 |------|--------|---------------|------|------------|---------|
 ${auditLogs.map(log => {
-  const user = log.first_name && log.last_name 
-    ? `${log.first_name} ${log.last_name} (${log.email || 'N/A'})`
-    : log.user_id ? `User ID: ${log.user_id}` : 'System'
-  const details = log.details ? JSON.parse(log.details) : {}
-  return `| ${log.created_at} | ${log.action} | ${log.resource_type} | ${user} | ${log.ip_address || 'N/A'} | ${JSON.stringify(details).substring(0, 100)} |`
-}).join('\n')}
+      const user = log.first_name && log.last_name
+        ? `${log.first_name} ${log.last_name} (${log.email || 'N/A'})`
+        : log.user_id ? `User ID: ${log.user_id}` : 'System'
+      const details = log.details ? JSON.parse(log.details) : {}
+      return `| ${log.created_at} | ${log.action} | ${log.resource_type} | ${user} | ${log.ip_address || 'N/A'} | ${JSON.stringify(details).substring(0, 100)} |`
+    }).join('\n')}
 
 ### Recent Errors
-${recentErrors.length > 0 
-  ? recentErrors.map(err => {
-      const details = err.details ? JSON.parse(err.details) : {}
-      return `- **${err.created_at}**: ${err.action} - ${err.resource_type} - ${JSON.stringify(details)}`
-    }).join('\n')
-  : 'No recent errors found.'
-}
+${recentErrors.length > 0
+        ? recentErrors.map(err => {
+          const details = err.details ? JSON.parse(err.details) : {}
+          return `- **${err.created_at}**: ${err.action} - ${err.resource_type} - ${JSON.stringify(details)}`
+        }).join('\n')
+        : 'No recent errors found.'
+      }
 
 ### Environment
 - NODE_ENV: ${process.env.NODE_ENV || 'not set'}
@@ -216,7 +216,7 @@ ${testResults.frontend.rawOutput ? `\n\`\`\`\n${testResults.frontend.rawOutput.s
 ---
 *End of diagnostic export*
 `
-    
+
     // Return as both JSON and markdown
     res.json({
       timestamp,
@@ -237,8 +237,8 @@ ${testResults.frontend.rawOutput ? `\n\`\`\`\n${testResults.frontend.rawOutput.s
         onboardingStatus: onboardingStatus.map(app => ({
           ...app,
           isAdmin: app.is_admin === 1,
-          progress: Math.round(((app.completed_steps || 0) / 6) * 100),
-          status: app.completed_steps >= 6 ? 'completed' : app.completed_steps > 0 ? 'in_progress' : 'not_started'
+          progress: Math.round(((app.completed_steps || 0) / 7) * 100),
+          status: app.completed_steps >= 7 ? 'completed' : app.completed_steps > 0 ? 'in_progress' : 'not_started'
         })),
         auditLogs: auditLogs.map(log => ({
           ...log,
@@ -253,7 +253,7 @@ ${testResults.frontend.rawOutput ? `\n\`\`\`\n${testResults.frontend.rawOutput.s
     })
   } catch (error) {
     console.error('Diagnostic export error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate diagnostic export',
       message: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined

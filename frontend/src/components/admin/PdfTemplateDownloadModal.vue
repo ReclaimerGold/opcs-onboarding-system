@@ -108,7 +108,7 @@ const statusMessage = ref('Preparing...')
 const steps = ref({}) // { W4: { name, status, index, error? }, ... }
 const done = ref(false)
 
-const formNames = { W4: 'Form W-4', I9: 'Form I-9', '8850': 'Form 8850' }
+const formNames = { W4: 'Form W-4', I9: 'Form I-9', '8850': 'Form 8850', '9061': 'ETA Form 9061' }
 
 const progressWidth = computed(() => {
   if (total.value <= 0) return '0%'

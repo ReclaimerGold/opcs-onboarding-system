@@ -109,7 +109,7 @@ router.get('/me/progress', async (req, res) => {
       ORDER BY step_number
     `).all(req.applicantId, req.applicantId)
 
-    const totalSteps = 6
+    const totalSteps = 7
     const completedSteps = submissions.length
     const progress = (completedSteps / totalSteps) * 100
 

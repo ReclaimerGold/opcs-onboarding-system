@@ -73,7 +73,7 @@
       <div class="max-w-xl mx-auto bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-sm">
         <h2 class="text-lg font-semibold text-amber-800 mb-2">Forms are not yet available</h2>
         <p class="text-sm text-amber-700 mb-4">
-          Your administrator must configure signature placement for W-4, I-9, and Form 8850 before you can complete onboarding. Please contact your administrator or try again later.
+          Your administrator must configure signature placement for W-4, I-9, Form 8850, and Form 9061 before you can complete onboarding. Please contact your administrator or try again later.
         </p>
         <router-link
           to="/dashboard"
@@ -136,7 +136,7 @@
           <div class="absolute top-5 left-0 right-0 h-1 bg-gray-200 z-0"></div>
           <div 
             class="absolute top-5 left-0 h-1 bg-primary z-0 transition-all duration-300"
-            :style="{ width: `${((currentStep - 1) / 5) * 100}%` }"
+            :style="{ width: `${((currentStep - 1) / 6) * 100}%` }"
           ></div>
           
           <!-- Step Circles Container -->
@@ -201,10 +201,10 @@
               </div>
             </div>
             
-            <!-- Steps 2-5 - Evenly spaced with space-between -->
+            <!-- Steps 2-6 - Evenly spaced with space-between -->
             <div class="flex-1 flex items-start justify-between mx-4">
               <div 
-                v-for="step in [2, 3, 4, 5]" 
+                v-for="step in [2, 3, 4, 5, 6]" 
                 :key="step" 
                 :class="['flex flex-col items-center group relative flex-1', isStepBlockedBySignaturePlacement(step) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer']"
                 @click="!isStepBlockedBySignaturePlacement(step) && navigateToStep(step)"
@@ -267,27 +267,27 @@
               </div>
             </div>
             
-            <!-- Step 6 - Fixed at end -->
+            <!-- Step 7 - Fixed at end -->
             <div 
-              :class="['flex flex-col items-center group relative flex-shrink-0 ml-auto', isStepBlockedBySignaturePlacement(6) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer']"
-              @click="!isStepBlockedBySignaturePlacement(6) && navigateToStep(6)"
+              :class="['flex flex-col items-center group relative flex-shrink-0 ml-auto', isStepBlockedBySignaturePlacement(7) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer']"
+              @click="!isStepBlockedBySignaturePlacement(7) && navigateToStep(7)"
             >
               <div class="relative w-10 flex justify-center">
                 <div
                   :class="[
                     'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
-                    getStepStatus(6).status === 'completed' 
+                    getStepStatus(7).status === 'completed' 
                       ? 'bg-primary text-white shadow-md' 
-                      : getStepStatus(6).status === 'current'
+                      : getStepStatus(7).status === 'current'
                       ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
                       : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300',
-                    getStepStatus(6).hasWarning ? 'ring-2 ring-yellow-400' : '',
-                    isStepBlockedBySignaturePlacement(6) ? 'opacity-70' : ''
+                    getStepStatus(7).hasWarning ? 'ring-2 ring-yellow-400' : '',
+                    isStepBlockedBySignaturePlacement(7) ? 'opacity-70' : ''
                   ]"
-                  :title="isStepBlockedBySignaturePlacement(6) ? 'This form is unavailable until the administrator configures signature placement.' : (getStepStatus(6).hasWarning ? getStepStatus(6).warningMessage : undefined)"
+                  :title="isStepBlockedBySignaturePlacement(7) ? 'This form is unavailable until the administrator configures signature placement.' : (getStepStatus(7).hasWarning ? getStepStatus(7).warningMessage : undefined)"
                 >
                   <svg 
-                    v-if="getStepStatus(6).status === 'completed'" 
+                    v-if="getStepStatus(7).status === 'completed'" 
                     class="w-6 h-6" 
                     fill="none" 
                     viewBox="0 0 24 24" 
@@ -296,7 +296,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
                   <svg 
-                    v-else-if="getStepStatus(6).status === 'pending' && getStepStatus(6).hasWarning" 
+                    v-else-if="getStepStatus(7).status === 'pending' && getStepStatus(7).hasWarning" 
                     class="w-5 h-5" 
                     fill="none" 
                     viewBox="0 0 24 24" 
@@ -304,25 +304,25 @@
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  <span v-else>6</span>
+                  <span v-else>7</span>
                 </div>
               </div>
               <div class="mt-2 text-center">
                 <div 
                   :class="[
                     'text-xs font-medium transition-colors whitespace-nowrap',
-                    getStepStatus(6).status === 'completed' || getStepStatus(6).status === 'current'
+                    getStepStatus(7).status === 'completed' || getStepStatus(7).status === 'current'
                       ? 'text-primary' 
                       : 'text-gray-600 group-hover:text-gray-900'
                   ]"
                 >
-                  {{ getStepLabel(6) }}
+                  {{ getStepLabel(7) }}
                 </div>
                 <div 
-                  v-if="getStepStatus(6).hasWarning" 
+                  v-if="getStepStatus(7).hasWarning" 
                   class="text-xs text-yellow-600 mt-1 whitespace-nowrap"
                 >
-                  {{ getStepStatus(6).warningMessage }}
+                  {{ getStepStatus(7).warningMessage }}
                 </div>
               </div>
             </div>
@@ -412,6 +412,14 @@
           <Step68850Form 
             v-if="currentStep === 6" 
             :key="'step6-' + stepRemountKey"
+            :session-signature="sessionSignature"
+            :consent-already-given="!!dashboardOnboarding.ssnConsentGiven?.value"
+            @submitted="handleStepComplete"
+            @form-data-change="handleFormDataChange"
+          />
+          <Step79061Form 
+            v-if="currentStep === 7" 
+            :key="'step7-' + stepRemountKey"
             :session-signature="sessionSignature"
             :consent-already-given="!!dashboardOnboarding.ssnConsentGiven?.value"
             @submitted="handleStepComplete"
@@ -516,6 +524,7 @@ import Step3BackgroundForm from '../components/forms/Step3BackgroundForm.vue'
 import Step4DirectDepositForm from '../components/forms/Step4DirectDepositForm.vue'
 import Step5AcknowledgementsForm from '../components/forms/Step5AcknowledgementsForm.vue'
 import Step68850Form from '../components/forms/Step68850Form.vue'
+import Step79061Form from '../components/forms/Step79061Form.vue'
 import api from '../services/api.js'
 import { getSessionSignature } from '../utils/sessionSignature.js'
 import { useDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
@@ -530,8 +539,8 @@ const dashboardConsented = ref(false)
 const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboardingModal?.value)
 const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
 
-// SSN re-prompt when cookie expired (steps 1, 2, 6 need SSN for forms)
-const STEPS_REQUIRING_SSN = [1, 2, 6]
+// SSN re-prompt when cookie expired (steps 1, 2, 6, 7 need SSN for forms)
+const STEPS_REQUIRING_SSN = [1, 2, 6, 7]
 const showSSNRePromptModal = ref(false)
 const stepRemountKey = ref(0)
 
@@ -590,14 +599,14 @@ const previewError = ref(null)
 const loadingProgress = ref(false)
 const loadingApplicant = ref(false)
 const sessionSignature = ref(null)
-const templateStatus = ref({ w4: false, i9: false, 8850: false })
+const templateStatus = ref({ w4: false, i9: false, 8850: false, 9061: false })
 const templateStatusLoaded = ref(false)
 /** True when template-status request failed (e.g. network); distinct from "placements not configured" */
 const templateStatusError = ref(false)
 let previewDebounceTimer = null
 
 const allSignaturePlacementsReady = computed(() =>
-  templateStatus.value.w4 && templateStatus.value.i9 && !!templateStatus.value['8850']
+  templateStatus.value.w4 && templateStatus.value.i9 && !!templateStatus.value['8850'] && !!templateStatus.value['9061']
 )
 
 const stepLabels = {
@@ -606,7 +615,8 @@ const stepLabels = {
   3: 'Background',
   4: 'Direct Deposit',
   5: 'Acknowledgements',
-  6: '8850'
+  6: '8850',
+  7: '9061'
 }
 
 // Step dependencies - what data is required from previous steps
@@ -630,6 +640,10 @@ const stepDependencies = {
   6: { // 8850 requires acknowledgements
     requiresStep: 5,
     message: 'Please complete Step 5 (Acknowledgements) first.'
+  },
+  7: { // 9061 requires 8850
+    requiresStep: 6,
+    message: 'Please complete Step 6 (Form 8850) first.'
   }
 }
 
@@ -650,14 +664,14 @@ const loadTemplateStatus = async (isRetry = false) => {
   templateStatusError.value = false
   try {
     const res = await api.get('/forms/template-status')
-    templateStatus.value = { w4: !!res.data.w4, i9: !!res.data.i9, 8850: !!res.data['8850'] }
+    templateStatus.value = { w4: !!res.data.w4, i9: !!res.data.i9, 8850: !!res.data['8850'], 9061: !!res.data['9061'] }
   } catch (err) {
     if (!isRetry) {
       await new Promise(r => setTimeout(r, 1000))
       return loadTemplateStatus(true)
     }
     templateStatusError.value = true
-    templateStatus.value = { w4: false, i9: false, 8850: false }
+    templateStatus.value = { w4: false, i9: false, 8850: false, 9061: false }
   } finally {
     templateStatusLoaded.value = true
   }
@@ -665,7 +679,7 @@ const loadTemplateStatus = async (isRetry = false) => {
 
 onMounted(async () => {
   await loadTemplateStatus()
-  const ready = templateStatus.value.w4 && templateStatus.value.i9 && templateStatus.value['8850']
+  const ready = templateStatus.value.w4 && templateStatus.value.i9 && templateStatus.value['8850'] && templateStatus.value['9061']
   if (!ready) return
 
   await loadProgress()
@@ -680,7 +694,7 @@ onMounted(async () => {
   // Check for step query parameter
   if (route.query.step) {
     const step = parseInt(route.query.step)
-    if (step >= 1 && step <= 6) {
+    if (step >= 1 && step <= 7) {
       navigateToStep(step)
     } else {
       validateCurrentStep()
@@ -742,9 +756,9 @@ const loadProgress = async () => {
     }
     
     // Set current step to first incomplete step
-    if (completedSteps.value.size < 6) {
+    if (completedSteps.value.size < 7) {
       // Find first incomplete step
-      for (let i = 1; i <= 6; i++) {
+      for (let i = 1; i <= 7; i++) {
         if (!completedSteps.value.has(i)) {
           currentStep.value = i
           break
@@ -805,8 +819,8 @@ const getStepLabel = (step) => {
   return stepLabels[step] || `Step ${step}`
 }
 
-// Steps that have PDF previews (W-4, I-9, Form 8850)
-const stepsWithPDF = [1, 2, 6]
+// Steps that have PDF previews (W-4, I-9, Form 8850, Form 9061)
+const stepsWithPDF = [1, 2, 6, 7]
 
 // Steps blocked when signature placement not configured (admin-only setting)
 const signaturePlacementBlockedSteps = computed(() => {
@@ -815,6 +829,7 @@ const signaturePlacementBlockedSteps = computed(() => {
   if (!s.w4) steps.push(1)
   if (!s.i9) steps.push(2)
   if (!s['8850']) steps.push(6)
+  if (!s['9061']) steps.push(7)
   return steps
 })
 const signaturePlacementBlockedStepsLabel = computed(() => {
@@ -822,6 +837,7 @@ const signaturePlacementBlockedStepsLabel = computed(() => {
   if (!templateStatus.value.w4) labels.push('W-4')
   if (!templateStatus.value.i9) labels.push('I-9')
   if (!templateStatus.value['8850']) labels.push('Form 8850')
+  if (!templateStatus.value['9061']) labels.push('Form 9061')
   return labels.join(', ') || ''
 })
 function isStepBlockedBySignaturePlacement(step) {
@@ -1189,6 +1205,10 @@ const validateAllRequiredFieldsForPreview = (formData, step) => {
       const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
       return !!(formData.firstName && formData.lastName && ssnValid && formData.email && formData.county)
     }
+    case 7: { // 9061 - SSN required
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      return !!(formData.firstName && formData.lastName && ssnValid)
+    }
     default:
       return false
   }
@@ -1216,7 +1236,7 @@ const handleStepComplete = async (step) => {
   }
   
   // Move to next step
-  if (step < 6) {
+  if (step < 7) {
     currentStep.value = step + 1
     validateCurrentStep()
     // Clear preview when moving to next step
@@ -1226,7 +1246,7 @@ const handleStepComplete = async (step) => {
     pdfPreviewUrl.value = null
     currentFormData.value = null
   } else {
-    // Step 6 completed - check if admin and password setup required
+    // Step 7 completed - check if admin and password setup required
     if (authStore.isAdmin) {
       try {
         const passwordStatus = await api.get('/auth/password-status')

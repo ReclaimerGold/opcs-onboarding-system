@@ -47,7 +47,8 @@ const FORM_TYPES = {
   3: 'BACKGROUND',
   4: 'DIRECT_DEPOSIT',
   5: 'ACKNOWLEDGEMENTS',
-  6: '8850'
+  6: '8850',
+  7: '9061'
 }
 
 /**
@@ -89,6 +90,13 @@ function validatePreviewFormData(formData, step) {
       const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
       if (!formData.firstName || !formData.lastName || !ssnValid || !formData.email || !formData.county) {
         return { valid: false, error: 'Complete all required Form 8850 fields before viewing preview' }
+      }
+      return { valid: true }
+    }
+    case 7: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      if (!formData.firstName || !formData.lastName || !ssnValid) {
+        return { valid: false, error: 'Complete all required ETA Form 9061 fields before viewing preview' }
       }
       return { valid: true }
     }
@@ -161,6 +169,13 @@ function validateSubmitFormData(formData, step, applicantId, db) {
       }
       return { valid: true }
     }
+    case 7: {
+      const ssnValid = formData.ssn && /^\d{3}-\d{2}-\d{4}$/.test(formData.ssn)
+      if (!formData.firstName || !formData.lastName || !ssnValid) {
+        return { valid: false, error: 'Complete all required ETA Form 9061 fields before submitting' }
+      }
+      return { valid: true }
+    }
     default:
       return { valid: true }
   }
@@ -173,7 +188,7 @@ function validateSubmitFormData(formData, step, applicantId, db) {
 router.post('/submit/:step', upload.any(), async (req, res) => {
   try {
     const step = parseInt(req.params.step)
-    if (step < 1 || step > 6) {
+    if (step < 1 || step > 7) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
 
@@ -196,19 +211,19 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     }
 
     // Check if SSN consent was provided for forms that need it
-    if ((formType === 'W4' || formType === '8850') && !req.body.ssnConsented) {
+    if ((formType === 'W4' || formType === '8850' || formType === '9061') && !req.body.ssnConsented) {
       return res.status(400).json({ error: 'SSN collection consent required' })
     }
 
     // Block submission if admin has not configured signature placement for this form type
-    if (['W4', 'I9', '8850'].includes(formType) && !getSignaturePlacement(formType)) {
+    if (['W4', 'I9', '8850', '9061'].includes(formType) && !getSignaturePlacement(formType)) {
       return res.status(503).json({
         error: 'This form is not yet available. The administrator must configure signature placement in Admin → System → PDF Templates before employees can submit.'
       })
     }
 
     // Validate all legally required fields (and I-9 uploads) before generating PDF
-    if (['W4', 'I9', '8850'].includes(formType)) {
+    if (['W4', 'I9', '8850', '9061'].includes(formType)) {
       const validation = validateSubmitFormData(formData, step, req.applicantId, db)
       if (!validation.valid) {
         return res.status(400).json({ error: validation.error })
@@ -271,7 +286,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       WHERE applicant_id = ? AND step_number = ?
       ORDER BY submitted_at DESC LIMIT 1
     `).get(req.applicantId, step)
-    const shouldOverwrite = existingForStep && distinctStepCount < 6
+    const shouldOverwrite = existingForStep && distinctStepCount < 7
     const existingSubmission = shouldOverwrite ? {
       id: existingForStep.id,
       google_drive_id: existingForStep.google_drive_id || '',
@@ -299,8 +314,8 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     const afterSubmitDistinct = shouldOverwrite
       ? distinctStepCount
       : (existingForStep ? distinctStepCount : distinctStepCount + 1)
-    const completedSteps = Math.min(6, afterSubmitDistinct)
-    const isOnboardingComplete = afterSubmitDistinct >= 6
+    const completedSteps = Math.min(7, afterSubmitDistinct)
+    const isOnboardingComplete = afterSubmitDistinct >= 7
 
     // Check if admin and password setup required
     let requiresPasswordSetup = false
@@ -375,7 +390,7 @@ router.get('/submissions', async (req, res) => {
 router.post('/preview/:step', async (req, res) => {
   try {
     const step = parseInt(req.params.step)
-    if (step < 1 || step > 6) {
+    if (step < 1 || step > 7) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
 
@@ -384,8 +399,8 @@ router.post('/preview/:step', async (req, res) => {
       return res.status(400).json({ error: 'Invalid form type' })
     }
 
-    // Only allow preview for forms that generate PDFs (W-4, I-9, 8850)
-    if (!['W4', 'I9', '8850'].includes(formType)) {
+    // Only allow preview for forms that generate PDFs (W-4, I-9, 8850, 9061)
+    if (!['W4', 'I9', '8850', '9061'].includes(formType)) {
       return res.status(400).json({ error: 'Preview not available for this form type' })
     }
 
@@ -419,7 +434,7 @@ router.post('/preview/:step', async (req, res) => {
     }
 
     // Generate PDF preview (without saving)
-    const { generateW4PDF, generateI9PDF, generate8850PDF } = await import('../services/pdfService.js')
+    const { generateW4PDF, generateI9PDF, generate8850PDF, generate9061PDF } = await import('../services/pdfService.js')
 
     let pdfBytes
     const applicantData = {
@@ -443,6 +458,9 @@ router.post('/preview/:step', async (req, res) => {
         break
       case '8850':
         pdfBytes = await generate8850PDF(formData, applicantData)
+        break
+      case '9061':
+        pdfBytes = await generate9061PDF(formData, applicantData)
         break
       default:
         return res.status(400).json({ error: 'Preview not available for this form type' })
@@ -550,7 +568,7 @@ router.get('/submissions/:id/view', async (req, res) => {
 router.post('/draft/:step', async (req, res) => {
   try {
     const step = parseInt(req.params.step)
-    if (step < 1 || step > 6) {
+    if (step < 1 || step > 7) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
 
@@ -596,7 +614,7 @@ router.post('/draft/:step', async (req, res) => {
 router.get('/draft/:step', async (req, res) => {
   try {
     const step = parseInt(req.params.step)
-    if (step < 1 || step > 6) {
+    if (step < 1 || step > 7) {
       return res.status(400).json({ error: 'Invalid step number' })
     }
 
@@ -741,11 +759,11 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     const db = getDatabase()
     const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
 
-    // During onboarding (distinct form steps < 6): overwrite. After: insert new version.
+    // During onboarding (distinct form steps < 7): overwrite. After: insert new version.
     const distinctSteps = db.prepare(`
       SELECT COUNT(DISTINCT step_number) as count FROM form_submissions WHERE applicant_id = ?
     `).get(req.applicantId)
-    const duringOnboarding = (distinctSteps?.count ?? 0) < 6
+    const duringOnboarding = (distinctSteps?.count ?? 0) < 7
 
     if (!applicant) {
       await fs.unlink(req.file.path)

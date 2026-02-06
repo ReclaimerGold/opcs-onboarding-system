@@ -16,6 +16,7 @@
           <option value="W4">W-4</option>
           <option value="I9">I-9</option>
           <option value="8850">Form 8850</option>
+          <option value="9061">ETA Form 9061</option>
         </select>
       </div>
     </div>

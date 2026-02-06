@@ -173,6 +173,82 @@ export const F8850_FIELD_MAPPING = {
 }
 
 /**
+ * ETA Form 9061 Field Mappings (Individual Characteristics Form)
+ * Used alongside IRS Form 8850 for WOTC program
+ * 
+ * Field names discovered by inspecting the official DOL fillable PDF:
+ * https://www.dol.gov/sites/dolgov/files/ETA/wotc/pdfs/ETA-FORM-9061-(ENGLISH).pdf
+ * 
+ * Note: Box 6 is a SINGLE combined name field "Last, First MI".
+ * Box 8 and Box 23b are radio groups (handled separately in fill9061Template).
+ * Box 15 birthday, Box 17 birthday, and Box 18 birthday are separate fields.
+ * Box 14 has sub-checkboxes for Federal/State/Work Release.
+ * Box 16 has sub-checkboxes for VR Referral/VR Agency/EN/DVA.
+ */
+export const F9061_FIELD_MAPPING = {
+  // Box 6: Applicant Name (combined field: "Last, First MI")
+  applicantName: ['6 Applicant Name Last First MI'],
+
+  // Box 7: Social Security Number
+  ssn: ['7. Social Security Number'],
+
+  // Box 12: Qualified IV-A Recipient (TANF)
+  box12_TANF: ['12. Check here if the job applicant is a Qualified IVA Recipient'],
+  tanfPrimaryRecipient: ['12. Enter the name of the primary benefits recipient'],
+  tanfBenefitsLocation: ['12. City and states where benefits recieved'],
+
+  // Box 13: Qualified Veteran
+  box13_Veteran: ['13. Check here if the job applicant is a veteran of the US Armed Forces'],
+  veteranSNAPRecipient: ['13. If the job applicant (veteran) is a member of a family receiving Supplemental Nutrition Assistance Program (SNAP) benefits, enter the name of the primary benefits recipient received:'],
+  veteranSNAPLocation: ['13. city and state(s) where benefits were received:'],
+
+  // Box 14: Qualified Ex-Felon (main checkbox + sub-checkboxes)
+  box14_ExFelon: ['14. Ex-Felon'],
+  box14_Federal: ['14. Federal conviction'],
+  box14_State: ['14. State conviction'],
+  box14_WorkRelease: ['14. Work Release'],
+  felonyConvictionDate: ['14. Enter date of felony conviction (mm/dd/yyyy)'],
+  felonyReleaseDate: ['14. Enter date of release date (mm/dd/yyyy)'],
+  felonyStateName: ['14. List applicable state'],
+
+  // Box 15: Designated Community Resident (sub-checkboxes for RRC and EZ)
+  box15_RRC: ['15. RRC'],
+  box15_EZ: ['15. EZ'],
+  dateOfBirthBox15: ['15. Enter job applicants birthday mmddyyyy'],
+
+  // Box 16: Vocational Rehabilitation Referral (sub-checkboxes for source)
+  box16_VRReferral: ['16. VR Referral'],
+  box16_VRAgency: ['16. VR Agency'],
+  box16_EN: ['16. EN'],
+  box16_DVA: ['16. DVA'],
+
+  // Box 17: Qualified Summer Youth Employee
+  box17_SummerYouth: ['17. Check here if the job applicant is a Qualified Summer Youth Employee'],
+  dateOfBirthBox17: ['17. Enter the job applicants birthday mmddyyyy'],
+
+  // Box 18: Qualified SNAP Recipient
+  box18_SNAP: ['18. Check here if the job applicant is a Qualified SNAP Food Stamps Recipient'],
+  snapPrimaryRecipient: ['18. Enter the name of the primary benefits recipient'],
+  snapBenefitsLocation: ['18. city and states where benefits were received'],
+  dateOfBirthBox18: ["18. Enter Job applicant's Birthday (mm/dd/yyyy)"],
+
+  // Box 19: Qualified SSI Recipient
+  box19_SSI: ['19. Check here if the job applicant received or is receiving Supplemental Security Income SSI'],
+
+  // Box 20: Long-Term Family Assistance (Long-Term TANF) Recipient
+  box20_LongTermTANF: ['20. Check here if the job applicant is a Longterm Family Assistance longterm TANF recipient'],
+  longTermTANFRecipient: ['20. Enter name of the primary benefits recipient'],
+  longTermTANFLocation: ['20. city and states where benefits were received'],
+
+  // Box 21: Qualified Long-Term Unemployment Recipient (LTUR)
+  box21_LTUR: ['21. Check here if the job applicant is a qualified longterm unemployment recipient LTUR'],
+  unemploymentClaimsLocation: ['21. Enter city and states where UI claim records  UI wage records were filed'],
+
+  // Box 24: Signature Date
+  signatureDate: ['24 Signature Date']
+}
+
+/**
  * Format date for PDF forms (MM/DD/YYYY)
  * @param {string|Date} date - Date to format
  * @returns {string} Formatted date string
@@ -565,10 +641,95 @@ export function map8850FormData(formData) {
   }
 }
 
+/**
+ * Map ETA Form 9061 data to PDF field values
+ * 
+ * Key differences from other forms:
+ * - Box 6 is a SINGLE combined name field formatted as "Last, First MI"
+ * - Box 8 (worked before) and Box 23b (signer) are radio groups, handled in fill9061Template
+ * - Box 14 has separate sub-checkboxes for Federal/State/Work Release
+ * - Box 15 has sub-checkboxes for RRC (Rural Renewal County) and EZ (Empowerment Zone)
+ * - Box 16 has sub-checkboxes for VR Referral, VR Agency, EN, DVA
+ * - Boxes 15, 17, and 18 each have their own birthday text field
+ * 
+ * @param {Object} formData - Application form data
+ * @returns {Object} Mapped field values
+ */
+export function map9061FormData(formData) {
+  // Build combined name: "Last, First MI"
+  const mi = (formData.middleName || '').charAt(0)
+  const applicantName = `${formData.lastName || ''}, ${formData.firstName || ''}${mi ? ' ' + mi : ''}`
+
+  return {
+    // Box 6: Combined applicant name
+    applicantName,
+
+    // Box 7: SSN
+    ssn: formatSSNForPDF(formData.ssn),
+
+    // Box 12: TANF
+    box12_TANF: formData.isTANFRecipient || false,
+    tanfPrimaryRecipient: formData.tanfPrimaryRecipient || '',
+    tanfBenefitsLocation: formData.tanfBenefitsLocation || '',
+
+    // Box 13: Veteran
+    box13_Veteran: formData.isVeteran || false,
+    veteranSNAPRecipient: (formData.isVeteran && formData.veteranReceivesSNAP) ? (formData.veteranSNAPRecipient || '') : '',
+    veteranSNAPLocation: (formData.isVeteran && formData.veteranReceivesSNAP) ? (formData.veteranSNAPLocation || '') : '',
+
+    // Box 14: Ex-Felon (main checkbox + sub-checkboxes)
+    box14_ExFelon: formData.isExFelon || false,
+    box14_Federal: (formData.isExFelon && formData.felonyFederal) || false,
+    box14_State: (formData.isExFelon && formData.felonyState) || false,
+    box14_WorkRelease: (formData.isExFelon && formData.felonyWorkRelease) || false,
+    felonyConvictionDate: formData.isExFelon ? formatDateForPDF(formData.felonyConvictionDate) : '',
+    felonyReleaseDate: formData.isExFelon ? formatDateForPDF(formData.felonyReleaseDate) : '',
+    felonyStateName: (formData.isExFelon && formData.felonyState) ? (formData.felonyStateName || '') : '',
+
+    // Box 15: Designated Community Resident (RRC or EZ sub-checkboxes)
+    // Default to RRC when designated community resident is checked
+    box15_RRC: formData.isDesignatedCommunityResident || false,
+    box15_EZ: false,
+    dateOfBirthBox15: formData.isDesignatedCommunityResident ? formatDateForPDF(formData.dateOfBirth) : '',
+
+    // Box 16: Vocational Rehabilitation (sub-checkboxes based on referral source)
+    box16_VRReferral: (formData.isVocationalRehab && formData.rehabReferralSource === 'state_agency') || false,
+    box16_VRAgency: (formData.isVocationalRehab && formData.rehabReferralSource === 'state_agency') || false,
+    box16_EN: (formData.isVocationalRehab && formData.rehabReferralSource === 'employment_network') || false,
+    box16_DVA: (formData.isVocationalRehab && formData.rehabReferralSource === 'va') || false,
+
+    // Box 17: Summer Youth
+    box17_SummerYouth: formData.isSummerYouth || false,
+    dateOfBirthBox17: formData.isSummerYouth ? formatDateForPDF(formData.dateOfBirth) : '',
+
+    // Box 18: SNAP
+    box18_SNAP: formData.isSNAPRecipient || false,
+    snapPrimaryRecipient: formData.snapPrimaryRecipient || '',
+    snapBenefitsLocation: formData.snapBenefitsLocation || '',
+    dateOfBirthBox18: formData.isSNAPRecipient ? formatDateForPDF(formData.dateOfBirth) : '',
+
+    // Box 19: SSI
+    box19_SSI: formData.isSSIRecipient || false,
+
+    // Box 20: Long-Term TANF
+    box20_LongTermTANF: formData.isLongTermTANF || false,
+    longTermTANFRecipient: formData.longTermTANFRecipient || '',
+    longTermTANFLocation: formData.longTermTANFLocation || '',
+
+    // Box 21: Long-Term Unemployment
+    box21_LTUR: formData.isLongTermUnemployed || false,
+    unemploymentClaimsLocation: formData.unemploymentClaimsLocation || '',
+
+    // Box 24: Signature date
+    signatureDate: formatDateForPDF(new Date())
+  }
+}
+
 export default {
   W4_FIELD_MAPPING,
   I9_FIELD_MAPPING,
   F8850_FIELD_MAPPING,
+  F9061_FIELD_MAPPING,
   formatDateForPDF,
   formatSSNForPDF,
   splitSSNForI9,
@@ -581,6 +742,7 @@ export default {
   getFormFieldInfo,
   mapW4FormData,
   mapI9FormData,
-  map8850FormData
+  map8850FormData,
+  map9061FormData
 }
 

@@ -7,11 +7,14 @@ import {
   W4_FIELD_MAPPING,
   I9_FIELD_MAPPING,
   F8850_FIELD_MAPPING,
+  F9061_FIELD_MAPPING,
   trySetTextField,
   trySetCheckbox,
+  trySetRadioGroup,
   mapW4FormData,
   mapI9FormData,
   map8850FormData,
+  map9061FormData,
   getFormFieldInfo,
   formatDateForPDF
 } from './pdfFieldMapping.js'
@@ -27,7 +30,7 @@ const __dirname = path.dirname(__filename)
 const LOCAL_STORAGE_DIR = path.join(__dirname, '../../storage/encrypted-pdfs')
 
 /** Form types that support signature placement */
-const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850']
+const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850', '9061']
 
 /**
  * Normalize stored placement value to array of placements.
@@ -81,7 +84,8 @@ export function getSignaturePlacementStatus() {
   return {
     w4: !!getSignaturePlacement('W4'),
     i9: !!getSignaturePlacement('I9'),
-    8850: !!getSignaturePlacement('8850')
+    8850: !!getSignaturePlacement('8850'),
+    9061: !!getSignaturePlacement('9061')
   }
 }
 
@@ -215,6 +219,7 @@ export function calculateRetentionDate(formType, hireDate, terminationDate) {
   switch (formType) {
     case 'W4':
     case '8850':
+    case '9061':
       // 4 years from submission
       retentionDate.setFullYear(now.getFullYear() + 4)
       break
@@ -910,6 +915,279 @@ async function generate8850PDFFallback(formData, applicantData) {
 }
 
 /**
+ * Generate ETA Form 9061 PDF using official template
+ * Falls back to basic generation only if template is completely unavailable
+ */
+export async function generate9061PDF(formData, applicantData) {
+  // Try to use official template
+  const templateBuffer = await getTemplate('9061')
+
+  if (!templateBuffer) {
+    console.warn('ETA Form 9061 template not available, attempting to download...')
+    const { updateTemplate } = await import('./pdfTemplateService.js')
+    const updateResult = await updateTemplate('9061', true)
+
+    if (updateResult.updated || updateResult.metadata) {
+      const retryBuffer = await getTemplate('9061')
+      if (retryBuffer) {
+        console.log('ETA Form 9061 template downloaded successfully, using template')
+        return await fill9061Template(retryBuffer, formData)
+      }
+    }
+
+    console.error('ETA Form 9061 template unavailable after download attempt, using fallback')
+    return generate9061PDFFallback(formData, applicantData)
+  }
+
+  // Use template
+  try {
+    return await fill9061Template(templateBuffer, formData)
+  } catch (error) {
+    console.error('Failed to fill ETA Form 9061 template, using fallback:', error.message)
+    return generate9061PDFFallback(formData, applicantData)
+  }
+}
+
+/**
+ * Fill ETA Form 9061 template with form data
+ * @param {Buffer} templateBuffer - Template PDF buffer
+ * @param {Object} formData - Form data
+ * @returns {Promise<Buffer>} Filled PDF buffer
+ */
+async function fill9061Template(templateBuffer, formData) {
+  try {
+    console.log('Using official ETA Form 9061 template')
+    const pdfDoc = await PDFDocument.load(templateBuffer)
+    const mappedData = map9061FormData(formData)
+
+    // fillPDFTemplate handles text fields and checkboxes but NOT radio groups.
+    // We load the form before flattening to set radio groups manually.
+    // Note: fillPDFTemplate flattens the form at the end, so radio groups must
+    // be set on a separate load, or we handle everything manually here.
+    // To keep it simple, we'll load the PDF, set radio groups first, then pass
+    // to fillPDFTemplate which will set text/checkbox fields and flatten.
+
+    // Set radio groups BEFORE fillPDFTemplate (which flattens the form)
+    const form = pdfDoc.getForm()
+
+    // Box 8: "Have you worked for this employer" — Radio group with options 'Yes' and 'No'
+    const workedBefore = formData.workedForEmployerBefore === 'yes'
+    trySetRadioGroup(form, '8. Have you worked for this employer', workedBefore ? 'Yes' : 'No')
+
+    // Box 23b: "indicate who signed this form" — Since this is the job applicant filling it out
+    // Options: 'Employer', 'Employers Preparer', 'SWA/Participating agency', 'Parent/Guardian (if job applicant is a minor)', 'Job Applicant'
+    trySetRadioGroup(form, '23.b. indicate who signed this form', 'Job Applicant')
+
+    // Now fill text fields and checkboxes (this also flattens the form)
+    const result = await fillPDFTemplate(pdfDoc, F9061_FIELD_MAPPING, mappedData)
+    console.log(`9061: Successfully filled ${result.filledCount} fields + 2 radio groups`)
+
+    if (result.failedFields.length > 0) {
+      console.warn(`9061: Could not fill ${result.failedFields.length} fields: ${result.failedFields.slice(0, 5).join(', ')}${result.failedFields.length > 5 ? '...' : ''}`)
+    }
+
+    if (formData.signatureData) {
+      await drawSignatureOnPdf(pdfDoc, '9061', formData.signatureData)
+    }
+
+    const pdfBytes = await pdfDoc.save()
+    return pdfBytes
+  } catch (error) {
+    console.error('Error filling ETA Form 9061 template:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Fallback ETA Form 9061 PDF generation (basic text output)
+ */
+async function generate9061PDFFallback(formData, applicantData) {
+  const pdfDoc = await PDFDocument.create()
+  const page = pdfDoc.addPage([612, 792])
+
+  const { width, height } = page.getSize()
+  const fontSize = 11
+  const smallFontSize = 9
+  const helveticaFont = await pdfDoc.embedFont('Helvetica')
+  const helveticaBoldFont = await pdfDoc.embedFont('Helvetica-Bold')
+
+  // Title
+  page.drawText('ETA Form 9061: Individual Characteristics Form', {
+    x: 50,
+    y: height - 50,
+    size: 14,
+    font: helveticaBoldFont
+  })
+  page.drawText('Work Opportunity Tax Credit (WOTC)', {
+    x: 50,
+    y: height - 66,
+    size: 10,
+    font: helveticaFont
+  })
+  page.drawText('(Fallback version - official template unavailable)', {
+    x: 50,
+    y: height - 80,
+    size: 9,
+    font: helveticaFont
+  })
+
+  let yPos = height - 110
+
+  // Applicant Information
+  page.drawText('Applicant Information', { x: 50, y: yPos, size: 12, font: helveticaBoldFont })
+  yPos -= 20
+  page.drawText(`Name: ${formData.lastName || ''}, ${formData.firstName || ''} ${formData.middleName || ''}`.trim(), {
+    x: 50, y: yPos, size: fontSize, font: helveticaFont
+  })
+  yPos -= 18
+  page.drawText(`SSN: ${formData.ssn || ''}`, {
+    x: 50, y: yPos, size: fontSize, font: helveticaFont
+  })
+  if (formData.dateOfBirth) {
+    yPos -= 18
+    page.drawText(`Date of Birth: ${formatDateForPDF(formData.dateOfBirth)}`, {
+      x: 50, y: yPos, size: fontSize, font: helveticaFont
+    })
+  }
+  yPos -= 18
+  page.drawText(`Worked for employer before: ${formData.workedForEmployerBefore === 'yes' ? 'Yes' : 'No'}`, {
+    x: 50, y: yPos, size: fontSize, font: helveticaFont
+  })
+  if (formData.workedForEmployerBefore === 'yes' && formData.lastEmploymentDate) {
+    yPos -= 18
+    page.drawText(`  Last date of employment: ${formatDateForPDF(formData.lastEmploymentDate)}`, {
+      x: 50, y: yPos, size: fontSize, font: helveticaFont
+    })
+  }
+
+  // Targeted Group Eligibility
+  yPos -= 30
+  page.drawText('Targeted Group Eligibility', { x: 50, y: yPos, size: 12, font: helveticaBoldFont })
+
+  const targetGroups = [
+    { label: '12. Qualified IV-A Recipient (TANF)', checked: formData.isTANFRecipient },
+    { label: '13. Qualified Veteran', checked: formData.isVeteran },
+    { label: '14. Qualified Ex-Felon', checked: formData.isExFelon },
+    { label: '15. Designated Community Resident', checked: formData.isDesignatedCommunityResident },
+    { label: '16. Vocational Rehabilitation Referral', checked: formData.isVocationalRehab },
+    { label: '17. Qualified Summer Youth Employee', checked: formData.isSummerYouth },
+    { label: '18. Qualified SNAP Recipient', checked: formData.isSNAPRecipient },
+    { label: '19. Qualified SSI Recipient', checked: formData.isSSIRecipient },
+    { label: '20. Long-Term Family Assistance Recipient', checked: formData.isLongTermTANF },
+    { label: '21. Qualified Long-Term Unemployment Recipient', checked: formData.isLongTermUnemployed }
+  ]
+
+  for (const group of targetGroups) {
+    yPos -= 18
+    if (yPos < 80) {
+      // Add new page
+      const newPage = pdfDoc.addPage([612, 792])
+      yPos = newPage.getSize().height - 50
+    }
+    const checkmark = group.checked ? '[X]' : '[ ]'
+    page.drawText(`${checkmark} ${group.label}`, {
+      x: 60, y: yPos, size: fontSize, font: group.checked ? helveticaBoldFont : helveticaFont
+    })
+
+    // Show sub-fields for checked groups
+    if (group.checked) {
+      if (formData.isTANFRecipient && group.label.includes('TANF') && !group.label.includes('Long-Term')) {
+        if (formData.tanfPrimaryRecipient) {
+          yPos -= 14
+          page.drawText(`  Primary recipient: ${formData.tanfPrimaryRecipient}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.tanfBenefitsLocation) {
+          yPos -= 14
+          page.drawText(`  Benefits location: ${formData.tanfBenefitsLocation}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+      }
+      if (formData.isVeteran && group.label.includes('Veteran')) {
+        if (formData.veteranDisabled) {
+          yPos -= 14
+          page.drawText('  Service-connected disability: Yes', { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.veteranUnemployed6Months) {
+          yPos -= 14
+          page.drawText('  Unemployed 6+ months: Yes', { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.veteranReceivesSNAP) {
+          yPos -= 14
+          page.drawText(`  Veteran SNAP recipient: ${formData.veteranSNAPRecipient || 'Yes'}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+          if (formData.veteranSNAPLocation) {
+            yPos -= 14
+            page.drawText(`  SNAP benefits location: ${formData.veteranSNAPLocation}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+          }
+        }
+      }
+      if (formData.isExFelon && group.label.includes('Ex-Felon')) {
+        if (formData.felonyConvictionDate) {
+          yPos -= 14
+          page.drawText(`  Conviction date: ${formatDateForPDF(formData.felonyConvictionDate)}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.felonyReleaseDate) {
+          yPos -= 14
+          page.drawText(`  Release date: ${formatDateForPDF(formData.felonyReleaseDate)}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        const convType = [formData.felonyFederal ? 'Federal' : '', formData.felonyState ? `State (${formData.felonyStateName || ''})` : ''].filter(Boolean).join(', ')
+        if (convType) {
+          yPos -= 14
+          page.drawText(`  Conviction type: ${convType}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.felonyWorkRelease) {
+          yPos -= 14
+          page.drawText('  In Work Release Program: Yes', { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+      }
+      if (formData.isSNAPRecipient && group.label.includes('SNAP') && !group.label.includes('Veteran')) {
+        if (formData.snapPrimaryRecipient) {
+          yPos -= 14
+          page.drawText(`  Primary recipient: ${formData.snapPrimaryRecipient}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.snapBenefitsLocation) {
+          yPos -= 14
+          page.drawText(`  Benefits location: ${formData.snapBenefitsLocation}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+      }
+      if (formData.isLongTermTANF && group.label.includes('Long-Term')) {
+        if (formData.longTermTANFRecipient) {
+          yPos -= 14
+          page.drawText(`  Primary recipient: ${formData.longTermTANFRecipient}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+        if (formData.longTermTANFLocation) {
+          yPos -= 14
+          page.drawText(`  Benefits location: ${formData.longTermTANFLocation}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+      }
+      if (formData.isLongTermUnemployed && group.label.includes('Unemployment')) {
+        if (formData.unemploymentClaimsLocation) {
+          yPos -= 14
+          page.drawText(`  Claims filed in: ${formData.unemploymentClaimsLocation}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+      }
+      if (formData.isVocationalRehab && group.label.includes('Vocational')) {
+        if (formData.rehabReferralSource) {
+          const sourceLabels = {
+            state_agency: 'Rehabilitation agency approved by the state',
+            employment_network: 'Employment Network under the Ticket to Work Program',
+            va: 'Department of Veterans Affairs'
+          }
+          yPos -= 14
+          page.drawText(`  Referral source: ${sourceLabels[formData.rehabReferralSource] || formData.rehabReferralSource}`, { x: 80, y: yPos, size: smallFontSize, font: helveticaFont })
+        }
+      }
+    }
+  }
+
+  yPos -= 30
+  page.drawText(`Date: ${formatDateForPDF(new Date())}`, {
+    x: 50, y: yPos, size: fontSize, font: helveticaFont
+  })
+
+  const pdfBytes = await pdfDoc.save()
+  return pdfBytes
+}
+
+/**
  * Generate other form PDFs (Background, Direct Deposit, Acknowledgements)
  */
 export async function generateGenericPDF(formData, formType, applicantData) {
@@ -1006,6 +1284,9 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
       break
     case '8850':
       pdfBytes = await generate8850PDF(formData, applicantData)
+      break
+    case '9061':
+      pdfBytes = await generate9061PDF(formData, applicantData)
       break
     default:
       pdfBytes = await generateGenericPDF(formData, formType, applicantData)

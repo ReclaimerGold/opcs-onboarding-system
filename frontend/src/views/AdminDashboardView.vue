@@ -316,7 +316,7 @@
                       :style="{ width: `${Math.min(100, row.progress ?? 0)}%` }"
                     ></div>
                   </div>
-                  <span class="text-xs text-gray-500">{{ row.completedSteps ?? 0 }}/6</span>
+                  <span class="text-xs text-gray-500">{{ row.completedSteps ?? 0 }}/7</span>
                 </div>
               </template>
               <template #cell-status="{ row }">

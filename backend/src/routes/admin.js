@@ -19,7 +19,7 @@ import {
 } from '../services/pdfTemplateService.js'
 import { runAllComplianceChecks } from '../services/complianceService.js'
 import { fixAllFilePermissions, isGoogleDriveConfigured, deleteFromGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.js'
-import { generateW4PDF, generateI9PDF, generate8850PDF, generateGenericPDF, generateFilename, calculateRetentionDate, getSignaturePlacement, getSignaturePlacements, getSignaturePlacementStatus } from '../services/pdfService.js'
+import { generateW4PDF, generateI9PDF, generate8850PDF, generate9061PDF, generateGenericPDF, generateFilename, calculateRetentionDate, getSignaturePlacement, getSignaturePlacements, getSignaturePlacementStatus } from '../services/pdfService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -49,7 +49,7 @@ router.get('/dashboard', async (req, res) => {
       SELECT COUNT(DISTINCT applicant_id) as count 
       FROM form_submissions 
       GROUP BY applicant_id 
-      HAVING COUNT(*) >= 6
+      HAVING COUNT(*) >= 7
     `).all().length
 
     // In progress onboarding
@@ -57,7 +57,7 @@ router.get('/dashboard', async (req, res) => {
       SELECT COUNT(DISTINCT applicant_id) as count
       FROM form_submissions
       GROUP BY applicant_id
-      HAVING COUNT(*) > 0 AND COUNT(*) < 6
+      HAVING COUNT(*) > 0 AND COUNT(*) < 7
     `).all().length
 
     // Recent login attempts (last 24 hours)
@@ -111,12 +111,12 @@ router.get('/dashboard', async (req, res) => {
 
 /**
  * GET /api/admin/setup-status
- * Whether required admin setup is complete. At least one signature placement per document (W-4, I-9, 8850) is required before admins can use the dashboard. Not every page needs a signature.
+ * Whether required admin setup is complete. At least one signature placement per document (W-4, I-9, 8850, 9061) is required before admins can use the dashboard. Not every page needs a signature.
  */
 router.get('/setup-status', async (req, res) => {
   try {
     const ready = getSignaturePlacementStatus()
-    const signaturePlacementComplete = ready.w4 && ready.i9 && ready['8850']
+    const signaturePlacementComplete = ready.w4 && ready.i9 && ready['8850'] && ready['9061']
     res.json({
       signaturePlacementComplete,
       signaturePlacementReady: ready
@@ -438,10 +438,10 @@ router.get('/onboarding-status', async (req, res) => {
     // Get all matching records for filtering by status
     const allApplicants = db.prepare(fullQuery).all(...params)
 
-    // Transform and filter by status (cap completed_steps at 6 and progress at 100)
+    // Transform and filter by status (cap completed_steps at 7 and progress at 100)
     let transformedApplicants = allApplicants.map(app => {
-      const steps = Math.min(6, app.completed_steps || 0)
-      const isCompleted = steps >= 6
+      const steps = Math.min(7, app.completed_steps || 0)
+      const isCompleted = steps >= 7
       return {
         id: app.id,
         firstName: app.first_name,
@@ -450,8 +450,8 @@ router.get('/onboarding-status', async (req, res) => {
         isAdmin: app.is_admin === 1,
         role: app.role || (app.is_admin === 1 ? 'admin' : 'applicant'),
         completedSteps: steps,
-        totalSteps: 6,
-        progress: isCompleted ? 100 : Math.min(100, Math.round((steps / 6) * 100)),
+        totalSteps: 7,
+        progress: isCompleted ? 100 : Math.min(100, Math.round((steps / 7) * 100)),
         status: isCompleted ? 'completed' : steps > 0 ? 'in_progress' : 'not_started',
         createdAt: app.created_at,
         lastSubmission: app.last_submission
@@ -1066,7 +1066,7 @@ router.get('/submissions', async (req, res) => {
       },
       filterOptions: {
         formTypes,
-        stepNumbers: [1, 2, 3, 4, 5, 6]
+        stepNumbers: [1, 2, 3, 4, 5, 6, 7]
       }
     })
   } catch (error) {
@@ -1661,7 +1661,7 @@ router.get('/pdf-templates/:formType/archive/:filename', async (req, res) => {
 })
 
 /** Valid form types for signature placement */
-const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850']
+const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850', '9061']
 
 /**
  * GET /api/admin/settings/signature-placement
@@ -1675,7 +1675,7 @@ router.get('/settings/signature-placement', async (req, res) => {
     if (formType) {
       if (!SIGNATURE_PLACEMENT_FORM_TYPES.includes(formType)) {
         return res.status(400).json({
-          error: `Invalid form type: ${formType}. Use W4, I9, or 8850.`
+          error: `Invalid form type: ${formType}. Use W4, I9, 8850, or 9061.`
         })
       }
       const placements = getSignaturePlacements(formType)
@@ -1706,7 +1706,7 @@ router.put('/settings/signature-placement', async (req, res) => {
 
     if (!formType || !SIGNATURE_PLACEMENT_FORM_TYPES.includes(formType)) {
       return res.status(400).json({
-        error: 'formType is required and must be W4, I9, or 8850.'
+        error: 'formType is required and must be W4, I9, 8850, or 9061.'
       })
     }
 
@@ -2040,9 +2040,9 @@ router.get('/onboarding-status/export', async (req, res) => {
     const applicants = db.prepare(fullQuery).all(...params)
 
     let data = applicants.map(app => {
-      const steps = Math.min(6, app.completed_steps || 0)
-      const isCompleted = steps >= 6
-      const progressPct = isCompleted ? 100 : Math.min(100, Math.round((steps / 6) * 100))
+      const steps = Math.min(7, app.completed_steps || 0)
+      const isCompleted = steps >= 7
+      const progressPct = isCompleted ? 100 : Math.min(100, Math.round((steps / 7) * 100))
       return {
         id: app.id,
         firstName: app.first_name,

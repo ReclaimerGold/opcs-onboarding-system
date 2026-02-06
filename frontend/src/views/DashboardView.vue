@@ -52,7 +52,7 @@
               <div>
                 <p class="text-sm font-medium text-blue-700 mb-1">Overall Progress</p>
                 <p class="text-2xl font-bold text-blue-900">{{ progress }}%</p>
-                <p class="text-xs text-blue-600 mt-1">{{ completedStepsCount }}/6 steps completed</p>
+                <p class="text-xs text-blue-600 mt-1">{{ completedStepsCount }}/7 steps completed</p>
               </div>
               <div class="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center">
                 <svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +68,7 @@
               <div>
                 <p class="text-sm font-medium text-green-700 mb-1">Forms Submitted</p>
                 <p class="text-2xl font-bold text-green-900">{{ submissions.length }}</p>
-                <p class="text-xs text-green-600 mt-1">{{ submissions.length === 6 ? 'All complete!' : `${6 - submissions.length} remaining` }}</p>
+                <p class="text-xs text-green-600 mt-1">{{ submissions.length === 7 ? 'All complete!' : `${7 - submissions.length} remaining` }}</p>
               </div>
               <div class="w-12 h-12 rounded-full bg-green-200 flex items-center justify-center">
                 <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,7 +140,7 @@
         
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <component
-            v-for="step in 6"
+            v-for="step in 7"
             :key="step"
             :is="getStepComponent(step)"
             :to="isStepCompleted(step) ? null : getStepLink(step)"
@@ -157,7 +157,7 @@
                   'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
                   getStepStatus(step).status === 'completed'
                     ? 'bg-green-500 text-white shadow-md'
-                    : getStepStatus(step).status === 'current' && completedStepsCount < 6
+                    : getStepStatus(step).status === 'current' && completedStepsCount < 7
                     ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30 animate-pulse'
                     : getStepStatus(step).status === 'current'
                     ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
@@ -800,7 +800,8 @@ const stepNames = {
   3: 'Background',
   4: 'Direct Deposit',
   5: 'Acknowledgements',
-  6: 'Form 8850'
+  6: 'Form 8850',
+  7: 'Form 9061'
 }
 
 const isStepCompleted = (step) => {
@@ -840,6 +841,9 @@ const stepDependencies = {
   },
   6: { // 8850 requires acknowledgements
     requiresStep: 5
+  },
+  7: { // 9061 requires 8850
+    requiresStep: 6
   }
 }
 
@@ -915,8 +919,8 @@ onMounted(async () => {
     stepNumbers.forEach(step => completedSteps.value.add(step))
     
     // Determine current step (first incomplete step)
-    if (completedSteps.value.size < 6) {
-      for (let i = 1; i <= 6; i++) {
+    if (completedSteps.value.size < 7) {
+      for (let i = 1; i <= 7; i++) {
         if (!completedSteps.value.has(i) && canAccessStep(i)) {
           currentStep.value = i
           break
@@ -995,7 +999,7 @@ const i9DocumentsStatus = computed(() => {
 })
 
 const currentStepName = computed(() => {
-  if (completedSteps.value.size === 6) {
+  if (completedSteps.value.size === 7) {
     return 'Complete!'
   }
   if (currentStep.value) {
@@ -1005,11 +1009,11 @@ const currentStepName = computed(() => {
 })
 
 const currentStepStatus = computed(() => {
-  if (completedSteps.value.size === 6) {
+  if (completedSteps.value.size === 7) {
     return 'All steps completed'
   }
   if (currentStep.value) {
-    return `Step ${currentStep.value} of 6`
+    return `Step ${currentStep.value} of 7`
   }
   return 'Ready to begin'
 })

@@ -43,8 +43,8 @@ router.post('/signup', async (req, res) => {
         WHERE applicant_id = ?
       `).get(existingApplicant.id)
 
-      const completedSteps = Math.min(6, submissions?.count ?? 0)
-      const isOnboardingComplete = (submissions?.count ?? 0) >= 6
+      const completedSteps = Math.min(7, submissions?.count ?? 0)
+      const isOnboardingComplete = (submissions?.count ?? 0) >= 7
 
       return res.status(400).json({
         error: isOnboardingComplete
@@ -285,8 +285,8 @@ router.post('/login', async (req, res) => {
       WHERE applicant_id = ?
     `).get(applicant.id)
 
-    const completedSteps = Math.min(6, submissions?.count ?? 0)
-    const isOnboardingComplete = (submissions?.count ?? 0) >= 6
+    const completedSteps = Math.min(7, submissions?.count ?? 0)
+    const isOnboardingComplete = (submissions?.count ?? 0) >= 7
 
     // Set session
     req.session.applicantId = applicant.id
@@ -318,7 +318,7 @@ router.post('/login', async (req, res) => {
       isNewUser: false,
       onboardingComplete: isOnboardingComplete,
       completedSteps,
-      totalSteps: 6
+      totalSteps: 7
     })
   } catch (error) {
     console.error('Login error:', error)
