@@ -1,6 +1,6 @@
 {
   "name": "opcs-onboarding-system",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "HR Onboarding System for Optimal Prime Cleaning Services",
   "type": "module",
