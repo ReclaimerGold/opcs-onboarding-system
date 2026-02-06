@@ -14,6 +14,7 @@
           </div>
           <div class="flex items-center space-x-4">
             <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900">User Dashboard</router-link>
+            <router-link to="/approvals" class="text-gray-600 hover:text-gray-900">Approvals</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-gray-900">Forms</router-link>
             <router-link to="/settings" class="text-gray-600 hover:text-gray-900">Settings</router-link>
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
@@ -228,6 +229,32 @@
               </div>
             </div>
 
+            <!-- Approval Queue Summary -->
+            <div v-if="approvalStats.total > 0" class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+              <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                <h4 class="text-sm font-semibold text-blue-800 mb-1">Total Approvals</h4>
+                <p class="text-2xl font-bold text-blue-900">{{ approvalStats.total }}</p>
+              </div>
+              <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border border-yellow-200">
+                <h4 class="text-sm font-semibold text-yellow-800 mb-1">Pending Review</h4>
+                <p class="text-2xl font-bold text-yellow-900">{{ approvalStats.pending }}</p>
+              </div>
+              <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+                <h4 class="text-sm font-semibold text-green-800 mb-1">Approved</h4>
+                <p class="text-2xl font-bold text-green-900">{{ approvalStats.approved }}</p>
+              </div>
+              <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4 border border-red-200">
+                <h4 class="text-sm font-semibold text-red-800 mb-1">Rejected</h4>
+                <p class="text-2xl font-bold text-red-900">{{ approvalStats.rejected }}</p>
+              </div>
+              <div class="lg:col-span-4">
+                <router-link to="/approvals" class="text-sm text-primary hover:text-blue-700 flex items-center">
+                  Go to approval queue
+                  <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </router-link>
+              </div>
+            </div>
+
             <!-- Recent Activity Summary -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div class="bg-white border rounded-lg p-4">
@@ -436,6 +463,21 @@
                   </select>
                   <span v-else-if="row.id === currentUserId" class="text-xs text-gray-400">(you)</span>
                 </div>
+              </template>
+              <template #cell-assignedManager="{ row }">
+                <select
+                  v-if="row.role === 'applicant' || row.role === 'employee'"
+                  :value="row.assignedManagerId || ''"
+                  :disabled="assigningManager === row.id"
+                  @change="(e) => assignManagerToUser(row, e.target.value)"
+                  class="text-xs border rounded px-2 py-1 bg-white max-w-[180px]"
+                >
+                  <option value="">None</option>
+                  <option v-for="m in managersList" :key="m.id" :value="m.id">
+                    {{ m.first_name }} {{ m.last_name }}
+                  </option>
+                </select>
+                <span v-else class="text-xs text-gray-400">N/A</span>
               </template>
               <template #actions="{ row }">
                 <button
@@ -815,6 +857,30 @@
             <div v-if="systemTab === 'templates'" class="space-y-6">
               <PdfTemplatesPanel />
               <SignaturePlacementPanel />
+
+              <!-- Manager Signature Configuration -->
+              <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Manager Signature Requirements</h3>
+                <p class="text-sm text-gray-500 mb-4">Select which form types require a manager/employer signature. Submitted documents for these forms will enter an approval queue.</p>
+                <div class="space-y-2 mb-4">
+                  <label v-for="ft in managerSigFormTypes" :key="ft.code" class="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      :checked="managerRequiredForms.includes(ft.code)"
+                      @change="toggleManagerRequiredForm(ft.code)"
+                      class="rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    {{ ft.label }}
+                  </label>
+                </div>
+                <button @click="saveManagerRequiredForms" :disabled="savingManagerRequired" class="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 transition">
+                  {{ savingManagerRequired ? 'Saving...' : 'Save Requirements' }}
+                </button>
+                <span v-if="managerRequiredSaveMsg" class="ml-3 text-sm" :class="managerRequiredSaveSuccess ? 'text-green-600' : 'text-red-600'">{{ managerRequiredSaveMsg }}</span>
+              </div>
+
+              <!-- Manager/Employer Signature Placement -->
+              <SignaturePlacementPanel placementType="manager" />
             </div>
           </div>
         </div>
@@ -877,6 +943,94 @@ const testResults = ref(null)
 const showPdfDownloadPrompt = ref(false)
 const showPdfDownloadModal = ref(false)
 
+// Manager assignment & approval workflow state
+const managersList = ref([])
+const assigningManager = ref(null)
+const approvalStats = ref({ total: 0, pending: 0, approved: 0, rejected: 0 })
+const managerRequiredForms = ref([])
+const savingManagerRequired = ref(false)
+const managerRequiredSaveMsg = ref('')
+const managerRequiredSaveSuccess = ref(false)
+const managerSigFormTypes = [
+  { code: 'W4', label: 'W-4' },
+  { code: 'I9', label: 'I-9' },
+  { code: 'BACKGROUND', label: 'Background Check' },
+  { code: 'DIRECT_DEPOSIT', label: 'Direct Deposit' },
+  { code: 'ACKNOWLEDGEMENTS', label: 'Acknowledgements' },
+  { code: '8850', label: 'Form 8850' },
+  { code: '9061', label: 'ETA Form 9061' }
+]
+
+async function loadManagersList() {
+  try {
+    const res = await api.get('/admin/managers')
+    managersList.value = res.data || []
+  } catch {
+    managersList.value = []
+  }
+}
+
+async function loadApprovalStats() {
+  try {
+    const res = await api.get('/approvals/stats')
+    approvalStats.value = res.data || { total: 0, pending: 0, approved: 0, rejected: 0 }
+  } catch {
+    approvalStats.value = { total: 0, pending: 0, approved: 0, rejected: 0 }
+  }
+}
+
+async function loadManagerRequiredForms() {
+  try {
+    const res = await api.get('/admin/settings/manager-signature-required')
+    managerRequiredForms.value = res.data?.forms || []
+  } catch {
+    managerRequiredForms.value = []
+  }
+}
+
+function toggleManagerRequiredForm(code) {
+  const idx = managerRequiredForms.value.indexOf(code)
+  if (idx >= 0) {
+    managerRequiredForms.value = managerRequiredForms.value.filter(f => f !== code)
+  } else {
+    managerRequiredForms.value = [...managerRequiredForms.value, code]
+  }
+  managerRequiredSaveMsg.value = ''
+}
+
+async function saveManagerRequiredForms() {
+  savingManagerRequired.value = true
+  managerRequiredSaveMsg.value = ''
+  try {
+    await api.put('/admin/settings/manager-signature-required', { forms: managerRequiredForms.value })
+    managerRequiredSaveMsg.value = 'Saved successfully.'
+    managerRequiredSaveSuccess.value = true
+  } catch (err) {
+    managerRequiredSaveMsg.value = err.response?.data?.error || 'Failed to save.'
+    managerRequiredSaveSuccess.value = false
+  } finally {
+    savingManagerRequired.value = false
+  }
+}
+
+async function assignManagerToUser(user, managerId) {
+  assigningManager.value = user.id
+  try {
+    await api.put(`/admin/users/${user.id}/assign-manager`, {
+      managerId: managerId ? parseInt(managerId) : null
+    })
+    const idx = usersData.value.findIndex(u => u.id === user.id)
+    if (idx !== -1) {
+      usersData.value[idx] = { ...usersData.value[idx], assignedManagerId: managerId ? parseInt(managerId) : null }
+    }
+  } catch (err) {
+    console.error('Error assigning manager:', err)
+    alert(err.response?.data?.error || 'Failed to assign manager')
+  } finally {
+    assigningManager.value = null
+  }
+}
+
 function onStartPdfDownload() {
   showPdfDownloadPrompt.value = false
   showPdfDownloadModal.value = true
@@ -906,6 +1060,7 @@ const usersColumns = [
     { value: 'employee', label: 'Employee' },
     { value: 'applicant', label: 'Applicant' }
   ]},
+  { key: 'assignedManager', label: 'Assigned Manager' },
   { key: 'createdAt', label: 'Created', type: 'date', sortable: true }
 ]
 
@@ -1698,5 +1853,10 @@ onMounted(async () => {
   
   await dashboard.loadAllData()
   loadOnboardingData()
+
+  // Load manager/approval related data
+  loadManagersList()
+  loadApprovalStats()
+  loadManagerRequiredForms()
 })
 </script>

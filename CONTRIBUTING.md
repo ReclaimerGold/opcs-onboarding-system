@@ -190,11 +190,19 @@ When modifying Docker-related files:
 
 ### API Endpoints
 1. Add route in appropriate `routes/` file
-2. Use `requireAuth` middleware
+2. Use `requireAuth` middleware (or `requireManager` / `requireAdmin` for restricted access)
 3. Add `auditLog` for sensitive operations
 4. Handle errors with proper status codes
 5. **Update API documentation in README.md**
 6. **Update CONTRIBUTING.md** if workflow changes
+
+### Manager/Approval Workflow
+- Approval-related routes use `requireManager` middleware (allows both managers and admins)
+- The `document_approvals` table tracks approval status per submission
+- Manager signature placement uses separate settings keys (`manager_signature_placement_{formType}`)
+- Which forms require manager signatures is configured via `manager_signature_required_forms` setting
+- After approval, `addManagerSignatureToPdf()` in `pdfService.js` embeds the manager's signature on the existing PDF
+- Onboarding completion logic checks both step count AND approval statuses
 
 ### Dependencies
 1. Install in appropriate directory (backend/ or frontend/)

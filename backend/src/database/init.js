@@ -310,6 +310,34 @@ export function initializeDatabase() {
     }
   }
 
+  // Document approvals for manager/admin signature workflow
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS document_approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      submission_id INTEGER NOT NULL,
+      applicant_id INTEGER NOT NULL,
+      manager_id INTEGER,
+      step_number INTEGER NOT NULL,
+      form_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending', 'approved', 'rejected')),
+      rejection_reason TEXT,
+      signed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (submission_id) REFERENCES form_submissions(id) ON DELETE CASCADE,
+      FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE,
+      FOREIGN KEY (manager_id) REFERENCES applicants(id) ON DELETE SET NULL
+    )
+  `)
+
+  // Add assigned_manager_id to applicants for manager assignment workflow
+  try {
+    db.exec(`ALTER TABLE applicants ADD COLUMN assigned_manager_id INTEGER REFERENCES applicants(id) ON DELETE SET NULL`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
   // Create indexes for performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_applicants_email ON applicants(email);
@@ -340,6 +368,12 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_i9_documents_retention ON i9_documents(retention_until);
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_applicant ON password_reset_tokens(applicant_id);
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires ON password_reset_tokens(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_document_approvals_submission ON document_approvals(submission_id);
+    CREATE INDEX IF NOT EXISTS idx_document_approvals_applicant ON document_approvals(applicant_id);
+    CREATE INDEX IF NOT EXISTS idx_document_approvals_manager ON document_approvals(manager_id);
+    CREATE INDEX IF NOT EXISTS idx_document_approvals_status ON document_approvals(status);
+    CREATE INDEX IF NOT EXISTS idx_document_approvals_created ON document_approvals(created_at);
+    CREATE INDEX IF NOT EXISTS idx_applicants_assigned_manager ON applicants(assigned_manager_id);
   `)
 
   console.log('Database initialized successfully')

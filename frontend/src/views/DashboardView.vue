@@ -32,6 +32,7 @@
           <div class="flex items-center space-x-4">
             <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-gray-900">Admin</router-link>
             <router-link v-if="authStore.isAdmin" to="/settings" class="text-gray-600 hover:text-gray-900">Settings</router-link>
+            <router-link v-if="isManagerOrAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900">Approvals</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-gray-900">Forms</router-link>
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
           </div>
@@ -40,6 +41,42 @@
     </nav>
     
     <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
+      <!-- Rejection Alert Banner -->
+      <div v-if="hasRejections" class="bg-red-50 border-l-4 border-red-400 rounded-md p-4 mb-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">Document(s) Rejected</h3>
+            <div class="mt-2 text-sm text-red-700">
+              <p>The following documents were rejected by your manager and need to be resubmitted:</p>
+              <ul class="list-disc list-inside mt-1 space-y-1">
+                <li v-for="r in rejectedApprovals" :key="r.id">
+                  <strong>{{ stepNames[r.step_number] || r.form_type }}</strong>: {{ r.rejection_reason }}
+                  <router-link :to="`/forms?step=${r.step_number}`" class="ml-2 text-red-800 underline font-medium">Resubmit</router-link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Approvals Notice -->
+      <div v-if="pendingApprovals.length > 0 && !hasRejections" class="bg-yellow-50 border-l-4 border-yellow-400 rounded-md p-4 mb-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-yellow-800">Awaiting Manager Approval</h3>
+            <p class="mt-1 text-sm text-yellow-700">
+              {{ pendingApprovals.length }} document(s) are pending manager review and signature. Your onboarding will be complete once all documents are approved.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Progress Overview -->
       <div class="bg-white shadow rounded-lg p-6 mb-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-4">Onboarding Status</h2>
@@ -324,6 +361,9 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Retention Until
                 </th>
+                <th v-if="approvalStatuses.length > 0" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Approval
+                </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -349,7 +389,25 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {{ formatDate(submission.retention_until) }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <td v-if="approvalStatuses.length > 0" class="px-6 py-4 whitespace-nowrap text-sm">
+                  <template v-if="getApprovalForStep(submission.step_number)">
+                    <span
+                      :class="{
+                        'bg-yellow-100 text-yellow-800': getApprovalForStep(submission.step_number).status === 'pending',
+                        'bg-green-100 text-green-800': getApprovalForStep(submission.step_number).status === 'approved',
+                        'bg-red-100 text-red-800': getApprovalForStep(submission.step_number).status === 'rejected'
+                      }"
+                      class="px-2 py-1 text-xs font-semibold rounded-full"
+                    >
+                      {{ getApprovalForStep(submission.step_number).status }}
+                    </span>
+                    <p v-if="getApprovalForStep(submission.step_number).status === 'rejected'" class="text-xs text-red-600 mt-1 max-w-xs truncate" :title="getApprovalForStep(submission.step_number).rejection_reason">
+                      {{ getApprovalForStep(submission.step_number).rejection_reason }}
+                    </p>
+                  </template>
+                  <span v-else class="text-xs text-gray-400">N/A</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                   <a
                     :href="getSubmissionLink(submission)"
                     target="_blank"
@@ -357,6 +415,13 @@
                   >
                     View PDF
                   </a>
+                  <router-link
+                    v-if="getApprovalForStep(submission.step_number)?.status === 'rejected'"
+                    :to="`/forms?step=${submission.step_number}`"
+                    class="text-red-600 hover:text-red-800 font-medium"
+                  >
+                    Resubmit
+                  </router-link>
                 </td>
               </tr>
             </tbody>
@@ -764,6 +829,20 @@ const submissions = ref([])
 const i9Documents = ref([])
 const completedSteps = ref(new Set())
 const currentStep = ref(null)
+const approvalStatuses = ref([])
+const hasRejections = computed(() => approvalStatuses.value.some(a => a.status === 'rejected'))
+const rejectedApprovals = computed(() => approvalStatuses.value.filter(a => a.status === 'rejected'))
+const pendingApprovals = computed(() => approvalStatuses.value.filter(a => a.status === 'pending'))
+
+function getApprovalForStep(stepNumber) {
+  // Return the most recent approval for this step
+  return approvalStatuses.value.find(a => a.step_number === stepNumber)
+}
+
+const isManagerOrAdmin = computed(() => {
+  const {role} = authStore
+  return role === 'manager' || role === 'admin' || authStore.isAdmin
+})
 const uploadedDocuments = ref({
   listA: null,
   listB: null,
@@ -927,6 +1006,15 @@ onMounted(async () => {
     }
     
     await loadUploadedDocuments()
+
+    // Fetch approval statuses for this applicant
+    try {
+      const approvalRes = await api.get('/approvals/applicant-status')
+      approvalStatuses.value = approvalRes.data || []
+    } catch {
+      // Approval endpoint may not apply; ignore errors
+      approvalStatuses.value = []
+    }
   } catch (error) {
     console.error('Error loading dashboard data:', error)
   }

@@ -367,6 +367,26 @@ All of the following events must be logged:
    - User agent
    - Timestamp
 
+6. **Document Approvals**
+   - Manager/Admin User ID
+   - Approval ID
+   - Submission ID
+   - Applicant ID
+   - Form type
+   - Action (APPROVE_DOCUMENT / REJECT_DOCUMENT)
+   - Rejection reason (if rejected)
+   - Timestamp
+   - IP address
+   - User agent
+
+7. **Manager Assignment**
+   - Admin User ID
+   - Applicant ID
+   - Assigned Manager ID
+   - Action (ASSIGN_MANAGER)
+   - Timestamp
+   - IP address
+
 ### Audit Log Storage
 
 - **Table**: `audit_log` in database
@@ -379,6 +399,8 @@ All of the following events must be logged:
 - [ ] All document deletions logged
 - [ ] All privacy consents logged
 - [ ] All login attempts logged
+- [ ] All document approvals/rejections logged
+- [ ] All manager assignments logged
 - [ ] Audit logs retained indefinitely
 
 ---

@@ -194,14 +194,14 @@ router.get('/users', async (req, res) => {
       let dataQuery
       if (hasIsActiveColumn) {
         dataQuery = `
-          SELECT a.id, a.first_name, a.last_name, a.email, a.role, a.is_admin, a.is_active, a.created_at
+          SELECT a.id, a.first_name, a.last_name, a.email, a.role, a.is_admin, a.is_active, a.assigned_manager_id, a.created_at
           FROM applicants a ${whereClause}
           ORDER BY ${sortColumn} ${sortDirection}
           LIMIT ? OFFSET ?
         `
       } else {
         dataQuery = `
-          SELECT a.id, a.first_name, a.last_name, a.email, a.role, a.is_admin, a.created_at
+          SELECT a.id, a.first_name, a.last_name, a.email, a.role, a.is_admin, a.assigned_manager_id, a.created_at
           FROM applicants a ${whereClause}
           ORDER BY ${sortColumn} ${sortDirection}
           LIMIT ? OFFSET ?
@@ -227,6 +227,7 @@ router.get('/users', async (req, res) => {
       role: r.role != null ? r.role : (r.is_admin === 1 ? 'admin' : 'applicant'),
       isAdmin: r.is_admin === 1,
       isActive: (r.is_active != null && r.is_active !== undefined) ? r.is_active !== 0 : true,
+      assignedManagerId: r.assigned_manager_id || null,
       createdAt: r.created_at
     }))
 
@@ -2675,6 +2676,207 @@ router.post('/fix-gdrive-permissions', async (req, res) => {
       error: 'Failed to fix Google Drive permissions',
       details: error.message
     })
+  }
+})
+
+// ========== Manager Signature & Assignment Routes ==========
+
+/**
+ * GET /api/admin/settings/manager-signature-placement
+ * Get manager signature placement for a form type
+ */
+router.get('/settings/manager-signature-placement', async (req, res) => {
+  try {
+    const { formType } = req.query
+    if (!formType) {
+      return res.status(400).json({ error: 'formType query parameter required' })
+    }
+    const db = getDatabase()
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(`manager_signature_placement_${formType}`)
+    if (!row || !row.value) {
+      return res.json({ placements: [] })
+    }
+    try {
+      const parsed = JSON.parse(row.value)
+      res.json(parsed)
+    } catch {
+      res.json({ placements: [] })
+    }
+  } catch (error) {
+    console.error('Get manager signature placement error:', error)
+    res.status(500).json({ error: 'Failed to retrieve manager signature placement' })
+  }
+})
+
+/**
+ * PUT /api/admin/settings/manager-signature-placement
+ * Save manager signature placement for a form type
+ */
+router.put('/settings/manager-signature-placement', async (req, res) => {
+  try {
+    const { formType, placements, mode, pageIndex, x, y, width, height } = req.body
+    if (!formType) {
+      return res.status(400).json({ error: 'formType is required' })
+    }
+
+    const db = getDatabase()
+    const key = `manager_signature_placement_${formType}`
+    let value
+
+    if (placements && Array.isArray(placements)) {
+      value = JSON.stringify({ mode: 'free_place', placements })
+    } else if (typeof pageIndex === 'number') {
+      value = JSON.stringify({ mode: mode || 'free_place', pageIndex, x, y, width, height })
+    } else {
+      return res.status(400).json({ error: 'placements array or pageIndex required' })
+    }
+
+    db.prepare(`
+      INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(key, value)
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'UPDATE_MANAGER_SIGNATURE_PLACEMENT',
+      resourceType: 'SETTINGS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { formType }
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Save manager signature placement error:', error)
+    res.status(500).json({ error: 'Failed to save manager signature placement' })
+  }
+})
+
+/**
+ * GET /api/admin/settings/manager-signature-required
+ * Get which form types require manager signature
+ */
+router.get('/settings/manager-signature-required', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('manager_signature_required_forms')
+    if (!row || !row.value) {
+      return res.json({ forms: [] })
+    }
+    try {
+      const parsed = JSON.parse(row.value)
+      res.json({ forms: Array.isArray(parsed) ? parsed : [] })
+    } catch {
+      res.json({ forms: [] })
+    }
+  } catch (error) {
+    console.error('Get manager signature required forms error:', error)
+    res.status(500).json({ error: 'Failed to retrieve manager signature required forms' })
+  }
+})
+
+/**
+ * PUT /api/admin/settings/manager-signature-required
+ * Set which form types require manager signature
+ */
+router.put('/settings/manager-signature-required', async (req, res) => {
+  try {
+    const { forms } = req.body
+    if (!Array.isArray(forms)) {
+      return res.status(400).json({ error: 'forms must be an array of form type codes' })
+    }
+
+    const validTypes = ['W4', 'I9', 'BACKGROUND', 'DIRECT_DEPOSIT', 'ACKNOWLEDGEMENTS', '8850', '9061']
+    const filtered = forms.filter(f => validTypes.includes(f))
+
+    const db = getDatabase()
+    db.prepare(`
+      INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run('manager_signature_required_forms', JSON.stringify(filtered))
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'UPDATE_MANAGER_SIGNATURE_REQUIRED',
+      resourceType: 'SETTINGS',
+      resourceId: null,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { forms: filtered }
+    })
+
+    res.json({ success: true, forms: filtered })
+  } catch (error) {
+    console.error('Save manager signature required forms error:', error)
+    res.status(500).json({ error: 'Failed to save manager signature required forms' })
+  }
+})
+
+/**
+ * PUT /api/admin/users/:id/assign-manager
+ * Assign a manager to an applicant
+ */
+router.put('/users/:id/assign-manager', async (req, res) => {
+  try {
+    const applicantId = parseInt(req.params.id)
+    const { managerId } = req.body
+
+    const db = getDatabase()
+
+    // Verify applicant exists
+    const applicant = db.prepare('SELECT id FROM applicants WHERE id = ? AND is_active = 1').get(applicantId)
+    if (!applicant) {
+      return res.status(404).json({ error: 'Applicant not found' })
+    }
+
+    // Verify manager exists and has appropriate role (if managerId is provided)
+    if (managerId !== null && managerId !== undefined) {
+      const manager = db.prepare('SELECT id, role, is_admin FROM applicants WHERE id = ? AND is_active = 1').get(managerId)
+      if (!manager) {
+        return res.status(404).json({ error: 'Manager not found' })
+      }
+      if (manager.role !== 'manager' && manager.role !== 'admin' && !manager.is_admin) {
+        return res.status(400).json({ error: 'Assigned user must have manager or admin role' })
+      }
+    }
+
+    db.prepare('UPDATE applicants SET assigned_manager_id = ? WHERE id = ?').run(managerId || null, applicantId)
+
+    await auditLog({
+      userId: req.applicantId,
+      action: 'ASSIGN_MANAGER',
+      resourceType: 'APPLICANT',
+      resourceId: applicantId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { managerId }
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Assign manager error:', error)
+    res.status(500).json({ error: 'Failed to assign manager' })
+  }
+})
+
+/**
+ * GET /api/admin/managers
+ * Get list of users with manager or admin role (for assignment dropdowns)
+ */
+router.get('/managers', async (req, res) => {
+  try {
+    const db = getDatabase()
+    const managers = db.prepare(`
+      SELECT id, first_name, last_name, email, role
+      FROM applicants
+      WHERE is_active = 1 AND (role IN ('manager', 'admin') OR is_admin = 1)
+      ORDER BY last_name, first_name
+    `).all()
+    res.json(managers)
+  } catch (error) {
+    console.error('Get managers error:', error)
+    res.status(500).json({ error: 'Failed to retrieve managers' })
   }
 })
 

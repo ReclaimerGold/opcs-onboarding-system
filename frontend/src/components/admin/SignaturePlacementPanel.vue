@@ -1,9 +1,7 @@
 <template>
   <div class="bg-white shadow rounded-lg p-6">
-    <h3 class="text-lg font-semibold text-gray-900 mb-2">Signature Placement</h3>
-    <p class="text-sm text-gray-500 mb-4">
-      {{ formTypeLock ? 'Add at least one signature placement: drag the signature field onto the document, position and resize, then click Save placement. Add more placements only for pages that need a signature.' : 'Add at least one signature placement per document. Drag the field onto the page(s) that need a signature, then position and resize. You can add placements on additional pages if needed.' }}
-    </p>
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ panelTitle }}</h3>
+    <p class="text-sm text-gray-500 mb-4">{{ panelDescription }}</p>
 
     <div v-if="!formTypeLock" class="flex flex-wrap items-center gap-4 mb-4">
       <div>
@@ -161,10 +159,35 @@ import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
 const props = defineProps({
   /** When set (W4, I9, 8850), form type dropdown is hidden and this value is used. */
-  formTypeLock: { type: String, default: null }
+  formTypeLock: { type: String, default: null },
+  /** 'applicant' (default) or 'manager' — determines which settings key is used */
+  placementType: { type: String, default: 'applicant' }
 })
 
 const emit = defineEmits(['saved'])
+
+const placementApiBase = computed(() =>
+  props.placementType === 'manager'
+    ? '/admin/settings/manager-signature-placement'
+    : '/admin/settings/signature-placement'
+)
+
+const panelTitle = computed(() =>
+  props.placementType === 'manager'
+    ? 'Manager/Employer Signature Placement'
+    : 'Signature Placement'
+)
+
+const panelDescription = computed(() => {
+  if (props.placementType === 'manager') {
+    return props.formTypeLock
+      ? 'Configure where the manager/employer signature will appear on this document. Drag the signature field onto the page, position and resize, then click Save placement.'
+      : 'Configure where the manager/employer signature will appear on documents. Drag the field onto the page(s) that need a manager signature, then position and resize.'
+  }
+  return props.formTypeLock
+    ? 'Add at least one signature placement: drag the signature field onto the document, position and resize, then click Save placement. Add more placements only for pages that need a signature.'
+    : 'Add at least one signature placement per document. Drag the field onto the page(s) that need a signature, then position and resize. You can add placements on additional pages if needed.'
+})
 
 const DEFAULT_PDF_BOX = { x: 72, y: 120, width: 180, height: 40 }
 const MIN_SCALE = 0.5
@@ -348,7 +371,7 @@ function displayToPdf(displayX, displayY, displayW, displayH) {
 async function loadPlacement() {
   saveMessage.value = ''
   try {
-    const res = await api.get('/admin/settings/signature-placement', { params: { formType: selectedFormType.value } })
+    const res = await api.get(placementApiBase.value, { params: { formType: selectedFormType.value } })
     const list = res.data.placements
     placements.value = Array.isArray(list) ? list : []
     const forPage = placementForPage(selectedPage.value - 1)
@@ -523,7 +546,7 @@ async function savePlacement() {
   saving.value = true
   saveMessage.value = ''
   try {
-    await api.put('/admin/settings/signature-placement', {
+    await api.put(placementApiBase.value, {
       formType: selectedFormType.value,
       placements: nextPlacements
     })

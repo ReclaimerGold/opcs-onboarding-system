@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { requireAuth } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
-import { generateAndSavePDF, getSignaturePlacement, getSignaturePlacementStatus, flattenPdfBuffer } from '../services/pdfService.js'
+import { generateAndSavePDF, getSignaturePlacement, getSignaturePlacementStatus, getManagerSignatureRequiredForms, flattenPdfBuffer } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
 import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from '../services/googleDriveService.js'
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
@@ -310,12 +310,54 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       `).run(pdfResult.retentionUntil, req.applicantId)
     }
 
+    // Check if this form type requires manager approval
+    const managerRequiredForms = getManagerSignatureRequiredForms()
+    const requiresApproval = managerRequiredForms.includes(formType)
+    let approvalId = null
+
+    if (requiresApproval) {
+      // If overwriting, mark any existing pending approval for this step as superseded
+      if (shouldOverwrite) {
+        db.prepare(`
+          DELETE FROM document_approvals
+          WHERE applicant_id = ? AND step_number = ? AND status = 'pending'
+        `).run(req.applicantId, step)
+      }
+
+      // Get assigned manager
+      const assignedManager = db.prepare('SELECT assigned_manager_id FROM applicants WHERE id = ?').get(req.applicantId)
+      const managerId = assignedManager?.assigned_manager_id || null
+
+      // Create approval record
+      approvalId = db.prepare(`
+        INSERT INTO document_approvals (submission_id, applicant_id, manager_id, step_number, form_type, status)
+        VALUES (?, ?, ?, ?, ?, 'pending')
+      `).run(
+        pdfResult.submissionId,
+        req.applicantId,
+        managerId,
+        step,
+        formType
+      ).lastInsertRowid
+    }
+
     // After submit: distinct step count (overwrite = unchanged; insert new step = +1; insert duplicate = unchanged)
     const afterSubmitDistinct = shouldOverwrite
       ? distinctStepCount
       : (existingForStep ? distinctStepCount : distinctStepCount + 1)
     const completedSteps = Math.min(7, afterSubmitDistinct)
-    const isOnboardingComplete = afterSubmitDistinct >= 7
+
+    // Onboarding is complete when all 7 steps submitted AND all required approvals are approved
+    let isOnboardingComplete = afterSubmitDistinct >= 7
+    if (isOnboardingComplete && managerRequiredForms.length > 0) {
+      const pendingOrRejected = db.prepare(`
+        SELECT COUNT(*) as count FROM document_approvals
+        WHERE applicant_id = ? AND status IN ('pending', 'rejected')
+      `).get(req.applicantId)
+      if (pendingOrRejected && pendingOrRejected.count > 0) {
+        isOnboardingComplete = false
+      }
+    }
 
     // Check if admin and password setup required
     let requiresPasswordSetup = false
@@ -339,7 +381,9 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         formType,
         filename: pdfResult.filename,
         isOnboardingComplete,
-        requiresPasswordSetup
+        requiresPasswordSetup,
+        requiresApproval,
+        approvalId
       }
     })
 
@@ -349,7 +393,9 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       filename: pdfResult.filename,
       retentionUntil: pdfResult.retentionUntil,
       isOnboardingComplete,
-      requiresPasswordSetup
+      requiresPasswordSetup,
+      requiresApproval,
+      approvalId
     })
   } catch (error) {
     console.error('Form submission error:', error)

@@ -57,6 +57,14 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Google Drive Folder Browser**: Browse and search your Google Drive folders to select a base folder for document storage
 - **Signature Placement (Admin, required)**: Per-document, optional per-page configuration for where the e-signature image is drawn on W-4, I-9, and Form 8850 PDFs (Admin → System → PDF Templates). High-resolution PDF preview; sidebar lists pages and a draggable “Signature field” to drop onto any page. Signature box can be moved and resized horizontally. Admins must complete the setup wizard (/admin/setup) before using the dashboard; API keys are optional and can be set later in Settings.
 - **Liability Compliance Checker**: Comprehensive compliance verification for Federal and South Dakota state requirements
+- **Manager Signature Approval Workflow**: Configurable per-form approval queue where submitted documents require manager/admin review and signature before onboarding is considered complete. Features include:
+  - Configurable form types that require manager signature (Admin → System → PDF Templates)
+  - Manager/employer signature placement configuration (separate from applicant signature)
+  - Manager assignment: admins assign applicants to specific managers
+  - Approval queue view (`/approvals`) for managers and admins to review, approve (with signature), or reject documents
+  - Rejection flow with reason text; applicants see rejection alerts and can resubmit
+  - Manager signature is embedded on the PDF upon approval
+  - Onboarding completion blocked until all required approvals are obtained
 
 ## Tech Stack
 
@@ -472,6 +480,23 @@ This system is designed to comply with:
 - `GET /api/admin/settings/signature-placement` - Get signature placements (query: `formType` optional — W4, I9, 8850). Returns `{ formType, placements: [ { pageIndex, x, y, width, height }, ... ] }` or all form types as arrays.
 - `PUT /api/admin/settings/signature-placement` - Set signature placements for a form type (body: `{ formType, placements: [ { pageIndex, x, y, width, height }, ... ] }`). Legacy single placement also accepted: `{ formType, placement: { mode: "free_place", pageIndex, x, y, width, height } }`. PDF coordinates: origin bottom-left, Y up; pageIndex 0-based. Signature is optional per page.
 - `GET /api/admin/compliance-check` - Run comprehensive compliance check for Federal and SD state requirements
+
+### Approvals (Manager/Admin)
+- `GET /api/approvals/queue` - List pending approvals (managers see assigned applicants only; admins see all). Query params: `status`, `formType`, `page`, `limit`
+- `GET /api/approvals/stats` - Get approval queue statistics (pending, approved, rejected counts)
+- `GET /api/approvals/applicant-status` - Get approval statuses for the current applicant's submissions (any authenticated user)
+- `GET /api/approvals/:id` - Get approval detail with submission data
+- `GET /api/approvals/:id/pdf` - View/download the submission PDF for review
+- `POST /api/approvals/:id/approve` - Approve and sign a document (body: `{ signatureData?: string }`)
+- `POST /api/approvals/:id/reject` - Reject a document with reason (body: `{ reason: string }`)
+
+### Admin Manager Configuration
+- `GET /api/admin/settings/manager-signature-placement` - Get manager signature placement config (query: `formType`)
+- `PUT /api/admin/settings/manager-signature-placement` - Save manager signature placement (body: `{ formType, placements }`)
+- `GET /api/admin/settings/manager-signature-required` - Get which form types require manager signature
+- `PUT /api/admin/settings/manager-signature-required` - Set which form types require manager signature (body: `{ forms: string[] }`)
+- `PUT /api/admin/users/:id/assign-manager` - Assign a manager to an applicant (body: `{ managerId }`)
+- `GET /api/admin/managers` - Get list of users with manager or admin role
 
 ### Admin Export Endpoints (CSV)
 - `GET /api/admin/onboarding-status/export` - Export onboarding status data as CSV

@@ -8,6 +8,7 @@ import AdminOnboardingView from '../views/AdminOnboardingView.vue'
 import PasswordSetupView from '../views/PasswordSetupView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
+import ApprovalQueueView from '../views/ApprovalQueueView.vue'
 
 const routes = [
   {
@@ -64,6 +65,12 @@ const routes = [
     name: 'PasswordSetup',
     component: PasswordSetupView,
     meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/approvals',
+    name: 'Approvals',
+    component: ApprovalQueueView,
+    meta: { requiresAuth: true, requiresManager: true }
   }
 ]
 
@@ -114,6 +121,19 @@ router.beforeEach(async (to, from, next) => {
       } catch (error) {
         console.error('Failed to check password status:', error)
       }
+    }
+  }
+
+  // Check manager access (managers and admins can access)
+  if (to.meta.requiresManager) {
+    if (!isAuthenticated) {
+      next('/login')
+      return
+    }
+    const {role} = authStore
+    if (role !== 'manager' && role !== 'admin' && !authStore.isAdmin) {
+      next('/dashboard')
+      return
     }
   }
 

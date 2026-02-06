@@ -15,7 +15,7 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Authentication required' })
   }
   if (applicant.is_active === 0) {
-    req.session.destroy(() => {})
+    req.session.destroy(() => { })
     return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
   }
   req.applicantId = req.session.applicantId
@@ -36,11 +36,35 @@ export function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Authentication required' })
   }
   if (applicant.is_active === 0) {
-    req.session.destroy(() => {})
+    req.session.destroy(() => { })
     return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
   }
   if (!applicant.is_admin) {
     return res.status(403).json({ error: 'Admin access required' })
+  }
+  req.applicantId = req.session.applicantId
+  next()
+}
+
+/**
+ * Manager authentication middleware
+ * Checks if user is authenticated, active, and has manager or admin role
+ */
+export function requireManager(req, res, next) {
+  if (!req.session || !req.session.applicantId) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  const db = getDatabase()
+  const applicant = db.prepare('SELECT role, is_admin, is_active FROM applicants WHERE id = ?').get(req.session.applicantId)
+  if (!applicant) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  if (applicant.is_active === 0) {
+    req.session.destroy(() => { })
+    return res.status(401).json({ error: 'Account has been deactivated. Contact an administrator.' })
+  }
+  if (applicant.role !== 'manager' && applicant.role !== 'admin' && !applicant.is_admin) {
+    return res.status(403).json({ error: 'Manager or admin access required' })
   }
   req.applicantId = req.session.applicantId
   next()
@@ -54,12 +78,12 @@ export function isFirstUser() {
   const db = getDatabase()
   const result = db.prepare('SELECT COUNT(*) as count FROM applicants').get()
   const count = result ? result.count : 0
-  
+
   // Debug logging in development
   if (process.env.NODE_ENV === 'development') {
     console.log('isFirstUser check:', { count, isFirst: count === 0 })
   }
-  
+
   return count === 0
 }
 
@@ -78,7 +102,7 @@ export function findApplicantByCredentials(firstName, lastName, email) {
   const normalizedFirstName = normalizeString(firstName)
   const normalizedLastName = normalizeString(lastName)
   const normalizedEmail = normalizeString(email)
-  
+
   // Query with normalized comparison - handles both normalized and non-normalized stored data
   const applicant = db.prepare(`
     SELECT *, password_hash FROM applicants 
@@ -87,14 +111,14 @@ export function findApplicantByCredentials(firstName, lastName, email) {
       AND LOWER(TRIM(email)) = ?
     LIMIT 1
   `).get(normalizedFirstName, normalizedLastName, normalizedEmail)
-  
+
   // Debug logging in development
   if (!applicant && process.env.NODE_ENV === 'development') {
     console.log('Login attempt - No match found:', {
       input: { firstName, lastName, email },
       normalized: { normalizedFirstName, normalizedLastName, normalizedEmail }
     })
-    
+
     // Check if any applicants exist with similar data
     const allApplicants = db.prepare(`
       SELECT id, first_name, last_name, email, 
@@ -104,10 +128,10 @@ export function findApplicantByCredentials(firstName, lastName, email) {
       FROM applicants
       LIMIT 10
     `).all()
-    
+
     console.log('Sample applicants in database:', allApplicants)
   }
-  
+
   return applicant
 }
 
@@ -145,12 +169,12 @@ export function checkPasswordSet(applicantId) {
  */
 export function createApplicant(firstName, lastName, email, additionalData = {}) {
   const db = getDatabase()
-  
+
   // Normalize and trim input data to ensure consistency with findApplicantByCredentials
   const normalizedFirstName = firstName ? firstName.trim() : ''
   const normalizedLastName = lastName ? lastName.trim() : ''
   const normalizedEmail = email ? email.trim().toLowerCase() : ''
-  
+
   // Use a transaction to atomically check if this is the first user and insert
   // This prevents race conditions where multiple signups happen simultaneously
   const insertApplicant = db.transaction(() => {
@@ -158,7 +182,7 @@ export function createApplicant(firstName, lastName, email, additionalData = {})
     const result = db.prepare('SELECT COUNT(*) as count FROM applicants').get()
     const count = result ? result.count : 0
     const firstUser = count === 0
-    
+
     // Determine admin status:
     // 1. First user always becomes admin
     // 2. Otherwise, only if explicitly set in additionalData (and must be truthy/1)
@@ -170,19 +194,19 @@ export function createApplicant(firstName, lastName, email, additionalData = {})
       isAdmin = (additionalData.isAdmin === true || additionalData.isAdmin === 1) ? 1 : 0
     }
     // Otherwise, isAdmin remains 0 (default)
-    
+
     // Debug logging in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('createApplicant:', { 
-        count, 
-        firstUser, 
-        isAdmin, 
+      console.log('createApplicant:', {
+        count,
+        firstUser,
+        isAdmin,
         email: normalizedEmail,
         explicitAdmin: additionalData.isAdmin,
         additionalDataKeys: Object.keys(additionalData)
       })
     }
-    
+
     const role = isAdmin ? 'admin' : (additionalData.role === 'manager' || additionalData.role === 'employee' ? additionalData.role : 'applicant')
     const insertResult = db.prepare(`
       INSERT INTO applicants (first_name, last_name, email, phone, date_of_birth, address, city, state, zip_code, is_admin, role)
@@ -200,24 +224,24 @@ export function createApplicant(firstName, lastName, email, additionalData = {})
       isAdmin,
       role
     )
-    
+
     return { insertResult, isAdmin }
   })
-  
+
   const { insertResult, isAdmin } = insertApplicant()
-  
+
   const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(insertResult.lastInsertRowid)
-  
+
   // Verify the admin status was set correctly
   if (process.env.NODE_ENV === 'development' && applicant) {
-    console.log('Created applicant:', { 
-      id: applicant.id, 
-      email: applicant.email, 
+    console.log('Created applicant:', {
+      id: applicant.id,
+      email: applicant.email,
       is_admin: applicant.is_admin,
-      expectedAdmin: isAdmin 
+      expectedAdmin: isAdmin
     })
   }
-  
+
   return applicant
 }
 

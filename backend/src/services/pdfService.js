@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib'
-import { encryptBuffer } from './encryptionService.js'
-import { uploadToGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from './googleDriveService.js'
+import { encryptBuffer, decryptBuffer } from './encryptionService.js'
+import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from './googleDriveService.js'
 import { getDatabase } from '../database/init.js'
 import { getTemplate, hasTemplate } from './pdfTemplateService.js'
 import {
@@ -1271,6 +1271,174 @@ async function saveToLocalStorage(encryptedBuffer, filename, applicant) {
  * @param {Object} applicantData
  * @param {{ id: number, google_drive_id: string, pdf_encrypted_path: string | null }} [existingSubmission] - When set, overwrite this row and replace file
  */
+/**
+ * Get manager signature placements for a form type.
+ * Uses `manager_signature_placement_{formType}` settings keys.
+ * @param {string} formType - W4, I9, 8850, or 9061
+ * @returns {{ pageIndex: number, x: number, y: number, width: number, height: number }[]}
+ */
+export function getManagerSignaturePlacements(formType) {
+  if (!SIGNATURE_PLACEMENT_FORM_TYPES.includes(formType)) return []
+  const db = getDatabase()
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(`manager_signature_placement_${formType}`)
+  if (!row || !row.value) return []
+  try {
+    const parsed = JSON.parse(row.value)
+    if (parsed.placements && Array.isArray(parsed.placements)) {
+      return parsed.placements.filter(
+        p => typeof p.pageIndex === 'number' && typeof p.x === 'number' && typeof p.y === 'number' && typeof p.width === 'number' && typeof p.height === 'number'
+      )
+    }
+    if (parsed.mode === 'free_place' && typeof parsed.pageIndex === 'number') {
+      return [{
+        pageIndex: parsed.pageIndex,
+        x: parsed.x ?? 72,
+        y: parsed.y ?? 120,
+        width: parsed.width ?? 180,
+        height: parsed.height ?? 40
+      }]
+    }
+    return []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Get first manager signature placement for a form type.
+ * @param {string} formType - W4, I9, 8850, or 9061
+ * @returns {{ pageIndex: number, x: number, y: number, width: number, height: number } | null}
+ */
+export function getManagerSignaturePlacement(formType) {
+  const placements = getManagerSignaturePlacements(formType)
+  return placements.length > 0 ? placements[0] : null
+}
+
+/**
+ * Check which forms require manager signature.
+ * Reads from settings table key 'manager_signature_required_forms'.
+ * @returns {string[]} Array of form type codes that require manager signature (e.g. ['W4', 'I9'])
+ */
+export function getManagerSignatureRequiredForms() {
+  const db = getDatabase()
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('manager_signature_required_forms')
+  if (!row || !row.value) return []
+  try {
+    const parsed = JSON.parse(row.value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Add a manager's signature to an existing PDF document.
+ * Loads the PDF from Google Drive or local storage, embeds the manager signature,
+ * re-saves, and updates storage.
+ * @param {number} submissionId - The form_submissions.id
+ * @param {string} managerSignatureBase64 - Base64 PNG signature data
+ * @returns {Promise<{ success: boolean }>}
+ */
+export async function addManagerSignatureToPdf(submissionId, managerSignatureBase64) {
+  const db = getDatabase()
+  const submission = db.prepare(`
+    SELECT id, applicant_id, form_type, pdf_filename, google_drive_id, pdf_encrypted_path, web_view_link
+    FROM form_submissions WHERE id = ?
+  `).get(submissionId)
+
+  if (!submission) {
+    throw new Error('Submission not found')
+  }
+
+  const formType = submission.form_type
+  const placements = getManagerSignaturePlacements(formType)
+  if (placements.length === 0) {
+    throw new Error(`Manager signature placement not configured for form type: ${formType}`)
+  }
+
+  // Load existing PDF bytes
+  let pdfBytes
+  if (submission.google_drive_id && isGoogleDriveConfigured()) {
+    const downloadResult = await downloadFromGoogleDrive(submission.google_drive_id)
+    pdfBytes = downloadResult
+  } else if (submission.pdf_encrypted_path) {
+    const fullPath = path.join(LOCAL_STORAGE_DIR, submission.pdf_encrypted_path)
+    const encryptedBuffer = await fs.readFile(fullPath)
+    pdfBytes = decryptBuffer(encryptedBuffer)
+  } else {
+    throw new Error('No PDF storage location found for this submission')
+  }
+
+  // Load PDF document and embed manager signature
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
+  const pages = pdfDoc.getPages()
+
+  // Parse manager signature
+  let base64 = managerSignatureBase64.trim()
+  if (base64.startsWith('data:image/png;base64,')) {
+    base64 = base64.slice('data:image/png;base64,'.length)
+  } else if (base64.startsWith('data:image/')) {
+    const comma = base64.indexOf(',')
+    if (comma !== -1) base64 = base64.slice(comma + 1)
+  }
+  if (!base64) {
+    throw new Error('Invalid manager signature data')
+  }
+
+  const buf = Buffer.from(base64, 'base64')
+  const image = await pdfDoc.embedPng(buf)
+  const { width: imgW, height: imgH } = image.scale(1)
+
+  for (const placement of placements) {
+    const pageIndex = Math.max(0, Math.min(placement.pageIndex, pages.length - 1))
+    const page = pages[pageIndex]
+    const placeW = placement.width || 180
+    const placeH = placement.height || 40
+    const scale = Math.min(placeW / imgW, placeH / imgH, 1)
+    const drawW = imgW * scale
+    const drawH = imgH * scale
+    const x = placement.x ?? 72
+    const y = placement.y ?? 120
+    page.drawImage(image, { x, y, width: drawW, height: drawH })
+  }
+
+  const updatedPdfBytes = await pdfDoc.save()
+
+  // Re-upload / re-save
+  const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(submission.applicant_id)
+
+  if (submission.google_drive_id && isGoogleDriveConfigured()) {
+    // Delete old and upload new
+    try {
+      await deleteFromGoogleDrive(submission.google_drive_id)
+    } catch (error) {
+      console.error('Error deleting old PDF from Google Drive during manager signing:', error)
+    }
+    const uploadResult = await uploadToGoogleDrive(
+      Buffer.from(updatedPdfBytes),
+      submission.pdf_filename,
+      applicant,
+      'application/pdf'
+    )
+    db.prepare(`
+      UPDATE form_submissions SET google_drive_id = ?, web_view_link = ? WHERE id = ?
+    `).run(uploadResult.fileId, uploadResult.webViewLink, submissionId)
+  } else {
+    // Re-encrypt and save locally
+    if (submission.pdf_encrypted_path) {
+      const fullPath = path.join(LOCAL_STORAGE_DIR, submission.pdf_encrypted_path)
+      try { await fs.unlink(fullPath) } catch { /* ignore */ }
+    }
+    const encryptedBuffer = encryptBuffer(Buffer.from(updatedPdfBytes))
+    const localPath = await saveToLocalStorage(encryptedBuffer, submission.pdf_filename, applicant)
+    db.prepare(`
+      UPDATE form_submissions SET pdf_encrypted_path = ? WHERE id = ?
+    `).run(localPath, submissionId)
+  }
+
+  return { success: true }
+}
+
 export async function generateAndSavePDF(applicantId, stepNumber, formType, formData, applicantData, existingSubmission = null) {
   let pdfBytes
 
