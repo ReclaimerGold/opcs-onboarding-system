@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import api from '../services/api.js'
 import { clearSSNCookie } from '../utils/cookies.js'
 import { clearSessionSignature } from '../utils/sessionSignature.js'
+import { resetDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -78,6 +79,8 @@ export const useAuthStore = defineStore('auth', {
         // Clear SSN cookie on logout for security
         clearSSNCookie()
         clearSessionSignature()
+        // Reset onboarding singleton so next user starts fresh
+        resetDashboardOnboarding()
       }
     },
 

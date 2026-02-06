@@ -13,12 +13,12 @@
 export function setCookie(name, value, hours = 1) {
   const expires = new Date()
   expires.setTime(expires.getTime() + hours * 60 * 60 * 1000)
-  
+
   // Use secure settings
   const isProduction = import.meta.env.PROD
   const secureFlag = isProduction ? '; Secure' : ''
   const sameSite = '; SameSite=Strict'
-  
+
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=/${secureFlag}${sameSite}`
 }
 
@@ -30,7 +30,7 @@ export function setCookie(name, value, hours = 1) {
 export function getCookie(name) {
   const nameEQ = name + '='
   const ca = document.cookie.split(';')
-  
+
   for (let i = 0; i < ca.length; i++) {
     let c = ca[i]
     while (c.charAt(0) === ' ') c = c.substring(1, c.length)
@@ -51,11 +51,14 @@ export function deleteCookie(name) {
 
 /**
  * Set SSN in cookie (temporary storage, expires in 1 hour)
+ * Also records a session flag so the re-prompt modal can distinguish between
+ * "SSN was never entered" and "SSN cookie expired".
  * @param {string} ssn - Social Security Number (formatted: XXX-XX-XXXX)
  */
 export function setSSNCookie(ssn) {
   if (ssn && ssn.match(/^\d{3}-\d{2}-\d{4}$/)) {
     setCookie('temp_ssn', ssn, 1) // 1 hour expiration
+    sessionStorage.setItem('opcs_ssn_entered', 'true')
   }
 }
 
@@ -68,9 +71,20 @@ export function getSSNCookie() {
 }
 
 /**
- * Clear SSN cookie (call when user logs out or session ends)
+ * Clear SSN cookie and session flag (call when user logs out or session ends)
  */
 export function clearSSNCookie() {
   deleteCookie('temp_ssn')
+  sessionStorage.removeItem('opcs_ssn_entered')
+}
+
+/**
+ * Check whether the user entered their SSN at any point during this browser session.
+ * Used by the SSN re-prompt modal to distinguish between "SSN was never entered"
+ * (first-time user, form collects it) and "SSN cookie expired" (show re-prompt).
+ * @returns {boolean}
+ */
+export function wasSSNEnteredThisSession() {
+  return sessionStorage.getItem('opcs_ssn_entered') === 'true'
 }
 

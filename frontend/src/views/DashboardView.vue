@@ -742,23 +742,21 @@ async function onDashboardOnboardingComplete(signatureData) {
   if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
   const wasSignatureOnly = !!dashboardOnboarding.startAtSignatureOnly?.value
   try {
+    // Record consent first (if needed), then save signature.
+    // Both DB operations MUST complete before the modal closes to prevent
+    // a race condition where navigating to Forms triggers a second modal.
+    if (!wasSignatureOnly) {
+      await dashboardOnboarding.recordConsent()
+      sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
+    }
     await dashboardOnboarding.saveSignature(signatureData)
+    // Modal closes automatically: recordConsent sets ssnConsentGiven = true,
+    // saveSignature sets hasSignatureInDb = true → onboardingComplete = true
   } catch (err) {
-    console.error('Failed to save signature', err)
+    console.error('Failed to complete onboarding', err)
     return
   }
   dashboardConsented.value = true
-  if (!wasSignatureOnly) {
-    dashboardOnboarding.ssnConsentGiven.value = true
-    try {
-      await dashboardOnboarding.recordConsent()
-      sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
-    } catch (err) {
-      console.error('Failed to record SSN consent', err)
-      dashboardOnboarding.ssnConsentGiven.value = false
-      dashboardConsented.value = false
-    }
-  }
 }
 
 const progress = ref(0)

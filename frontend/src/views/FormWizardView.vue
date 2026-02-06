@@ -517,7 +517,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import SSNConsentModal from '../components/SSNConsentModal.vue'
 import SSNRePromptModal from '../components/SSNRePromptModal.vue'
-import { getSSNCookie, setSSNCookie } from '../utils/cookies.js'
+import { getSSNCookie, setSSNCookie, wasSSNEnteredThisSession } from '../utils/cookies.js'
 import Step1W4Form from '../components/forms/Step1W4Form.vue'
 import Step2I9Form from '../components/forms/Step2I9Form.vue'
 import Step3BackgroundForm from '../components/forms/Step3BackgroundForm.vue'
@@ -549,6 +549,10 @@ function checkSSNExpiredAndShowRePrompt() {
   if (showOnboardingModal.value) return
   if (!STEPS_REQUIRING_SSN.includes(currentStep.value)) return
   if (getSSNCookie()) return
+  // Only show re-prompt when the SSN was previously entered in this session
+  // (i.e. the cookie expired). Don't show for first-time users who haven't
+  // entered their SSN yet — the form itself collects it on the first visit.
+  if (!wasSSNEnteredThisSession()) return
   showSSNRePromptModal.value = true
 }
 
@@ -566,24 +570,22 @@ async function onDashboardOnboardingComplete(signatureData) {
   if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
   const wasSignatureOnly = !!dashboardOnboarding.startAtSignatureOnly?.value
   try {
+    // Record consent first (if needed), then save signature.
+    // Both DB operations MUST complete before the modal closes to prevent
+    // a race condition where navigating to Dashboard triggers a second modal.
+    if (!wasSignatureOnly) {
+      await dashboardOnboarding.recordConsent()
+      sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
+    }
     await dashboardOnboarding.saveSignature(signatureData)
+    // Modal closes automatically: recordConsent sets ssnConsentGiven = true,
+    // saveSignature sets hasSignatureInDb = true → onboardingComplete = true
   } catch (err) {
-    console.error('Failed to save signature', err)
+    console.error('Failed to complete onboarding', err)
     return
   }
   sessionSignature.value = signatureData
   dashboardConsented.value = true
-  if (!wasSignatureOnly) {
-    dashboardOnboarding.ssnConsentGiven.value = true
-    try {
-      await dashboardOnboarding.recordConsent()
-      sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
-    } catch (err) {
-      console.error('Failed to record SSN consent', err)
-      dashboardOnboarding.ssnConsentGiven.value = false
-      dashboardConsented.value = false
-    }
-  }
 }
 
 const currentStep = ref(1)
