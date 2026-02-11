@@ -14,6 +14,7 @@
           <div class="flex flex-wrap items-center gap-2 sm:gap-4">
             <router-link to="/admin" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Admin</router-link>
             <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Dashboard</router-link>
+            <NotificationBell />
           </div>
         </div>
       </div>
@@ -1012,6 +1013,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../services/api.js'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const settings = ref({
   google_drive_base_folder_id: '',

@@ -17,6 +17,7 @@
             <router-link to="/approvals" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Approvals</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Forms</router-link>
             <router-link to="/settings" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Settings</router-link>
+            <NotificationBell />
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900 py-2 px-3 min-h-[44px] flex items-center">Logout</button>
           </div>
         </div>
@@ -917,6 +918,7 @@ import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
 import PdfDownloadPromptDialog from '../components/admin/PdfDownloadPromptDialog.vue'
 import PdfTemplateDownloadModal from '../components/admin/PdfTemplateDownloadModal.vue'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

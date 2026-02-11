@@ -28,6 +28,7 @@
           <div class="flex flex-wrap items-center gap-2 sm:gap-4">
             <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Dashboard</router-link>
             <router-link v-if="authStore.role === 'manager' || authStore.role === 'admin' || authStore.isAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Approvals</router-link>
+            <NotificationBell />
             <button @click="handleLogout" class="text-gray-600 hover:text-gray-900 py-2 px-3 min-h-[44px] flex items-center">Logout</button>
           </div>
         </div>
@@ -575,6 +576,7 @@ import Step79061Form from '../components/forms/Step79061Form.vue'
 import api from '../services/api.js'
 import { getSessionSignature } from '../utils/sessionSignature.js'
 import { useDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const router = useRouter()
 const route = useRoute()

@@ -12,6 +12,7 @@
             <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-primary text-sm font-medium py-2 px-1 min-h-[44px] flex items-center">Admin</router-link>
             <router-link to="/dashboard" class="text-gray-600 hover:text-primary text-sm font-medium py-2 px-1 min-h-[44px] flex items-center">Dashboard</router-link>
             <router-link to="/forms" class="text-gray-600 hover:text-primary text-sm font-medium py-2 px-1 min-h-[44px] flex items-center">Forms</router-link>
+            <NotificationBell />
             <button @click="logout" class="text-gray-600 hover:text-red-600 text-sm font-medium py-2 px-3 min-h-[44px] flex items-center">Logout</button>
           </div>
         </div>
@@ -250,6 +251,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
 import SignaturePad from '../components/ui/SignaturePad.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

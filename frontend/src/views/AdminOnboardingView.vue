@@ -11,6 +11,7 @@
             />
             <h1 class="text-xl font-semibold text-gray-900">Admin setup</h1>
           </div>
+          <NotificationBell />
         </div>
       </div>
     </nav>
@@ -148,6 +149,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
 import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 import api from '../services/api.js'
 
 const router = useRouter()
