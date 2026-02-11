@@ -143,20 +143,22 @@ export const F8850_FIELD_MAPPING = {
   cityStateZip: ['topmostSubform[0].Page1[0].f1_6[0]', 'f1_6[0]', 'f1_6'],
   county: ['topmostSubform[0].Page1[0].f1_7[0]', 'f1_7[0]', 'f1_7'],
 
-  // Target Group checkboxes (lines 1-8)
-  targetGroup1: ['topmostSubform[0].Page1[0].c1_1[0]', 'c1_1[0]', 'c1_1'], // TANF recipient
-  targetGroup2: ['topmostSubform[0].Page1[0].c1_2[0]', 'c1_2[0]', 'c1_2'], // Veteran
-  targetGroup3: ['topmostSubform[0].Page1[0].c1_3[0]', 'c1_3[0]', 'c1_3'], // Ex-felon
-  targetGroup4: ['topmostSubform[0].Page1[0].c1_4[0]', 'c1_4[0]', 'c1_4'], // Designated community resident
-  targetGroup5: ['topmostSubform[0].Page1[0].c1_5[0]', 'c1_5[0]', 'c1_5'], // Vocational rehabilitation
-  targetGroup6: ['topmostSubform[0].Page1[0].c1_6[0]', 'c1_6[0]', 'c1_6'], // Summer youth employee
-  targetGroup7: ['topmostSubform[0].Page1[0].c1_7[0]', 'c1_7[0]', 'c1_7'], // SNAP recipient
+  // Part 1 certification / targeted group checkboxes (1–7)
+  question1: ['topmostSubform[0].Page1[0].c1_1[0]', 'c1_1[0]', 'c1_1'], // Conditional certification from state workforce agency
+  question2: ['topmostSubform[0].Page1[0].c1_2[0]', 'c1_2[0]', 'c1_2'], // Member of targeted group (TANF, SNAP, veteran, etc.)
+  question3: ['topmostSubform[0].Page1[0].c1_3[0]', 'c1_3[0]', 'c1_3'], // Veteran unemployed 6+ months
+  question4: ['topmostSubform[0].Page1[0].c1_4[0]', 'c1_4[0]', 'c1_4'], // Designated community resident
+  question5: ['topmostSubform[0].Page1[0].c1_5[0]', 'c1_5[0]', 'c1_5'], // Vocational rehabilitation referral
+  question6: ['topmostSubform[0].Page1[0].c1_6[0]', 'c1_6[0]', 'c1_6'], // Summer youth employee
+  // IRS 8850 PDF has 7 checkboxes: c1_1[0]..c1_6[0] and c1_5[1] (no c1_7). Question 7 = SNAP recipient = c1_5[1].
+  question7: ['topmostSubform[0].Page1[0].c1_5[1]', 'c1_5[1]', 'c1_5'],
+
+  // Target group aliases (c1_8, c1_9 if form has 9 checkboxes)
   targetGroup8: ['topmostSubform[0].Page1[0].c1_8[0]', 'c1_8[0]', 'c1_8'], // SSI recipient
   targetGroup9: ['topmostSubform[0].Page1[0].c1_9[0]', 'c1_9[0]', 'c1_9'], // Long-term unemployment
 
-  // Note: IRS Form 8850 Page 1 only has f1_1 through f1_7 as fillable fields
-  // The signature area on Page 1 is for manual signature, not a fillable field
-  // dateReceivedTANF and dateReleasedConfinement fields don't exist in current template
+  // Date applicant gave information (set to submission date)
+  dateApplicantGaveInformation: ['topmostSubform[0].Page2[0].f2_12[0]', 'f2_12[0]', 'f2_12', 'Date applicant gave information', 'Date Applicant Gave Information'],
 
   // Employer section (Page 2)
   employerName: ['topmostSubform[0].Page2[0].f2_1[0]', 'f2_1[0]', 'f2_1'],
@@ -166,6 +168,8 @@ export const F8850_FIELD_MAPPING = {
   employerState: ['topmostSubform[0].Page2[0].f2_5[0]', 'f2_5[0]', 'f2_5'],
   employerZip: ['topmostSubform[0].Page2[0].f2_6[0]', 'f2_6[0]', 'f2_6'],
   employerPhone: ['topmostSubform[0].Page2[0].f2_7[0]', 'f2_7[0]', 'f2_7'],
+  // Second telephone field on Page 2 (e.g. person to contact) — use same employer phone
+  employerPhone2: ['topmostSubform[0].Page2[0].f2_13[0]', 'f2_13[0]', 'f2_13'],
   jobOfferedDate: ['topmostSubform[0].Page2[0].f2_8[0]', 'f2_8[0]', 'f2_8'],
   jobStartDate: ['topmostSubform[0].Page2[0].f2_9[0]', 'f2_9[0]', 'f2_9'],
   startingWage: ['topmostSubform[0].Page2[0].f2_10[0]', 'f2_10[0]', 'f2_10'],
@@ -186,6 +190,15 @@ export const F8850_FIELD_MAPPING = {
  * Box 16 has sub-checkboxes for VR Referral/VR Agency/EN/DVA.
  */
 export const F9061_FIELD_MAPPING = {
+  // Box 3: Employer Name
+  box3_EmployerName: ['3 Employer Name'],
+
+  // Box 4: Employer Mailing Address, Telephone No, and Email Address (one combined field)
+  box4_EmployerMailingAddressTelephoneEmail: ['4 Employer Mailing Address Telephone No and Email Address'],
+
+  // Box 5: Employer Identification Number (EIN)
+  box5_EIN: ['5 Employer Identification Number EIN'],
+
   // Box 6: Applicant Name (combined field: "Last, First MI")
   applicantName: ['6 Applicant Name Last First MI'],
 
@@ -560,7 +573,7 @@ export function mapI9FormData(formData) {
     citizenCheckbox: formData.authorizationType === 'citizen',
     nationalCheckbox: formData.authorizationType === 'national',
     permanentResidentCheckbox: formData.authorizationType === 'permanent',
-    alienAuthorizedCheckbox: formData.authorizationType === 'authorized',
+    alienAuthorizedCheckbox: formData.authorizationType === 'authorized' || formData.authorizationType === 'alien',
 
     // Additional fields for non-citizens
     alienNumber: formData.alienNumber || '',
@@ -598,6 +611,16 @@ export function mapI9FormData(formData) {
     out.listCExpirationDate = formatDateForPDF(formData.listCExpiration) || ''
   }
 
+  // Preparer/Translator certification (Section 1) — fill physical I-9 when preparer used
+  if (formData.usingPreparer) {
+    out.preparerFirstName = formData.preparerFirstName || ''
+    out.preparerLastName = formData.preparerLastName || ''
+    out.preparerAddress = formData.preparerAddress || ''
+    out.preparerCity = formData.preparerCity || ''
+    out.preparerState = formData.preparerState || ''
+    out.preparerZip = formData.preparerZip || ''
+  }
+
   return out
 }
 
@@ -625,19 +648,35 @@ export function map8850FormData(formData) {
     cityStateZip: cityStateZip,
     county: formData.county || '',
 
-    // Target group checkboxes based on form data
-    targetGroup1: formData.targetGroups?.includes('tanf') || false,
-    targetGroup2: formData.targetGroups?.includes('veteran') || false,
-    targetGroup3: formData.targetGroups?.includes('exFelon') || false,
-    targetGroup4: formData.targetGroups?.includes('designatedCommunity') || false,
-    targetGroup5: formData.targetGroups?.includes('vocationalRehab') || false,
-    targetGroup6: formData.targetGroups?.includes('summerYouth') || false,
-    targetGroup7: formData.targetGroups?.includes('snap') || false,
-    targetGroup8: formData.targetGroups?.includes('ssi') || false,
-    targetGroup9: formData.targetGroups?.includes('longTermUnemployed') || false
+    // Part 1 certification / targeted group checkboxes (1–7 from Step 6 form)
+    question1: !!formData.question1,
+    question2: !!formData.question2,
+    question3: !!formData.question3,
+    question4: !!formData.question4,
+    question5: !!formData.question5,
+    question6: !!formData.question6,
+    question7: !!formData.question7,
 
-    // Note: IRS Form 8850 Page 1 signature is manual (not a fillable field)
-    // Employer section (Page 2) fields are filled separately if needed
+    // Target group 8–9 (if form sends targetGroups)
+    targetGroup8: formData.targetGroups?.includes('ssi') || false,
+    targetGroup9: formData.targetGroups?.includes('longTermUnemployed') || false,
+
+    // Date applicant gave information = date form is submitted (PDF generation date)
+    dateApplicantGaveInformation: formatDateForPDF(new Date()),
+
+    // Employer section (Page 2) - from formData (populated from settings in pdfService)
+    employerName: formData.employerName || '',
+    employerEIN: formData.employerEIN || '',
+    employerAddress: formData.employerAddress || '',
+    employerCity: formData.employerCity || '',
+    employerState: formData.employerState || '',
+    employerZip: formData.employerZip || '',
+    employerPhone: formData.employerPhone || '',
+    employerPhone2: (formData.employerPhone2 ?? formData.employerPhone) || '',
+    jobOfferedDate: formData.jobOfferedDate ? formatDateForPDF(formData.jobOfferedDate) : '',
+    jobStartDate: formData.jobStartDate ? formatDateForPDF(formData.jobStartDate) : '',
+    startingWage: formData.startingWage ?? '',
+    jobTitle: formData.jobTitle || ''
   }
 }
 
@@ -660,7 +699,25 @@ export function map9061FormData(formData) {
   const mi = (formData.middleName || '').charAt(0)
   const applicantName = `${formData.lastName || ''}, ${formData.firstName || ''}${mi ? ' ' + mi : ''}`
 
+  // Box 4: Combined employer mailing address, telephone, and email (e.g. "123 Main St, City, ST 57104  (605) 555-1234  info@optimalprimeservices.com")
+  const addressParts = [formData.employerAddress, formData.employerCity, formData.employerState, formData.employerZip].filter(Boolean)
+  const box4Parts = [
+    addressParts.join(', '),
+    formData.employerPhone || '',
+    formData.employerEmail || 'info@optimalprimeservices.com'
+  ].filter(Boolean)
+  const box4_EmployerMailingAddressTelephoneEmail = box4Parts.join('  ')
+
   return {
+    // Box 3: Employer name
+    box3_EmployerName: formData.employerName || '',
+
+    // Box 4: Employer mailing address, telephone, email
+    box4_EmployerMailingAddressTelephoneEmail,
+
+    // Box 5: Employer EIN
+    box5_EIN: formData.employerEIN || '',
+
     // Box 6: Combined applicant name
     applicantName,
 

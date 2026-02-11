@@ -95,7 +95,6 @@
         <div class="mt-6">
           <label class="block text-sm font-medium text-gray-700 mb-2">
             Have you worked for this employer before?
-            <span v-if="previousEmploymentAutoFilled" class="ml-1 text-xs text-green-600">(Auto-filled from Form 8850)</span>
           </label>
           <div class="space-y-2">
             <label class="flex items-center">
@@ -392,7 +391,7 @@
           :disabled="!ssnConsented || loading || missingRequiredFields.length > 0"
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
         >
-          <span v-if="loading">Submitting...</span>
+          <span v-if="loading">Generating PDF & saving…</span>
           <span v-else>Complete Onboarding</span>
         </button>
       </div>
@@ -465,7 +464,6 @@ const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
 // Track which fields are locked (auto-populated)
 const dateOfBirthLocked = ref(false)
 const middleNameLocked = ref(false)
-const previousEmploymentAutoFilled = ref(false)
 
 // Emit form data changes for real-time preview (debounced)
 let emitDebounceTimer = null
@@ -549,12 +547,6 @@ onMounted(async () => {
     if (step6Draft.data?.success && step6Draft.data?.formData) {
       const step6Data = step6Draft.data.formData
       
-      // Auto-populate "worked before" from 8850
-      if (step6Data.previousEmployment) {
-        formData.value.workedForEmployerBefore = step6Data.previousEmployment
-        previousEmploymentAutoFilled.value = true
-      }
-
       // Map 8850 checkbox answers to 9061 targeted group checkboxes
       // question1 = conditional certification (TANF-related)
       // question2 = applies to TANF, SNAP, veteran, etc.
@@ -570,6 +562,18 @@ onMounted(async () => {
       if (step6Data.question3) {
         formData.value.isVeteran = true
         formData.value.veteranUnemployed6Months = true
+      }
+      if (step6Data.question4) {
+        formData.value.isDesignatedCommunityResident = true
+      }
+      if (step6Data.question5) {
+        formData.value.isVocationalRehab = true
+      }
+      if (step6Data.question6) {
+        formData.value.isSummerYouth = true
+      }
+      if (step6Data.question7) {
+        formData.value.isSNAPRecipient = true
       }
     }
   } catch (error) {

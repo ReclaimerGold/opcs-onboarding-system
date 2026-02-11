@@ -22,6 +22,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { redactFormDataForStorage } from '../utils/redactFormData.js'
+import { getSetting } from '../utils/getSetting.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -139,13 +140,12 @@ function wrapText(text, font, fontSize, maxWidth) {
 }
 
 /**
- * Draw signature image on PDF at all configured positions (one per page optional).
+ * Draw signature image on PDF at given placements.
  * @param {PDFDocument} pdfDoc - Loaded PDF document
- * @param {string} formType - W4, I9, or 8850
+ * @param {Object[]} placements - Array of { pageIndex, x, y, width, height }
  * @param {string} signatureBase64 - Base64 PNG (with or without data URL prefix)
  */
-async function drawSignatureOnPdf(pdfDoc, formType, signatureBase64) {
-  const placements = getSignaturePlacements(formType)
+async function drawSignatureAtPlacements(pdfDoc, placements, signatureBase64) {
   if (placements.length === 0 || !signatureBase64) return
 
   let base64 = signatureBase64.trim()
@@ -174,6 +174,31 @@ async function drawSignatureOnPdf(pdfDoc, formType, signatureBase64) {
     const y = placement.y ?? 120
     page.drawImage(image, { x, y, width: drawW, height: drawH })
   }
+}
+
+/**
+ * Draw signature image on PDF at all configured positions (one per page optional).
+ * @param {PDFDocument} pdfDoc - Loaded PDF document
+ * @param {string} formType - W4, I9, or 8850
+ * @param {string} signatureBase64 - Base64 PNG (with or without data URL prefix)
+ */
+async function drawSignatureOnPdf(pdfDoc, formType, signatureBase64) {
+  const placements = getSignaturePlacements(formType)
+  await drawSignatureAtPlacements(pdfDoc, placements, signatureBase64)
+}
+
+/**
+ * Get the first admin's stored signature (for employer/authorized rep pre-fill on 8850).
+ * @returns {string|null} Base64 signature data or null
+ */
+function getFirstAdminSignature() {
+  const db = getDatabase()
+  const row = db.prepare(`
+    SELECT signature_data FROM applicants
+    WHERE is_admin = 1 AND signature_data IS NOT NULL AND TRIM(signature_data) != ''
+    ORDER BY id ASC LIMIT 1
+  `).get()
+  return row?.signature_data ?? null
 }
 
 /**
@@ -369,6 +394,8 @@ async function fillW4Template(templateBuffer, formData) {
     console.log('Using official IRS W-4 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = mapW4FormData(formData)
+    // Ensure signature date is always current (per-document)
+    mappedData.signatureDate = formatDateForPDF(new Date())
 
     const result = await fillPDFTemplate(pdfDoc, W4_FIELD_MAPPING, mappedData)
     console.log(`W-4: Successfully filled ${result.filledCount} fields`)
@@ -554,6 +581,8 @@ async function fillI9Template(templateBuffer, formData) {
     console.log('Using official USCIS I-9 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = mapI9FormData(formData)
+    // Ensure signature date is always current (per-document)
+    mappedData.signatureDateEmployee = formatDateForPDF(new Date())
 
     const result = await fillPDFTemplate(pdfDoc, I9_FIELD_MAPPING, mappedData)
     console.log(`I-9: Successfully filled ${result.filledCount} fields`)
@@ -763,6 +792,25 @@ async function generateI9PDFFallback(formData, applicantData) {
  * Falls back to basic generation only if template is completely unavailable
  */
 export async function generate8850PDF(formData, applicantData) {
+  // Merge employer/authorized rep (Jason) from settings for 8850 Page 2
+  const employerName = getSetting('i9_employer_authorized_rep_name') || getSetting('8850_employer_name') || 'Optimal Prime Cleaning Services'
+  const employerPhone = getSetting('8850_employer_phone') || formData.employerPhone || ''
+  const formDataWithEmployer = {
+    ...formData,
+    employerName,
+    employerEIN: getSetting('8850_employer_ein') || formData.employerEIN || '',
+    employerAddress: getSetting('8850_employer_address') || formData.employerAddress || '',
+    employerCity: getSetting('8850_employer_city') || formData.employerCity || '',
+    employerState: getSetting('8850_employer_state') || formData.employerState || '',
+    employerZip: getSetting('8850_employer_zip') || formData.employerZip || '',
+    employerPhone,
+    employerPhone2: employerPhone,
+    jobOfferedDate: formData.jobOfferedDate || '',
+    jobStartDate: formData.jobStartDate || '',
+    startingWage: formData.startingWage ?? '',
+    jobTitle: formData.jobTitle || ''
+  }
+
   // Try to use official template
   const templateBuffer = await getTemplate('8850')
 
@@ -776,7 +824,7 @@ export async function generate8850PDF(formData, applicantData) {
       const retryBuffer = await getTemplate('8850')
       if (retryBuffer) {
         console.log('Form 8850 template downloaded successfully, using template')
-        return await fill8850Template(retryBuffer, formData)
+        return await fill8850Template(retryBuffer, formDataWithEmployer)
       }
     }
 
@@ -786,7 +834,7 @@ export async function generate8850PDF(formData, applicantData) {
 
   // Use template
   try {
-    return await fill8850Template(templateBuffer, formData)
+    return await fill8850Template(templateBuffer, formDataWithEmployer)
   } catch (error) {
     console.error('Failed to fill Form 8850 template, using fallback:', error.message)
     return generate8850PDFFallback(formData, applicantData)
@@ -804,6 +852,8 @@ async function fill8850Template(templateBuffer, formData) {
     console.log('Using official IRS Form 8850 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = map8850FormData(formData)
+    // Ensure signature / date applicant gave information is always current (per-document)
+    mappedData.dateApplicantGaveInformation = formatDateForPDF(new Date())
 
     const result = await fillPDFTemplate(pdfDoc, F8850_FIELD_MAPPING, mappedData)
     console.log(`8850: Successfully filled ${result.filledCount} fields`)
@@ -814,6 +864,13 @@ async function fill8850Template(templateBuffer, formData) {
 
     if (formData.signatureData) {
       await drawSignatureOnPdf(pdfDoc, '8850', formData.signatureData)
+    }
+
+    // Auto-fill employer/authorized rep signature from admin's signature on file (Page 2)
+    const managerPlacements = getManagerSignaturePlacements('8850')
+    const employerSignature = getFirstAdminSignature()
+    if (managerPlacements.length > 0 && employerSignature) {
+      await drawSignatureAtPlacements(pdfDoc, managerPlacements, employerSignature)
     }
 
     const pdfBytes = await pdfDoc.save()
@@ -917,8 +974,23 @@ async function generate8850PDFFallback(formData, applicantData) {
 /**
  * Generate ETA Form 9061 PDF using official template
  * Falls back to basic generation only if template is completely unavailable
+ * Merges employer info (Box 3, 4, 5) from settings for employer name, address, phone, email, EIN.
  */
 export async function generate9061PDF(formData, applicantData) {
+  // Merge employer data from settings for Box 3 (name), Box 4 (address, phone, email), Box 5 (EIN)
+  const employerName = getSetting('i9_employer_authorized_rep_name') || getSetting('8850_employer_name') || 'Optimal Prime Cleaning Services'
+  const formDataWithEmployer = {
+    ...formData,
+    employerName,
+    employerEIN: getSetting('8850_employer_ein') || formData.employerEIN || '',
+    employerAddress: getSetting('8850_employer_address') || formData.employerAddress || '',
+    employerCity: getSetting('8850_employer_city') || formData.employerCity || '',
+    employerState: getSetting('8850_employer_state') || formData.employerState || '',
+    employerZip: getSetting('8850_employer_zip') || formData.employerZip || '',
+    employerPhone: getSetting('8850_employer_phone') || formData.employerPhone || '',
+    employerEmail: 'info@optimalprimeservices.com'
+  }
+
   // Try to use official template
   const templateBuffer = await getTemplate('9061')
 
@@ -931,20 +1003,20 @@ export async function generate9061PDF(formData, applicantData) {
       const retryBuffer = await getTemplate('9061')
       if (retryBuffer) {
         console.log('ETA Form 9061 template downloaded successfully, using template')
-        return await fill9061Template(retryBuffer, formData)
+        return await fill9061Template(retryBuffer, formDataWithEmployer)
       }
     }
 
     console.error('ETA Form 9061 template unavailable after download attempt, using fallback')
-    return generate9061PDFFallback(formData, applicantData)
+    return generate9061PDFFallback(formDataWithEmployer, applicantData)
   }
 
   // Use template
   try {
-    return await fill9061Template(templateBuffer, formData)
+    return await fill9061Template(templateBuffer, formDataWithEmployer)
   } catch (error) {
     console.error('Failed to fill ETA Form 9061 template, using fallback:', error.message)
-    return generate9061PDFFallback(formData, applicantData)
+    return generate9061PDFFallback(formDataWithEmployer, applicantData)
   }
 }
 
@@ -959,6 +1031,8 @@ async function fill9061Template(templateBuffer, formData) {
     console.log('Using official ETA Form 9061 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = map9061FormData(formData)
+    // Ensure Box 24 signature date is always current (per-document)
+    mappedData.signatureDate = formatDateForPDF(new Date())
 
     // fillPDFTemplate handles text fields and checkboxes but NOT radio groups.
     // We load the form before flattening to set radio groups manually.
@@ -1335,11 +1409,13 @@ export function getManagerSignatureRequiredForms() {
  * Add a manager's signature to an existing PDF document.
  * Loads the PDF from Google Drive or local storage, embeds the manager signature,
  * re-saves, and updates storage.
+ * For Form 8850, also draws the employer signature date (approval date) when provided.
  * @param {number} submissionId - The form_submissions.id
  * @param {string} managerSignatureBase64 - Base64 PNG signature data
+ * @param {Date|string} [approvalDate] - Date the document is approved (used for 8850 employer signature date)
  * @returns {Promise<{ success: boolean }>}
  */
-export async function addManagerSignatureToPdf(submissionId, managerSignatureBase64) {
+export async function addManagerSignatureToPdf(submissionId, managerSignatureBase64, approvalDate) {
   const db = getDatabase()
   const submission = db.prepare(`
     SELECT id, applicant_id, form_type, pdf_filename, google_drive_id, pdf_encrypted_path, web_view_link
@@ -1402,6 +1478,23 @@ export async function addManagerSignatureToPdf(submissionId, managerSignatureBas
     page.drawImage(image, { x, y, width: drawW, height: drawH })
   }
 
+  // For Form 8850, draw the employer signature date (approval date) next to the manager signature
+  if (formType === '8850' && approvalDate) {
+    const dateStr = formatDateForPDF(approvalDate)
+    if (dateStr && placements.length > 0) {
+      const firstPlacement = placements[0]
+      const pageIndex = Math.max(0, Math.min(firstPlacement.pageIndex, pages.length - 1))
+      const page = pages[pageIndex]
+      const placeW = firstPlacement.width || 180
+      const x = firstPlacement.x ?? 72
+      const y = firstPlacement.y ?? 120
+      const font = await pdfDoc.embedFont('Helvetica')
+      const dateX = x + placeW + 10
+      const dateY = y + 8
+      page.drawText(dateStr, { x: dateX, y: dateY, size: 10, font })
+    }
+  }
+
   const updatedPdfBytes = await pdfDoc.save()
 
   // Re-upload / re-save
@@ -1439,6 +1532,28 @@ export async function addManagerSignatureToPdf(submissionId, managerSignatureBas
   return { success: true }
 }
 
+/**
+ * Validate that a PDF buffer is loadable and not corrupted.
+ * @param {Uint8Array|Buffer} pdfBytes - Generated PDF bytes
+ * @throws {Error} If the buffer is empty or not a valid PDF
+ */
+async function validatePdfBuffer(pdfBytes) {
+  if (!pdfBytes || (ArrayBuffer.isView(pdfBytes) ? pdfBytes.byteLength : pdfBytes.length) === 0) {
+    throw new Error('Generated PDF is empty')
+  }
+  const buffer = Buffer.isBuffer(pdfBytes) ? new Uint8Array(pdfBytes) : pdfBytes
+  try {
+    const doc = await PDFDocument.load(buffer)
+    const pageCount = doc.getPageCount()
+    if (pageCount === 0) {
+      throw new Error('Generated PDF has no pages')
+    }
+  } catch (err) {
+    if (err.message && (err.message.includes('empty') || err.message.includes('no pages'))) throw err
+    throw new Error(`Generated PDF is invalid or corrupted: ${err.message}`)
+  }
+}
+
 export async function generateAndSavePDF(applicantId, stepNumber, formType, formData, applicantData, existingSubmission = null) {
   let pdfBytes
 
@@ -1459,6 +1574,9 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     default:
       pdfBytes = await generateGenericPDF(formData, formType, applicantData)
   }
+
+  // Ensure generated PDF is valid before upload or DB update
+  await validatePdfBuffer(pdfBytes)
 
   // Generate filename
   const filename = generateFilename(
@@ -1514,13 +1632,22 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
       applicant,
       'application/pdf'
     )
+    if (!uploadResult?.fileId) {
+      throw new Error('Google Drive upload did not return a file ID; PDF may not have been uploaded')
+    }
     googleDriveId = uploadResult.fileId
-    webViewLink = uploadResult.webViewLink
+    webViewLink = uploadResult.webViewLink ?? null
     console.log(`PDF uploaded to Google Drive: ${googleDriveId}`)
   } else {
     // Encrypt the PDF for local storage only
     const encryptedBuffer = encryptBuffer(pdfBytes)
     localPath = await saveToLocalStorage(encryptedBuffer, filename, applicant)
+    const fullPath = path.join(LOCAL_STORAGE_DIR, localPath)
+    try {
+      await fs.access(fullPath)
+    } catch (accessErr) {
+      throw new Error(`PDF was not saved to local storage: ${accessErr.message}`)
+    }
     console.log(`PDF saved to local storage (encrypted): ${localPath} (Google Drive not configured)`)
   }
 
