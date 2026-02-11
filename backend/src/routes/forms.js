@@ -11,6 +11,8 @@ import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, 
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
 import { redactFormDataForStorage } from '../utils/redactFormData.js'
 import { createNotification, notifyAdminsAndManagers } from '../services/notificationService.js'
+import { getSetting } from '../utils/getSetting.js'
+import { sendEmail, isMailgunConfigured } from '../services/mailgunService.js'
 
 // Local storage directory for encrypted documents when Google Drive is not configured
 const LOCAL_I9_STORAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../storage/encrypted-i9-docs')
@@ -27,15 +29,37 @@ const upload = multer({
 // All routes require authentication
 router.use(requireAuth)
 
+/** Required settings keys for employer/business info (Form 8850 Page 2 and I-9/8850 rep name). Must all be set before applicants can fill forms. */
+const REQUIRED_EMPLOYER_SETTINGS = [
+  'i9_employer_authorized_rep_name',
+  '8850_employer_ein',
+  '8850_employer_address',
+  '8850_employer_city',
+  '8850_employer_state',
+  '8850_employer_zip',
+  '8850_employer_phone'
+]
+
+function isEmployerInfoConfigured() {
+  return REQUIRED_EMPLOYER_SETTINGS.every(key => {
+    const v = getSetting(key)
+    return typeof v === 'string' && v.trim() !== ''
+  })
+}
+
 /**
  * GET /api/forms/template-status
- * Returns whether signature placement is configured for each PDF form type.
- * Used by the form wizard to block steps until admin has set placement.
+ * Returns whether signature placement is configured for each PDF form type and whether employer/business info is configured.
+ * Used by the form wizard to block steps until admin has set placement and business information.
  */
 router.get('/template-status', async (req, res) => {
   try {
-    // Use shared helper so result is identical to admin setup-status (consistent for all users)
-    res.json(getSignaturePlacementStatus())
+    const placement = getSignaturePlacementStatus()
+    const employerInfoConfigured = isEmployerInfoConfigured()
+    res.json({
+      ...placement,
+      employerInfoConfigured
+    })
   } catch (error) {
     console.error('Template status error:', error)
     res.status(500).json({ error: 'Failed to retrieve template status' })
@@ -223,6 +247,21 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       })
     }
 
+    // Require attachment uploads (except voided check)
+    const files = Array.isArray(req.files) ? req.files : []
+    if (step === 3) {
+      const hasPhotoId = files.some(f => f.fieldname === 'document')
+      if (!hasPhotoId) {
+        return res.status(400).json({ error: 'Photo ID upload is required.' })
+      }
+    }
+    if (step === 4) {
+      const hasPhoto = files.some(f => f.fieldname === 'photo')
+      if (!hasPhoto) {
+        return res.status(400).json({ error: 'ID badge photo upload is required.' })
+      }
+    }
+
     // Validate all legally required fields (and I-9 uploads) before generating PDF
     if (['W4', 'I9', '8850', '9061'].includes(formType)) {
       const validation = validateSubmitFormData(formData, step, req.applicantId, db)
@@ -277,7 +316,9 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       )
     }
 
-    // During onboarding: overwrite existing submission for this step. After onboarding: insert new (duplicate).
+    // During onboarding: if user goes backwards and resubmits a form, replace and regenerate that step's
+    // submission (one row per step, PDF regenerated and re-uploaded). After onboarding (all 7 steps done),
+    // a resubmit inserts a new row (duplicate submission).
     const distinctSteps = db.prepare(`
       SELECT COUNT(DISTINCT step_number) as count FROM form_submissions WHERE applicant_id = ?
     `).get(req.applicantId)
@@ -294,7 +335,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       pdf_encrypted_path: existingForStep.pdf_encrypted_path
     } : null
 
-    // Generate PDF and upload directly to Google Drive (SSN is included here but never stored in DB)
+    // Generate PDF (validated for corruption), upload, then update or insert submission
     const pdfResult = await generateAndSavePDF(
       req.applicantId,
       step,
@@ -400,6 +441,93 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
           sourceUserId: req.applicantId,
           applicantId: req.applicantId
         })
+        const noBankEmail = getSetting('no_bank_account_email')
+        if (noBankEmail && isMailgunConfigured()) {
+          sendEmail({
+            to: noBankEmail,
+            subject: 'Applicant has no bank account',
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) indicated they do not have a bank account on the Direct Deposit form. Someone ain't got time for no bank account y'all.`
+          }).catch(err => console.error('Failed to send no-bank-account email:', err.message))
+        }
+      }
+
+      // Step 1 (W-4): Notify Judy when a W-4 is submitted, if configured
+      if (step === 1) {
+        const judyEmail = getSetting('judy_email')
+        if (judyEmail && isMailgunConfigured()) {
+          sendEmail({
+            to: judyEmail,
+            subject: `W-4 submitted: ${applicant.first_name} ${applicant.last_name}`,
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted their completed W-4.`
+          }).catch(err => console.error('Failed to send W-4 notification to Judy:', err.message))
+        }
+      }
+
+      // Step 3 (Background check): Send summary to state email if configured (on behalf of applicant)
+      if (step === 3) {
+        const stateEmail = getSetting('background_check_state_email')
+        if (stateEmail && isMailgunConfigured()) {
+          const verbiage = getSetting('background_check_state_verbiage') || 'The applicant has authorized that the information on this form be sent to the State for a background check. This submission is made on behalf of the applicant with their authorization. E-signature and authorization are on file.'
+          const sexOffender = formData.sexOffender === 'yes' ? 'Yes' : (formData.sexOffender === 'no' ? 'No' : 'Not answered')
+          const crimes7 = formData.crimesPast7Years === 'yes' ? 'Yes' : (formData.crimesPast7Years === 'no' ? 'No' : 'Not answered')
+          const sexOffenderLines = []
+          if (Array.isArray(formData.sexOffenderOffenses) && formData.sexOffenderOffenses.length > 0) {
+            formData.sexOffenderOffenses.forEach((o, i) => {
+              if (o.dateOfOffense || o.typeOfOffense || o.comments) {
+                sexOffenderLines.push(`  Offense ${i + 1} - Date: ${o.dateOfOffense || 'N/A'}, Type: ${o.typeOfOffense || 'N/A'}, Comments: ${o.comments || 'N/A'}`)
+              }
+            })
+          } else if (formData.sexOffenderDateOfOffense || formData.sexOffenderTypeOfOffense || formData.sexOffenderComments) {
+            sexOffenderLines.push(`  Sex offender details - Date: ${formData.sexOffenderDateOfOffense || 'N/A'}, Type: ${formData.sexOffenderTypeOfOffense || 'N/A'}, Comments: ${formData.sexOffenderComments || 'N/A'}`)
+          }
+          const crimes7Lines = []
+          if (Array.isArray(formData.crimes7Offenses) && formData.crimes7Offenses.length > 0) {
+            formData.crimes7Offenses.forEach((o, i) => {
+              if (o.dateOfOffense || o.typeOfOffense || o.comments) {
+                crimes7Lines.push(`  Offense ${i + 1} - Date: ${o.dateOfOffense || 'N/A'}, Type: ${o.typeOfOffense || 'N/A'}, Comments: ${o.comments || 'N/A'}`)
+              }
+            })
+          } else if (formData.convictionDateOfOffense || formData.convictionTypeOfOffense || formData.convictionComments) {
+            crimes7Lines.push(`  Past 7 years details - Date: ${formData.convictionDateOfOffense || 'N/A'}, Type: ${formData.convictionTypeOfOffense || 'N/A'}, Comments: ${formData.convictionComments || 'N/A'}`)
+          }
+          const body = [
+            `Background check form submitted for: ${applicant.first_name} ${applicant.last_name}`,
+            `Email: ${applicant.email}`,
+            `Date of birth: ${formData.dateOfBirth || 'Not provided'}`,
+            `Address: ${[formData.address, formData.city, formData.state, formData.zipCode].filter(Boolean).join(', ') || 'Not provided'}`,
+            '',
+            'Responses:',
+            `Sex offender classification: ${sexOffender}`,
+            ...sexOffenderLines,
+            `Convicted of crimes in past 7 years: ${crimes7}`,
+            ...crimes7Lines,
+            '',
+            verbiage
+          ].filter(Boolean).join('\n')
+          sendEmail({
+            to: stateEmail,
+            subject: `Background check authorization: ${applicant.first_name} ${applicant.last_name}`,
+            text: body
+          }).catch(err => console.error('Failed to send background check to state email:', err.message))
+        }
+      }
+
+      // Step 4: Send banking summary to Judy if configured
+      if (step === 4) {
+        const judyEmail = getSetting('judy_email')
+        if (judyEmail && isMailgunConfigured()) {
+          const accountType = formData.accountType === 'no-account'
+            ? 'No bank account'
+            : (formData.accountType || 'Not specified')
+          const summary = formData.accountType === 'no-account'
+            ? `Applicant selected "I DO NOT HAVE A BANK ACCOUNT".`
+            : `Account type: ${accountType}. Bank info on file in submitted Direct Deposit form.`
+          sendEmail({
+            to: judyEmail,
+            subject: `Direct Deposit submitted: ${applicant.first_name} ${applicant.last_name}`,
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted Direct Deposit.\n\n${summary}`
+          }).catch(err => console.error('Failed to send banking summary to Judy:', err.message))
+        }
       }
 
       // Document approval needed
@@ -425,6 +553,25 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
           applicantId: req.applicantId
         })
 
+        const completionEmail = getSetting('completion_notification_email')
+        if (completionEmail && isMailgunConfigured()) {
+          sendEmail({
+            to: completionEmail,
+            subject: `Onboarding completed: ${applicant.first_name} ${applicant.last_name}`,
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) has completed all onboarding forms.`
+          }).catch(err => console.error('Failed to send completion email:', err.message))
+        }
+
+        // Thanks.io card list: send DOB to configured address when onboarding completes
+        const thanksIoEmail = getSetting('thanks_io_recipient_email')
+        if (thanksIoEmail && isMailgunConfigured() && applicant.date_of_birth) {
+          sendEmail({
+            to: thanksIoEmail,
+            subject: `Thanks.io card list – DOB: ${applicant.first_name} ${applicant.last_name}`,
+            text: `Date of birth for card list: ${applicant.first_name} ${applicant.last_name}, DOB: ${applicant.date_of_birth}, Email: ${applicant.email}`
+          }).catch(err => console.error('Failed to send Thanks.io DOB email:', err.message))
+        }
+
         createNotification({
           recipientId: req.applicantId,
           type: 'onboarding_complete_confirmation',
@@ -432,6 +579,22 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
           message: 'Congratulations! You have completed all onboarding forms. Thank you for completing your paperwork.',
           link: '/dashboard'
         })
+      }
+
+      // Step 5: Send acknowledgements data to Daphne if configured
+      if (step === 5) {
+        const daphneEmail = getSetting('daphne_email')
+        if (daphneEmail && isMailgunConfigured()) {
+          const emergName = formData.emergencyContactName || '(not provided)'
+          const emergPhone = formData.emergencyContactPhone || '(not provided)'
+          const addr = [applicant.address, applicant.city, applicant.state, applicant.zip_code].filter(Boolean).join(', ') || '(see submissions)'
+          const phone = applicant.phone || '(not provided)'
+          sendEmail({
+            to: daphneEmail,
+            subject: `Acknowledgements submitted: ${applicant.first_name} ${applicant.last_name}`,
+            text: `First: ${applicant.first_name}\nLast: ${applicant.last_name}\nAddress: ${addr}\nEmail: ${applicant.email}\nPhone: ${phone}\nEmergency Contact Name: ${emergName}\nEmergency Contact Phone: ${emergPhone}`
+          }).catch(err => console.error('Failed to send acknowledgements data to Daphne:', err.message))
+        }
       }
     } catch (notifError) {
       console.error('Notification trigger error (form submit):', notifError.message)
