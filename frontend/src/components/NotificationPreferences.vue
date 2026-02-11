@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <nav class="bg-white shadow">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center space-x-3">
             <img
@@ -19,7 +19,7 @@
       </div>
     </nav>
 
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <!-- Loading -->
       <div v-if="loading" class="text-center py-12">
         <svg class="animate-spin h-8 w-8 text-primary mx-auto" fill="none" viewBox="0 0 24 24">

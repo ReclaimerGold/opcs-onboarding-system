@@ -15,20 +15,20 @@
       @saved="onSSNRePromptSaved"
     />
     <nav class="bg-white shadow">
-      <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center space-x-3">
+      <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
+        <div class="flex flex-wrap justify-between items-center gap-3 min-h-16 py-3 sm:py-0 sm:h-16">
+          <div class="flex items-center space-x-3 min-w-0">
             <img 
               src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
               alt="Optimal Prime Services Logo" 
-              class="h-10 w-auto"
+              class="h-10 w-auto flex-shrink-0"
             />
-            <h1 class="text-xl font-semibold text-gray-900">Onboarding Forms</h1>
+            <h1 class="text-lg sm:text-xl font-semibold text-gray-900 truncate">Onboarding Forms</h1>
           </div>
-          <div class="flex items-center space-x-4">
-            <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</router-link>
-            <router-link v-if="authStore.role === 'manager' || authStore.role === 'admin' || authStore.isAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900">Approvals</router-link>
-            <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+            <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Dashboard</router-link>
+            <router-link v-if="authStore.role === 'manager' || authStore.role === 'admin' || authStore.isAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Approvals</router-link>
+            <button @click="handleLogout" class="text-gray-600 hover:text-gray-900 py-2 px-3 min-h-[44px] flex items-center">Logout</button>
           </div>
         </div>
       </div>
@@ -145,7 +145,7 @@
       </div>
     </div>
     
-    <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
+    <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
       <!-- Auto-Fill Disclaimer -->
       <div class="mb-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
         <div class="flex items-start">
@@ -423,7 +423,7 @@
       <!-- Form Content - Full Width Layout with PDF Preview -->
       <div :class="hasPDFPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'flex justify-center'">
         <!-- Form Section (50% on large screens when PDF preview exists, centered when no preview) -->
-        <div :class="hasPDFPreview ? 'lg:col-span-1' : 'w-full max-w-3xl'">
+        <div :class="hasPDFPreview ? 'lg:col-span-1' : 'w-full'">
           <Step1W4Form 
             v-if="currentStep === 1" 
             :key="'step1-' + stepRemountKey"

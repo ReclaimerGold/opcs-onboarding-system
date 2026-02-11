@@ -20,29 +20,29 @@
     </div>
     <template v-else>
     <nav class="bg-white shadow">
-      <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center space-x-3">
+      <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
+        <div class="flex flex-wrap justify-between items-center gap-3 min-h-16 py-3 sm:py-0 sm:h-16">
+          <div class="flex items-center space-x-3 min-w-0">
             <img 
               src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
               alt="Optimal Prime Services Logo" 
-              class="h-10 w-auto"
+              class="h-10 w-auto flex-shrink-0"
             />
-            <h1 class="text-xl font-semibold text-gray-900">Onboarding Dashboard</h1>
+            <h1 class="text-lg sm:text-xl font-semibold text-gray-900 truncate">Onboarding Dashboard</h1>
           </div>
-          <div class="flex items-center space-x-4">
-            <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-gray-900">Admin</router-link>
-            <router-link v-if="authStore.isAdmin" to="/settings" class="text-gray-600 hover:text-gray-900">Settings</router-link>
-            <router-link v-if="isManagerOrAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900">Approvals</router-link>
-            <router-link to="/forms" class="text-gray-600 hover:text-gray-900">Forms</router-link>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+            <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Admin</router-link>
+            <router-link v-if="authStore.isAdmin" to="/settings" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Settings</router-link>
+            <router-link v-if="isManagerOrAdmin" to="/approvals" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Approvals</router-link>
+            <router-link to="/forms" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Forms</router-link>
             <NotificationBell />
-            <button @click="handleLogout" class="text-gray-600 hover:text-gray-900">Logout</button>
+            <button @click="handleLogout" class="text-gray-600 hover:text-gray-900 py-2 px-3 min-h-[44px] flex items-center">Logout</button>
           </div>
         </div>
       </div>
     </nav>
     
-    <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
+    <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
       <!-- Rejection Alert Banner -->
       <div v-if="hasRejections" class="bg-red-50 border-l-4 border-red-400 rounded-md p-4 mb-6">
         <div class="flex">

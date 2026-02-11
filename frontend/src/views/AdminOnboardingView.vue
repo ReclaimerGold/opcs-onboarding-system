@@ -16,7 +16,7 @@
     </nav>
 
     <div class="w-full overflow-x-auto">
-      <div class="mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8 min-w-[1000px] max-w-[1400px]">
+      <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
         <!-- Progress: Step X of 5 (1 = PDF templates, 2–5 = signature placement) -->
         <div class="mb-6">
           <div class="flex items-center gap-2 text-sm text-gray-600 mb-1">

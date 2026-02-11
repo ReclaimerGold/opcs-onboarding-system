@@ -1,26 +1,26 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <nav class="bg-white shadow">
-      <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center space-x-3">
+      <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10">
+        <div class="flex flex-wrap justify-between items-center gap-3 min-h-16 py-3 sm:py-0 sm:h-16">
+          <div class="flex items-center space-x-3 min-w-0">
             <img 
               src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" 
               alt="Optimal Prime Services Logo" 
-              class="h-10 w-auto"
+              class="h-10 w-auto flex-shrink-0"
             />
-            <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
+            <h1 class="text-lg sm:text-xl font-semibold text-gray-900 truncate">Settings</h1>
           </div>
-          <div class="flex items-center space-x-4">
-            <router-link to="/admin" class="text-gray-600 hover:text-gray-900">Admin</router-link>
-            <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</router-link>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+            <router-link to="/admin" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Admin</router-link>
+            <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900 py-2 px-1 min-h-[44px] flex items-center">Dashboard</router-link>
           </div>
         </div>
       </div>
     </nav>
 
     <div v-if="loadingSettings" class="sticky top-0 z-40 bg-yellow-50 border-b border-yellow-200 shadow-sm">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-3">
+      <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-3">
         <div class="flex items-center">
           <svg class="animate-spin h-5 w-5 text-yellow-500 mr-3" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -33,7 +33,7 @@
       </div>
     </div>
     
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8">
+    <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
       <!-- Configuration Status Overview -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Google Drive Status -->
@@ -862,7 +862,7 @@
 
     <!-- Folder Browser Modal -->
     <div v-if="showFolderBrowser" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col m-4 sm:m-6">
         <!-- Modal Header -->
         <div class="px-6 py-4 border-b border-gray-200">
           <div class="flex items-center justify-between">

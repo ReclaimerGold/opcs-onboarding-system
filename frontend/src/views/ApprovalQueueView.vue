@@ -2,23 +2,23 @@
   <div class="min-h-screen bg-gray-50">
     <!-- Navigation bar -->
     <nav class="bg-white shadow-sm border-b border-gray-200">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center space-x-4">
+      <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-wrap justify-between items-center gap-3 min-h-16 py-3 sm:py-0 sm:h-16">
+          <div class="flex items-center space-x-3 sm:space-x-4 min-w-0">
             <img src="https://optimalprimeservices.com/wp-content/uploads/2024/11/opcs-logo.png" alt="Optimal Prime Services Logo" class="h-8 w-auto" />
             <h1 class="text-xl font-bold text-primary">Document Approvals</h1>
           </div>
-          <div class="flex items-center space-x-4">
-            <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-primary text-sm font-medium">Admin</router-link>
-            <router-link to="/dashboard" class="text-gray-600 hover:text-primary text-sm font-medium">Dashboard</router-link>
-            <router-link to="/forms" class="text-gray-600 hover:text-primary text-sm font-medium">Forms</router-link>
-            <button @click="logout" class="text-gray-600 hover:text-red-600 text-sm font-medium">Logout</button>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+            <router-link v-if="authStore.isAdmin" to="/admin" class="text-gray-600 hover:text-primary text-sm font-medium py-2 px-1 min-h-[44px] flex items-center">Admin</router-link>
+            <router-link to="/dashboard" class="text-gray-600 hover:text-primary text-sm font-medium py-2 px-1 min-h-[44px] flex items-center">Dashboard</router-link>
+            <router-link to="/forms" class="text-gray-600 hover:text-primary text-sm font-medium py-2 px-1 min-h-[44px] flex items-center">Forms</router-link>
+            <button @click="logout" class="text-gray-600 hover:text-red-600 text-sm font-medium py-2 px-3 min-h-[44px] flex items-center">Logout</button>
           </div>
         </div>
       </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <!-- Stats cards -->
       <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         <div class="bg-white rounded-lg shadow p-4">
@@ -92,7 +92,7 @@
       </div>
 
       <!-- Approvals table -->
-      <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+      <div v-else class="bg-white rounded-lg shadow overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
             <tr>

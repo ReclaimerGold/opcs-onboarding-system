@@ -9,6 +9,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Mobile: prevent horizontal overflow from wide content (e.g. tables); tables use overflow-x-auto */
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.has-session-footer #app {
@@ -17,5 +20,23 @@ body.has-session-footer #app {
 
 #app {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   background-color: #ffffff;
+}
+
+/* Mobile: touch-friendly minimum tap targets for interactive elements */
+@media (max-width: 640px) {
+
+  select,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  textarea {
+    min-height: 44px;
+    font-size: 16px;
+    /* prevents iOS zoom on focus */
+  }
 }
