@@ -247,10 +247,10 @@ router.get('/:id/pdf', requireManager, async (req, res) => {
 
     if (approval.google_drive_id) {
       try {
-        const encryptedBuffer = await downloadFromGoogleDrive(approval.google_drive_id)
-        pdfBuffer = decryptBuffer(encryptedBuffer)
+        // Google Drive stores raw PDF (not encrypted); use download as-is
+        pdfBuffer = await downloadFromGoogleDrive(approval.google_drive_id)
       } catch (downloadError) {
-        console.error('Download/decryption error:', downloadError)
+        console.error('Download error (Google Drive):', downloadError)
         return res.status(500).json({ error: 'Failed to retrieve document from Google Drive' })
       }
     } else if (approval.pdf_encrypted_path) {
@@ -328,9 +328,10 @@ router.post('/:id/approve', requireManager, async (req, res) => {
       return res.status(400).json({ error: 'Manager signature is required. Please set up your signature first.' })
     }
 
-    // Embed manager signature on PDF
+    // Embed manager signature on PDF (pass approval date for 8850 employer signature date)
+    const approvalDate = new Date()
     try {
-      await addManagerSignatureToPdf(approval.submission_id, signatureData)
+      await addManagerSignatureToPdf(approval.submission_id, signatureData, approvalDate)
     } catch (sigError) {
       console.error('Manager signature embedding error:', sigError)
       return res.status(500).json({ error: `Failed to sign document: ${sigError.message}` })
