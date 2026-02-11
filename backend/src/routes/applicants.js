@@ -2,6 +2,7 @@ import express from 'express'
 import { requireAuth } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
 import { auditLog } from '../services/auditService.js'
+import { getClientIp } from '../middleware/clientIp.js'
 
 const router = express.Router()
 
@@ -31,7 +32,7 @@ router.get('/me', async (req, res) => {
       action: 'VIEW',
       resourceType: 'APPLICANT',
       resourceId: req.applicantId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent')
     })
 
@@ -79,7 +80,7 @@ router.put('/me', async (req, res) => {
       action: 'UPDATE',
       resourceType: 'APPLICANT',
       resourceId: req.applicantId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { fields: Object.keys(req.body) }
     })

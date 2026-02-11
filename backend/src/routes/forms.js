@@ -12,6 +12,7 @@ import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
 import { redactFormDataForStorage } from '../utils/redactFormData.js'
 import { createNotification, notifyAdminsAndManagers } from '../services/notificationService.js'
 import { getSetting } from '../utils/getSetting.js'
+import { getClientIp } from '../middleware/clientIp.js'
 import { sendEmail, isMailgunConfigured } from '../services/mailgunService.js'
 
 // Local storage directory for encrypted documents when Google Drive is not configured
@@ -279,7 +280,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         req.applicantId,
         'SSN_COLLECTION',
         'Consented to SSN collection for ' + formType,
-        req.ip
+        getClientIp(req)
       )
     }
 
@@ -355,7 +356,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
         action: 'DOCUMENT_PENDING_APPROVAL_STORED',
         resourceType: 'FORM_SUBMISSION',
         resourceId: pdfResult.submissionId,
-        ipAddress: req.ip,
+        ipAddress: getClientIp(req),
         userAgent: req.get('user-agent'),
         details: { step, formType, filename: pdfResult.filename, note: 'PDF stored until manager signoff; blob will be erased after upload to Google Drive.' }
       })
@@ -428,7 +429,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       action: 'SUBMIT_FORM',
       resourceType: 'FORM',
       resourceId: pdfResult.submissionId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         step,
@@ -823,7 +824,7 @@ router.get('/submissions/:id/view', async (req, res) => {
       action: 'VIEW_SUBMISSION',
       resourceType: 'FORM_SUBMISSION',
       resourceId: parseInt(req.params.id),
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent')
     })
 
@@ -870,7 +871,7 @@ router.post('/draft/:step', async (req, res) => {
       action: 'SAVE_DRAFT',
       resourceType: 'FORM',
       resourceId: step,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { step }
     })
@@ -1174,7 +1175,7 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       action: 'UPLOAD_DOCUMENT',
       resourceType: 'I9_DOCUMENT',
       resourceId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         documentType,
@@ -1299,7 +1300,7 @@ router.get('/i9/documents/:id/view', async (req, res) => {
       action: 'VIEW_DOCUMENT',
       resourceType: 'I9_DOCUMENT',
       resourceId: parseInt(req.params.id),
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent')
     })
 

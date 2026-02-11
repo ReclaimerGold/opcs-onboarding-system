@@ -9,6 +9,7 @@ import { auditLog } from '../services/auditService.js'
 import { downloadFromGoogleDrive } from '../services/googleDriveService.js'
 import { decryptBuffer } from '../services/encryptionService.js'
 import { createNotification } from '../services/notificationService.js'
+import { getClientIp } from '../middleware/clientIp.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -278,7 +279,7 @@ router.get('/:id/pdf', requireManager, async (req, res) => {
       action: 'VIEW_APPROVAL_PDF',
       resourceType: 'DOCUMENT_APPROVAL',
       resourceId: approval.id,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { filename: approval.pdf_filename }
     })
@@ -359,7 +360,7 @@ router.post('/:id/approve', requireManager, async (req, res) => {
       action: 'APPROVE_DOCUMENT',
       resourceType: 'DOCUMENT_APPROVAL',
       resourceId: approvalId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         submissionId: approval.submission_id,
@@ -444,7 +445,7 @@ router.post('/:id/reject', requireManager, async (req, res) => {
       action: 'REJECT_DOCUMENT',
       resourceType: 'DOCUMENT_APPROVAL',
       resourceId: approvalId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         submissionId: approval.submission_id,

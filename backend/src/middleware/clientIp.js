@@ -44,10 +44,10 @@ function getClientIpFromHeaders(req) {
 }
 
 /**
- * Middleware that sets req.ip to the real client IP when the request comes from a trusted proxy.
- * When the app is behind a reverse proxy (e.g. nginx), the direct connection is from the proxy;
- * configure "Trusted proxy IP addresses" in Settings so we use X-Forwarded-For / X-Real-IP
- * for audit logs, rate limiting, and security.
+ * Middleware that sets req.clientIp to the real client IP when the request comes from a trusted proxy.
+ * Express's req.ip is read-only, so we use req.clientIp; use getClientIp(req) when reading.
+ * When the app is behind a reverse proxy (e.g. nginx), configure "Trusted proxy IP addresses"
+ * in Settings so we use X-Forwarded-For / X-Real-IP for audit logs, rate limiting, and security.
  * Must run before rate limiting and audit middleware.
  */
 export function clientIpMiddleware(req, res, next) {
@@ -58,10 +58,19 @@ export function clientIpMiddleware(req, res, next) {
 
   if (trustedIps.length > 0 && directIp && trustedIps.includes(directIp)) {
     const clientIp = getClientIpFromHeaders(req)
-    req.ip = clientIp || directIp
+    req.clientIp = clientIp || directIp
   } else {
-    req.ip = directIp || remote || ''
+    req.clientIp = directIp || remote || ''
   }
 
   next()
+}
+
+/**
+ * Get the resolved client IP for audit/rate-limit (proxy-aware when clientIpMiddleware ran).
+ * @param {import('express').Request} req
+ * @returns {string}
+ */
+export function getClientIp(req) {
+  return req.clientIp ?? req.ip ?? ''
 }

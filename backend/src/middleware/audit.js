@@ -1,4 +1,5 @@
 import { auditLog } from '../services/auditService.js'
+import { getClientIp } from './clientIp.js'
 
 /**
  * Middleware to automatically audit API requests
@@ -6,21 +7,21 @@ import { auditLog } from '../services/auditService.js'
 export function auditMiddleware(req, res, next) {
   // Store original end function
   const originalEnd = res.end
-  
+
   // Override end to log after response
-  res.end = function(...args) {
+  res.end = function (...args) {
     // Only audit successful requests (2xx status codes)
     if (res.statusCode >= 200 && res.statusCode < 300) {
       const action = `${req.method} ${req.path}`
       const resourceType = getResourceType(req.path)
       const resourceId = extractResourceId(req)
-      
+
       auditLog({
         userId: req.session?.applicantId || null,
         action,
         resourceType,
         resourceId,
-        ipAddress: req.ip,
+        ipAddress: getClientIp(req),
         userAgent: req.get('user-agent'),
         details: {
           method: req.method,
@@ -31,11 +32,11 @@ export function auditMiddleware(req, res, next) {
         console.error('Audit middleware error:', err)
       })
     }
-    
+
     // Call original end
     originalEnd.apply(res, args)
   }
-  
+
   next()
 }
 
@@ -51,10 +52,10 @@ function extractResourceId(req) {
   // Try to extract ID from URL params or body
   const urlMatch = req.path.match(/\/(\d+)/)
   if (urlMatch) return parseInt(urlMatch[1])
-  
+
   if (req.body && req.body.id) return req.body.id
   if (req.body && req.body.applicantId) return req.body.applicantId
-  
+
   return null
 }
 

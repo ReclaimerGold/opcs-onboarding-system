@@ -21,7 +21,7 @@ import notificationRoutes from './routes/notifications.js'
 import { initializeDatabase } from './database/init.js'
 import { startRetentionScheduler } from './services/retentionService.js'
 import { auditMiddleware } from './middleware/audit.js'
-import { clientIpMiddleware } from './middleware/clientIp.js'
+import { clientIpMiddleware, getClientIp } from './middleware/clientIp.js'
 import { initializeTemplates, updateAllTemplates } from './services/pdfTemplateService.js'
 import { sendDigestEmails, checkStaleOnboarding, checkOnboardingReminders, checkDocumentRetention } from './services/notificationService.js'
 
@@ -92,7 +92,7 @@ app.use(session({
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 500, // requests per window per key (higher for form wizard: progress, drafts, applicant, i9 docs, etc.)
-  keyGenerator: (req) => (req.session?.applicantId ? `user-${req.session.applicantId}` : req.ip),
+  keyGenerator: (req) => (req.session?.applicantId ? `user-${req.session.applicantId}` : getClientIp(req)),
   standardHeaders: true,
   legacyHeaders: false
 })

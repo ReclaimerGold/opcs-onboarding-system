@@ -6,6 +6,7 @@ import { getDatabase } from '../database/init.js'
 import { sendPasswordResetEmail, sendEmail, isMailgunConfigured } from '../services/mailgunService.js'
 import { createNotification, notifyAdminsAndManagers } from '../services/notificationService.js'
 import { getSetting } from '../utils/getSetting.js'
+import { getClientIp } from '../middleware/clientIp.js'
 
 const router = express.Router()
 
@@ -73,7 +74,7 @@ router.post('/signup', async (req, res) => {
       action: 'SIGNUP',
       resourceType: 'AUTH',
       resourceId: applicant.id,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { email: applicant.email, isAdmin: applicant.is_admin === 1, isFirstUser: isFirstUser() }
     })
@@ -81,6 +82,25 @@ router.post('/signup', async (req, res) => {
     // Reload applicant to ensure we have the latest data including is_admin
     const db = getDatabase()
     const fullApplicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(applicant.id)
+
+    // If new user is admin with no password, require password setup so they are sent to /password-setup
+    const adminNeedsPasswordSetup = fullApplicant.is_admin === 1 && (!fullApplicant.password_hash || fullApplicant.password_hash === '')
+    if (adminNeedsPasswordSetup) {
+      return res.json({
+        success: true,
+        requiresPasswordSetup: true,
+        isAdmin: true,
+        applicant: {
+          id: fullApplicant.id,
+          firstName: fullApplicant.first_name,
+          lastName: fullApplicant.last_name,
+          email: fullApplicant.email,
+          isAdmin: true,
+          role: fullApplicant.role || 'admin'
+        },
+        isNewUser: true
+      })
+    }
 
     // --- Notification triggers ---
     try {
@@ -180,7 +200,7 @@ router.post('/login', async (req, res) => {
           lastName,
           email,
           0, // failed
-          req.ip,
+          getClientIp(req),
           req.get('user-agent'),
           'Account not found',
           null // no applicant_id for failed attempts
@@ -194,19 +214,19 @@ router.post('/login', async (req, res) => {
         const recentFailures = db.prepare(`
           SELECT COUNT(*) as count FROM login_attempts
           WHERE ip_address = ? AND success = 0 AND created_at > datetime('now', '-1 hour')
-        `).get(req.ip)
+        `).get(getClientIp(req))
         if (recentFailures && recentFailures.count >= 5) {
           // Only notify if we haven't already in the past hour
           const recentAlert = db.prepare(`
             SELECT id FROM notifications
             WHERE type = 'failed_login_security' AND message LIKE ? AND created_at > datetime('now', '-1 hour')
             LIMIT 1
-          `).get(`%${req.ip}%`)
+          `).get(`%${getClientIp(req)}%`)
           if (!recentAlert) {
             notifyAdminsAndManagers({
               type: 'failed_login_security',
               title: 'Failed Login Security Alert',
-              message: `${recentFailures.count} failed login attempts from IP ${req.ip} in the past hour.`,
+              message: `${recentFailures.count} failed login attempts from IP ${getClientIp(req)} in the past hour.`,
               link: '/admin'
             })
           }
@@ -233,7 +253,7 @@ router.post('/login', async (req, res) => {
           lastName,
           email,
           0,
-          req.ip,
+          getClientIp(req),
           req.get('user-agent'),
           'Account deactivated',
           applicant.id
@@ -338,7 +358,7 @@ router.post('/login', async (req, res) => {
             lastName,
             email,
             0, // failed
-            req.ip,
+            getClientIp(req),
             req.get('user-agent'),
             'Invalid password',
             applicant.id
@@ -352,18 +372,18 @@ router.post('/login', async (req, res) => {
           const recentFailures = db.prepare(`
             SELECT COUNT(*) as count FROM login_attempts
             WHERE ip_address = ? AND success = 0 AND created_at > datetime('now', '-1 hour')
-          `).get(req.ip)
+          `).get(getClientIp(req))
           if (recentFailures && recentFailures.count >= 5) {
             const recentAlert = db.prepare(`
               SELECT id FROM notifications
               WHERE type = 'failed_login_security' AND message LIKE ? AND created_at > datetime('now', '-1 hour')
               LIMIT 1
-            `).get(`%${req.ip}%`)
+            `).get(`%${getClientIp(req)}%`)
             if (!recentAlert) {
               notifyAdminsAndManagers({
                 type: 'failed_login_security',
                 title: 'Failed Login Security Alert',
-                message: `${recentFailures.count} failed login attempts from IP ${req.ip} in the past hour.`,
+                message: `${recentFailures.count} failed login attempts from IP ${getClientIp(req)} in the past hour.`,
                 link: '/admin'
               })
             }
@@ -392,7 +412,7 @@ router.post('/login', async (req, res) => {
         lastName,
         email,
         1, // success
-        req.ip,
+        getClientIp(req),
         req.get('user-agent'),
         null,
         applicant.id
@@ -422,7 +442,7 @@ router.post('/login', async (req, res) => {
       action: 'LOGIN',
       resourceType: 'AUTH',
       resourceId: applicant.id,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { email: applicant.email, completedSteps }
     })
@@ -466,7 +486,7 @@ router.post('/logout', async (req, res) => {
       userId: req.session.applicantId,
       action: 'LOGOUT',
       resourceType: 'AUTH',
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent')
     })
   }
@@ -593,7 +613,7 @@ router.post('/ssn-consent', async (req, res) => {
         req.session.applicantId,
         'SSN_COLLECTION',
         'Consented to SSN collection (dashboard onboarding)',
-        req.ip
+        getClientIp(req)
       )
     }
 
@@ -633,7 +653,7 @@ router.post('/save-signature', async (req, res) => {
       action: 'SIGNATURE_SAVED',
       resourceType: 'APPLICANT',
       resourceId: req.session.applicantId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { note: 'User onboarding signature saved' }
     })
@@ -772,7 +792,7 @@ router.post('/set-password', async (req, res) => {
       action: 'SET_PASSWORD',
       resourceType: 'AUTH',
       resourceId: req.session.applicantId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { isInitialSetup: !applicant.password_hash, isAdmin: applicant.is_admin === 1 }
     })
@@ -868,7 +888,7 @@ router.post('/change-password', async (req, res) => {
       action: 'CHANGE_PASSWORD',
       resourceType: 'AUTH',
       resourceId: req.session.applicantId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent')
     })
 
@@ -964,7 +984,7 @@ router.post('/forgot-password', async (req, res) => {
         action: 'PASSWORD_RESET_REQUESTED',
         resourceType: 'AUTH',
         resourceId: applicant.id,
-        ipAddress: req.ip,
+        ipAddress: getClientIp(req),
         userAgent: req.get('user-agent'),
         details: { email: applicant.email }
       })
@@ -1116,7 +1136,7 @@ router.post('/reset-password', async (req, res) => {
       action: 'PASSWORD_RESET_COMPLETED',
       resourceType: 'AUTH',
       resourceId: matchedToken.applicant_id,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent')
     })
 

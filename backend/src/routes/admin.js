@@ -1,5 +1,6 @@
 import express from 'express'
 import { requireAdmin } from '../middleware/auth.js'
+import { getClientIp } from '../middleware/clientIp.js'
 import { getDatabase } from '../database/init.js'
 import { auditLog } from '../services/auditService.js'
 import { exec } from 'child_process'
@@ -236,7 +237,7 @@ router.get('/users', async (req, res) => {
       action: 'VIEW',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'users', filters: req.query }
     })
@@ -344,7 +345,7 @@ router.get('/login-attempts', async (req, res) => {
       action: 'VIEW',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'login-attempts', filters: req.query }
     })
@@ -493,7 +494,7 @@ router.get('/onboarding-status', async (req, res) => {
       action: 'VIEW',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'onboarding-status', filters: req.query }
     })
@@ -617,7 +618,7 @@ router.get('/audit-logs', async (req, res) => {
       action: 'VIEW',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'audit-logs', filters: req.query }
     })
@@ -766,7 +767,7 @@ router.put('/users/:id/role', async (req, res) => {
       action: 'UPDATE_USER_ROLE',
       resourceType: 'USER',
       resourceId: userId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         targetUserId: userId,
@@ -835,7 +836,7 @@ router.delete('/users/:id', async (req, res) => {
       action: 'DEACTIVATE_USER',
       resourceType: 'USER',
       resourceId: userId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         targetUserId: userId,
@@ -908,7 +909,7 @@ router.put('/users/:id/admin', async (req, res) => {
       action: isAdmin ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN',
       resourceType: 'USER',
       resourceId: userId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         targetUserId: userId,
@@ -1052,7 +1053,7 @@ router.get('/submissions', async (req, res) => {
       action: 'VIEW',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'submissions', filters: req.query }
     })
@@ -1190,7 +1191,7 @@ router.get('/i9-documents', async (req, res) => {
       action: 'VIEW',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'i9-documents', filters: req.query }
     })
@@ -1254,7 +1255,7 @@ router.post('/normalize-applicants', async (req, res) => {
       action: 'NORMALIZE_APPLICANTS',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { totalApplicants: applicants.length, updated }
     })
@@ -1320,7 +1321,7 @@ router.post('/fix-admin-assignments', async (req, res) => {
       action: 'FIX_ADMIN_ASSIGNMENTS',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { totalApplicants: applicants.length, fixed, firstUserId }
     })
@@ -1430,7 +1431,7 @@ router.get('/pdf-templates/download-stream', async (req, res) => {
       action: 'DOWNLOAD_PDF_TEMPLATES',
       resourceType: 'PDF_TEMPLATES',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'pdf-templates/download-stream' }
     })
@@ -1456,7 +1457,7 @@ router.get('/pdf-templates/status', async (req, res) => {
       action: 'VIEW',
       resourceType: 'PDF_TEMPLATES',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { endpoint: 'pdf-templates/status' }
     })
@@ -1509,7 +1510,7 @@ router.post('/pdf-templates/update', async (req, res) => {
       action: 'UPDATE_PDF_TEMPLATES',
       resourceType: 'PDF_TEMPLATES',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         formType: formType || 'all',
@@ -1560,7 +1561,7 @@ router.get('/pdf-templates/:formType/preview', async (req, res) => {
       action: 'PREVIEW_PDF_TEMPLATE',
       resourceType: 'PDF_TEMPLATES',
       resourceId: formType,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { formType, type: 'current' }
     })
@@ -1598,7 +1599,7 @@ router.get('/pdf-templates/:formType/archive', async (req, res) => {
       action: 'VIEW',
       resourceType: 'PDF_TEMPLATES',
       resourceId: formType,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { formType, endpoint: 'archive-list' }
     })
@@ -1645,7 +1646,7 @@ router.get('/pdf-templates/:formType/archive/:filename', async (req, res) => {
       action: 'PREVIEW_PDF_TEMPLATE',
       resourceType: 'PDF_TEMPLATES',
       resourceId: formType,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { formType, type: 'archived', filename }
     })
@@ -1754,7 +1755,7 @@ router.put('/settings/signature-placement', async (req, res) => {
       action: 'UPDATE',
       resourceType: 'SETTINGS',
       resourceId: key,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { formType, count: placements.length }
     })
@@ -1905,7 +1906,7 @@ router.post('/tests/run', async (req, res) => {
       action: 'RUN_TESTS',
       resourceType: 'SYSTEM',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         backendSuccess: results.backend?.success,
@@ -1943,7 +1944,7 @@ router.get('/compliance-check', async (req, res) => {
       action: 'COMPLIANCE_CHECK',
       resourceType: 'SYSTEM',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: {
         complianceScore: complianceReport.summary.complianceScore,
@@ -2083,7 +2084,7 @@ router.get('/onboarding-status/export', async (req, res) => {
       action: 'EXPORT',
       resourceType: 'ONBOARDING_STATUS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: data.length }
     })
@@ -2177,7 +2178,7 @@ router.get('/submissions/export', async (req, res) => {
       action: 'EXPORT',
       resourceType: 'FORM_SUBMISSIONS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: submissions.length }
     })
@@ -2273,7 +2274,7 @@ router.get('/i9-documents/export', async (req, res) => {
       action: 'EXPORT',
       resourceType: 'I9_DOCUMENTS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: documents.length }
     })
@@ -2368,7 +2369,7 @@ router.get('/audit-logs/export', async (req, res) => {
       action: 'EXPORT',
       resourceType: 'AUDIT_LOGS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: logs.length }
     })
@@ -2450,7 +2451,7 @@ router.get('/login-attempts/export', async (req, res) => {
       action: 'EXPORT',
       resourceType: 'LOGIN_ATTEMPTS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { filters: req.query, recordCount: attempts.length }
     })
@@ -2619,7 +2620,7 @@ router.post('/regenerate-pdfs', async (req, res) => {
       action: 'REGENERATE_PDFS',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { total: results.total, success: results.success, failed: results.failed }
     })
@@ -2660,7 +2661,7 @@ router.post('/fix-gdrive-permissions', async (req, res) => {
       action: 'FIX_GDRIVE_PERMISSIONS',
       resourceType: 'ADMIN',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: results
     })
@@ -2741,7 +2742,7 @@ router.put('/settings/manager-signature-placement', async (req, res) => {
       action: 'UPDATE_MANAGER_SIGNATURE_PLACEMENT',
       resourceType: 'SETTINGS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { formType }
     })
@@ -2801,7 +2802,7 @@ router.put('/settings/manager-signature-required', async (req, res) => {
       action: 'UPDATE_MANAGER_SIGNATURE_REQUIRED',
       resourceType: 'SETTINGS',
       resourceId: null,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { forms: filtered }
     })
@@ -2848,7 +2849,7 @@ router.put('/users/:id/assign-manager', async (req, res) => {
       action: 'ASSIGN_MANAGER',
       resourceType: 'APPLICANT',
       resourceId: applicantId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.get('user-agent'),
       details: { managerId }
     })
