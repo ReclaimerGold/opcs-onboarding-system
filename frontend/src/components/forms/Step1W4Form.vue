@@ -15,7 +15,11 @@
       </p>
       <p class="text-xs text-gray-700">
         If you want to view form w-4 you can also 
-        <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf" target="_blank" class="text-primary hover:underline">click here to go to the IRS Website</a>.
+        <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">click here to go to the IRS Website</a>.
+      </p>
+      <p v-if="w4EducationalLinkUrl" class="text-xs text-gray-700 mt-2">
+        <a :href="w4EducationalLinkUrl" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">{{ w4EducationalLinkLabel || 'For Educational Purposes only' }}</a>
+        — opens in a new window.
       </p>
     </div>
     
@@ -155,6 +159,7 @@
             />
             <p class="mt-1 text-xs text-gray-500">Pre-filled from signup - cannot be changed. We use Google for login access.</p>
             <p v-if="emailError" class="mt-1 text-xs text-red-600">{{ emailError }}</p>
+            <NonGmailEmailNotice :email="formData.email" />
           </div>
           
           <div>
@@ -428,7 +433,7 @@
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
           :title="getSubmitButtonTooltip()"
         >
-          <span v-if="loading">Submitting...</span>
+          <span v-if="loading">Generating PDF & saving…</span>
           <span v-else>Continue to Step 2</span>
         </button>
         <div v-if="getSubmitButtonTooltip()" class="mt-2 text-xs text-red-600">
@@ -442,6 +447,7 @@
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import SSNConsentModal from '../SSNConsentModal.vue'
+import NonGmailEmailNotice from '../NonGmailEmailNotice.vue'
 import AddressSearch from '../ui/AddressSearch.vue'
 import SignaturePad from '../ui/SignaturePad.vue'
 import api from '../../services/api.js'
@@ -487,6 +493,8 @@ const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
 // Track if phone/email have been set (to lock them)
 const phoneLocked = ref(false)
 const emailLocked = ref(false)
+const w4EducationalLinkUrl = ref('')
+const w4EducationalLinkLabel = ref('')
 
 // Draft functionality
 const { isSaving, lastSaved, saveDraft } = useFormDraft(1, formData)
@@ -565,6 +573,17 @@ onMounted(async () => {
     } catch (err) {
       console.error('Error loading Google Address Validation API key:', err)
     }
+  }
+
+  // W-4 educational link (optional, from admin settings)
+  try {
+    const formOptions = await api.get('/settings/form-options')
+    if (formOptions.data?.w4_educational_link_url) {
+      w4EducationalLinkUrl.value = formOptions.data.w4_educational_link_url
+      w4EducationalLinkLabel.value = formOptions.data.w4_educational_link_label || 'For Educational Purposes only'
+    }
+  } catch (err) {
+    console.error('Error loading form options:', err)
   }
   
   // Load SSN from cookie if available (temporary storage, expires in 1 hour)

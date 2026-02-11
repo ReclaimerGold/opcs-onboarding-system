@@ -174,6 +174,7 @@
               :class="emailLocked ? 'w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed' : 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary'"
             />
             <p v-if="emailLocked" class="mt-1 text-xs text-gray-500">Pre-filled from signup</p>
+            <NonGmailEmailNotice :email="formData.email" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -191,36 +192,90 @@
         </div>
         
         <div class="mt-6 space-y-4">
+          <p class="text-sm font-medium text-gray-700 mb-2">Check all that apply (targeted group / certification):</p>
           <div>
             <label class="flex items-start">
               <input v-model="formData.question1" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
-              <span class="text-sm">Check here if you received a conditional certification from the state workforce agency</span>
+              <span class="text-sm"><strong>1.</strong> Check here if you received a conditional certification from the state workforce agency</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question1 }}</span>
+              </span>
             </label>
           </div>
           <div>
             <label class="flex items-start">
               <input v-model="formData.question2" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
-              <span class="text-sm">Check here if any of the following statements apply to you (TANF, SNAP, veteran, etc.)</span>
+              <span class="text-sm"><strong>2.</strong> Check here if any of the following statements apply to you (TANF, SNAP, veteran, etc.)</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question2 }}</span>
+              </span>
             </label>
           </div>
           <div>
             <label class="flex items-start">
               <input v-model="formData.question3" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
-              <span class="text-sm">Check here if you are a veteran and were unemployed for 6+ months during the past year</span>
+              <span class="text-sm"><strong>3.</strong> Check here if you are a veteran and were unemployed for 6+ months during the past year</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question3 }}</span>
+              </span>
             </label>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Have You Ever Worked For This Employer Before?</label>
-            <div class="space-y-2">
-              <label class="flex items-center">
-                <input v-model="formData.previousEmployment" type="radio" value="yes" class="mr-2 text-primary focus:ring-primary" />
-                <span>Yes</span>
-              </label>
-              <label class="flex items-center">
-                <input v-model="formData.previousEmployment" type="radio" value="no" class="mr-2 text-primary focus:ring-primary" />
-                <span>No</span>
-              </label>
-            </div>
+            <label class="flex items-start">
+              <input v-model="formData.question4" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
+              <span class="text-sm"><strong>4.</strong> Check here if you are a designated community resident (age 18–39, Rural Renewal County or Empowerment Zone)</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question4 }}</span>
+              </span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-start">
+              <input v-model="formData.question5" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
+              <span class="text-sm"><strong>5.</strong> Check here if you were referred by a vocational rehabilitation agency (state, Employment Network, or VA)</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question5 }}</span>
+              </span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-start">
+              <input v-model="formData.question6" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
+              <span class="text-sm"><strong>6.</strong> Check here if you are a qualified summer youth employee (age 16–17, Empowerment Zone)</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question6 }}</span>
+              </span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-start">
+              <input v-model="formData.question7" type="checkbox" class="mt-1 mr-2 text-primary focus:ring-primary" />
+              <span class="text-sm"><strong>7.</strong> Check here if you are a qualified SNAP (food stamps) recipient</span>
+              <span class="ml-1 relative group flex-shrink-0">
+                <svg class="inline h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Form 8850 explanation">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="absolute left-0 bottom-full mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">{{ tooltips.question7 }}</span>
+              </span>
+            </label>
           </div>
         </div>
       </div>
@@ -261,7 +316,7 @@
           :disabled="!ssnConsented || loading || missingRequiredFields.length > 0"
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
         >
-          <span v-if="loading">Submitting...</span>
+          <span v-if="loading">Generating PDF & saving…</span>
           <span v-else>Continue to Step 7</span>
         </button>
       </div>
@@ -272,6 +327,7 @@
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import SSNConsentModal from '../SSNConsentModal.vue'
+import NonGmailEmailNotice from '../NonGmailEmailNotice.vue'
 import SignaturePad from '../ui/SignaturePad.vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
@@ -285,6 +341,17 @@ const props = defineProps({
 })
 const emit = defineEmits(['submitted', 'form-data-change'])
 const { applicantData, loading: loadingApplicant } = useApplicantData()
+
+// Verbatim / official wording from IRS Form 8850 instructions (Instructions for Form 8850, Members of Targeted Groups)
+const tooltips = {
+  question1: 'Conditional certification: You received a conditional certification (e.g., ETA Form 9062) from a participating agency (for example, the Jobs Corps).',
+  question2: 'Member of a targeted group: You are described in one of the targeted groups on Form 8850, such as Qualified IV-A (TANF) recipient, Qualified veteran, Qualified ex-felon, Designated community resident, Vocational rehabilitation referral, Summer youth employee, SNAP recipient, SSI recipient, Long-term family assistance recipient, or Qualified long-term unemployment recipient. See instructions for each group.',
+  question3: 'Qualified veteran (unemployed 6+ months): A veteran who is unemployed for a period or periods totaling at least 6 months (whether or not consecutive) in the 1-year period ending on the hiring date. Must have served on active duty (not including training) for more than 180 days or have been discharged for a service-connected disability; no period of active duty of more than 90 days that ended during the 60-day period ending on the hiring date.',
+  question4: 'Designated community resident: An individual who is at least age 18 but not yet age 40 on the hiring date and who lives within an empowerment zone or rural renewal county (as defined in the Form 8850 instructions).',
+  question5: 'Vocational rehabilitation referral: An individual who has a physical or mental disability resulting in a substantial handicap to employment and who was referred to the employer upon completion of (or while receiving) rehabilitation services by a rehabilitation agency approved by the state, an employment network under the Ticket to Work program, or the Department of Veterans Affairs.',
+  question6: 'Summer youth employee: An individual who (1) performs services for the employer between May 1 and September 15, (2) is at least age 16 but not yet age 18 on the hiring date (or on May 1 if later), (3) has never worked for the employer before, and (4) lives within an empowerment zone.',
+  question7: 'Recipient of SNAP benefits (food stamps): An individual who is at least age 18 but not yet age 40 on the hiring date and is a member of a family that has received SNAP benefits for the 6-month period ending on the hiring date, or that is no longer eligible under section 6(o) but received SNAP for at least 3 months of the 5-month period ending on the hiring date.'
+}
 
 const formData = ref({
   firstName: '',
@@ -302,7 +369,10 @@ const formData = ref({
   question1: false,
   question2: false,
   question3: false,
-  previousEmployment: 'no',
+  question4: false,
+  question5: false,
+  question6: false,
+  question7: false,
   signatureData: ''
 })
 
