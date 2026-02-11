@@ -3,8 +3,9 @@ import crypto from 'crypto'
 import { findApplicantByCredentials, createApplicant, isFirstUser, verifyPassword, checkPasswordSet, requireAuth, hashPassword } from '../middleware/auth.js'
 import { auditLog } from '../services/auditService.js'
 import { getDatabase } from '../database/init.js'
-import { sendPasswordResetEmail, isMailgunConfigured } from '../services/mailgunService.js'
+import { sendPasswordResetEmail, sendEmail, isMailgunConfigured } from '../services/mailgunService.js'
 import { createNotification, notifyAdminsAndManagers } from '../services/notificationService.js'
+import { getSetting } from '../utils/getSetting.js'
 
 const router = express.Router()
 
@@ -104,6 +105,14 @@ router.post('/signup', async (req, res) => {
           sourceUserId: fullApplicant.id,
           applicantId: fullApplicant.id
         })
+        const nonGmailAlertEmail = getSetting('non_gmail_alert_email')
+        if (nonGmailAlertEmail && isMailgunConfigured()) {
+          sendEmail({
+            to: nonGmailAlertEmail,
+            subject: 'Non-Gmail signup: manual update may be needed',
+            text: `${fullApplicant.first_name} ${fullApplicant.last_name} signed up with a non-Gmail address: ${fullApplicant.email}. You may need to manually update things in the admin panel.`
+          }).catch(err => console.error('Failed to send non-Gmail alert email:', err.message))
+        }
       }
 
       // Send welcome notification to the applicant
@@ -162,20 +171,23 @@ router.post('/login', async (req, res) => {
     if (!applicant) {
       // Track login attempt (before checking if user exists)
       const db = getDatabase()
-      // Log failed login attempt
-      db.prepare(`
-        INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        firstName,
-        lastName,
-        email,
-        0, // failed
-        req.ip,
-        req.get('user-agent'),
-        'Account not found',
-        null // no applicant_id for failed attempts
-      )
+      try {
+        db.prepare(`
+          INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          firstName,
+          lastName,
+          email,
+          0, // failed
+          req.ip,
+          req.get('user-agent'),
+          'Account not found',
+          null // no applicant_id for failed attempts
+        )
+      } catch (logErr) {
+        console.error('Failed to log login attempt (table missing or schema mismatch?):', logErr?.message)
+      }
 
       // Check for failed login security alert (5+ failures from same IP in 1 hour)
       try {
@@ -212,19 +224,23 @@ router.post('/login', async (req, res) => {
 
     if (applicant.is_active === 0) {
       const db = getDatabase()
-      db.prepare(`
-        INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        firstName,
-        lastName,
-        email,
-        0,
-        req.ip,
-        req.get('user-agent'),
-        'Account deactivated',
-        applicant.id
-      )
+      try {
+        db.prepare(`
+          INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          firstName,
+          lastName,
+          email,
+          0,
+          req.ip,
+          req.get('user-agent'),
+          'Account deactivated',
+          applicant.id
+        )
+      } catch (logErr) {
+        console.error('Failed to log login attempt:', logErr?.message)
+      }
       return res.status(401).json({
         error: 'This account has been deactivated. Contact an administrator.',
         code: 'ACCOUNT_DEACTIVATED'
@@ -298,24 +314,38 @@ router.post('/login', async (req, res) => {
         })
       }
 
-      // Verify against stored hash
-      const isValid = await verifyPassword(password, applicant.password_hash)
+      // Verify against stored hash (guard against corrupted/invalid hash)
+      let isValid = false
+      try {
+        isValid = await verifyPassword(password, applicant.password_hash)
+      } catch (verifyErr) {
+        console.error('Password verification error (invalid or corrupted hash?):', verifyErr?.message)
+        return res.status(500).json({
+          error: 'Unable to verify password. Please contact an administrator.',
+          code: 'LOGIN_ERROR',
+          message: process.env.NODE_ENV === 'development' ? verifyErr?.message : undefined
+        })
+      }
 
       if (!isValid) {
         const db = getDatabase()
-        db.prepare(`
-          INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          firstName,
-          lastName,
-          email,
-          0, // failed
-          req.ip,
-          req.get('user-agent'),
-          'Invalid password',
-          applicant.id
-        )
+        try {
+          db.prepare(`
+            INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            firstName,
+            lastName,
+            email,
+            0, // failed
+            req.ip,
+            req.get('user-agent'),
+            'Invalid password',
+            applicant.id
+          )
+        } catch (logErr) {
+          console.error('Failed to log login attempt:', logErr?.message)
+        }
 
         // Check for failed login security alert
         try {
@@ -353,19 +383,23 @@ router.post('/login', async (req, res) => {
     // Login successful (password verified or not required)
     const db = getDatabase()
 
-    db.prepare(`
-      INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      firstName,
-      lastName,
-      email,
-      1, // success
-      req.ip,
-      req.get('user-agent'),
-      null,
-      applicant.id
-    )
+    try {
+      db.prepare(`
+        INSERT INTO login_attempts (first_name, last_name, email, success, ip_address, user_agent, error_message, applicant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        firstName,
+        lastName,
+        email,
+        1, // success
+        req.ip,
+        req.get('user-agent'),
+        null,
+        applicant.id
+      )
+    } catch (logErr) {
+      console.error('Failed to log successful login attempt:', logErr?.message)
+    }
 
     // Check onboarding completion status (distinct steps)
     const submissions = db.prepare(`
@@ -410,11 +444,15 @@ router.post('/login', async (req, res) => {
       totalSteps: 7
     })
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('Login error:', error?.message || error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Login error stack:', error?.stack)
+    }
     res.status(500).json({
       error: 'An unexpected error occurred during login. Please try again.',
       code: 'LOGIN_ERROR',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: error?.message,
+      details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     })
   }
 })
@@ -541,15 +579,23 @@ router.post('/ssn-consent', async (req, res) => {
     }
 
     const db = getDatabase()
-    db.prepare(`
-      INSERT INTO privacy_consents (applicant_id, consent_type, consent_text, ip_address)
-      VALUES (?, ?, ?, ?)
-    `).run(
-      req.session.applicantId,
-      'SSN_COLLECTION',
-      'Consented to SSN collection (dashboard onboarding)',
-      req.ip
-    )
+    const existing = db.prepare(`
+      SELECT 1 FROM privacy_consents
+      WHERE applicant_id = ? AND consent_type = 'SSN_COLLECTION'
+      LIMIT 1
+    `).get(req.session.applicantId)
+
+    if (!existing) {
+      db.prepare(`
+        INSERT INTO privacy_consents (applicant_id, consent_type, consent_text, ip_address)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        req.session.applicantId,
+        'SSN_COLLECTION',
+        'Consented to SSN collection (dashboard onboarding)',
+        req.ip
+      )
+    }
 
     res.json({ success: true })
   } catch (error) {

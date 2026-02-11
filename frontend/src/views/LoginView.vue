@@ -101,6 +101,7 @@
               placeholder="Email address"
             />
           </div>
+          <NonGmailEmailNotice :email="email" />
           <div v-if="requiresPassword">
             <label for="password" class="sr-only">Password</label>
             <input
@@ -178,6 +179,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
+import NonGmailEmailNotice from '../components/NonGmailEmailNotice.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -344,8 +346,8 @@ const handleSubmit = async () => {
           } else if (statusCode === 404) {
             error.value = 'No account found. Please try again.'
           } else if (statusCode === 500) {
-            // Prefer backend message when present (e.g. error.message or error.details)
-            error.value = errorData.message || errorData.details || 'Server error. Please try again in a few moments.'
+            // Prefer backend message when present (error.message from server or error.details for stack in dev)
+            error.value = errorData.message || errorData.error || errorData.details || 'Server error. Please try again in a few moments.'
           } else {
             error.value = 'Something went wrong. Please check your information and try again.'
           }
