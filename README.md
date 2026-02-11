@@ -15,6 +15,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Smart Step Validation**: Warnings when navigating to steps with missing prerequisites
 - **Auto-save drafts**: Progress is automatically saved as you fill out forms (2-second debounce)
 - **Manual save**: Save draft button available on each form
+- **Submit progress**: While a step is submitting, the button shows "Generating PDF & saving…" so users know the delay is due to PDF generation and upload
 - **Resume anytime**: Pick up where you left off with saved drafts
 - **Field Auto-population**: Name, email, and phone auto-populate from signup and are locked after first entry
 - **Shared fields across forms**: Name, email, phone, address, date of birth, and (where applicable) SSN and signature auto-fill consistently across all six steps. The applicant API (`/applicants/me`) is updated on Step 1 submit (and Step 3 for address); the Step 1 draft is used as fallback for middle name and for address/DOB when the applicant record does not yet have them. SSN is provided via temporary browser cookie (not stored in the database); signature is stored in session and reused on W-4, I-9, Acknowledgements, and Form 8850. If the SSN cookie expires (e.g. after 1 hour), the form wizard re-prompts for SSN when the user is on Step 1 (W-4), Step 2 (I-9), or Step 6 (8850) so that documents can be filled correctly.
@@ -50,7 +51,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Official PDF Template Auto-Fill**: Downloads and caches official IRS/USCIS fillable PDF forms (W-4, I-9, Form 8850), automatically fills them with applicant data; generated PDFs and uploaded PDFs (e.g. I-9 identity documents) are flattened so stored copies are non-editable
 - **Automatic Template Updates**: Checks for new form versions daily, downloads and caches updates
 - **Template Version History**: Archives previous template versions when updates are detected, allowing admin preview of historical forms
-- **Google Drive Integration**: Document storage with direct Google Drive links for viewing files
+- **Google Drive Integration**: Document storage with direct Google Drive links for viewing files. Submitted documents are stored in the configured base folder (per applicant). Paystubs or other employee-visible folders can be shared separately; configure sharing in Google Drive or via folder permissions as needed for employee access.
 - **Local Storage Fallback**: When Google Drive credentials are not configured, encrypted PDFs are stored locally
 - **Direct Document Links**: When Google Drive is configured, document links go directly to Google Drive for viewing
 - SQLite database (SSN-free design)
@@ -365,12 +366,12 @@ All admin tables support:
 
 ## Form Steps
 
-1. **W-4 Form**: Personal information and tax withholding preferences
-2. **I-9 Form**: Employment eligibility verification
-3. **Background Check**: Criminal conviction disclosure
-4. **Direct Deposit**: Bank account information
-5. **Acknowledgements**: Employment terms and agreements
-6. **Form 8850**: Work Opportunity Tax Credit
+1. **W-4 Form**: Personal information and tax withholding preferences. Optional "For Educational Purposes only" link (admin-configured URL) shown when set in Settings. Completed W-4s can be emailed to a configurable recipient (Judy).
+2. **I-9 Form**: Employment eligibility verification. Preparer/translator and employer authorized rep (e.g. Jason) can be auto-filled from settings. Resubmitting the same step overwrites the existing submission (update-in-place).
+3. **Background Check**: Criminal conviction disclosure. When "Yes" to sex offender or crimes in past 7 years, optional Date of Offense, Type of Offense, and Comments are collected. A summary can be emailed to a configurable state address with applicant authorization verbiage.
+4. **Direct Deposit**: Bank account information. "No bank account" and banking summary can be sent to configurable emails (e.g. Judy).
+5. **Acknowledgements**: Employment terms, handbook acknowledgement (check to acknowledge), emergency contact (name and phone), and South Dakota at-will Employment Agreement (check to sign). Data can be sent to a configurable recipient (e.g. Daphne).
+6. **Form 8850**: Work Opportunity Tax Credit. Employer/Page 2 section can be auto-filled from settings (e.g. Jason/company name, EIN, address).
 
 ## Data Privacy & Security
 
@@ -439,9 +440,12 @@ This system is designed to comply with:
 
 ### Settings
 - `GET /api/settings` - Get all settings (authenticated)
+- `GET /api/settings/form-options` - Get non-sensitive form display options (authenticated). Returns `w4_educational_link_url`, `w4_educational_link_label` for the W-4 "For Educational Purposes only" link.
 - `GET /api/settings/google-address-validation-key` - Get Google Address Validation API key (authenticated)
 - `POST /api/settings` - Update settings (admin only)
-  - Settings keys: `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`, `mailgun_api_key`, `mailgun_domain`, `mailgun_from_email`
+  - **Storage/APIs:** `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`, `mailgun_api_key`, `mailgun_domain`, `mailgun_from_email`
+  - **Notification & email recipients:** `no_bank_account_email`, `judy_email`, `daphne_email`, `completion_notification_email`, `thanks_io_recipient_email`, `non_gmail_alert_email`, `background_check_state_email`, `background_check_state_verbiage`
+  - **Form options:** `w4_educational_link_url`, `w4_educational_link_label`, `i9_employer_authorized_rep_name`, `8850_employer_ein`, `8850_employer_address`, `8850_employer_city`, `8850_employer_state`, `8850_employer_zip`, `8850_employer_phone`
 - `GET /api/settings/google-drive/folders` - List Google Drive folders (admin only)
 - `GET /api/settings/google-drive/folder/:id` - Get folder info (admin only)
 - `GET /api/settings/google-drive/browse` - Browse Google Drive folders with search (admin only)
