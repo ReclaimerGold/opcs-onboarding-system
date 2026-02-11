@@ -611,15 +611,12 @@ router.get('/submissions/:id/view', async (req, res) => {
 
     // Check if document is in Google Drive or local storage
     if (submission.google_drive_id) {
-      // Download and decrypt file from Google Drive
+      // Google Drive stores raw PDF (not encrypted); use download as-is
       const { downloadFromGoogleDrive } = await import('../services/googleDriveService.js')
-      const { decryptBuffer } = await import('../services/encryptionService.js')
-
       try {
-        const encryptedBuffer = await downloadFromGoogleDrive(submission.google_drive_id)
-        decryptedBuffer = decryptBuffer(encryptedBuffer)
+        decryptedBuffer = await downloadFromGoogleDrive(submission.google_drive_id)
       } catch (downloadError) {
-        console.error('Download/decryption error:', downloadError)
+        console.error('Download error (Google Drive):', downloadError)
         return res.status(500).json({ error: 'Failed to retrieve document from Google Drive' })
       }
     } else if (submission.pdf_encrypted_path) {
