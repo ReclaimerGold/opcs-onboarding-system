@@ -659,6 +659,12 @@ export OPCS_IMAGE_PREFIX=ghcr.io/YOUR_ORG/opcs-onboarding-system
 docker-compose up -d
 ```
 
+### Trusted proxy (client IP) — disclaimer
+
+When the app is behind a reverse proxy (nginx, load balancer, etc.), the server only sees the proxy’s IP. To record **real client IPs** in audit logs, login attempts, and rate limiting, you can configure **Trusted proxy IP address(es)** in **Settings → Client IP & Proxy** (comma-separated list of proxy IPs). When a request’s direct connection is from one of those IPs, the app uses the `X-Forwarded-For` or `X-Real-IP` header as the client IP.
+
+**Disclaimer:** Only add proxy IPs that you control and that sit in front of your app. If you add an IP that is not your proxy, or if your proxy does not overwrite/set `X-Forwarded-For` correctly, clients could spoof their IP and affect logging, rate limiting, and security. Leave this setting **blank** when the app is not behind a proxy.
+
 ### Docker Compose Services
 
 **Production** (`docker-compose.yml`): uses images from GHCR. Set `OPCS_IMAGE_PREFIX` to your `ghcr.io/org/repo`.
