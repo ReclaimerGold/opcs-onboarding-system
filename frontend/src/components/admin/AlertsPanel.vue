@@ -133,7 +133,7 @@
             <p class="mt-1 text-sm text-amber-700">
               Forms cannot be submitted until signature location is set for:
               <span class="font-medium">{{ formatMissingPlacement(alerts.missingSignaturePlacement) }}</span>.
-              Configure in System → PDF Templates.
+              Configure in Settings → System → PDF Templates.
             </p>
             <p class="mt-2 text-xs text-amber-600 flex items-center">
               Click to configure

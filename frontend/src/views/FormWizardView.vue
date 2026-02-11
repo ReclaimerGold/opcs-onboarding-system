@@ -107,7 +107,7 @@
       <div class="max-w-xl mx-auto bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-sm">
         <h2 class="text-lg font-semibold text-amber-800 mb-2">Business information required</h2>
         <p class="text-sm text-amber-700 mb-4">
-          Your administrator must complete the business information (employer name and Form 8850 employer section) in <strong>Admin → Settings → Form Options</strong> before you can complete onboarding. Otherwise employer information will be missing from your documents.
+          Your administrator must complete the business information (employer name and Form 8850 employer section) in <strong>Settings → Email &amp; Forms → Form Options</strong> before you can complete onboarding. Otherwise employer information will be missing from your documents.
         </p>
         <router-link
           to="/dashboard"
@@ -372,7 +372,7 @@
           </svg>
           <div>
             <h3 class="text-sm font-semibold text-amber-800">Form temporarily unavailable</h3>
-            <p class="text-sm text-amber-700 mt-1">This form cannot be submitted until an administrator configures signature placement in Admin → System → PDF Templates.</p>
+            <p class="text-sm text-amber-700 mt-1">This form cannot be submitted until an administrator configures signature placement in Settings → System → PDF Templates.</p>
           </div>
         </div>
       </div>

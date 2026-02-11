@@ -35,7 +35,44 @@
     </div>
     
     <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
-      <!-- Configuration Status Overview -->
+      <!-- Section navigation -->
+      <div class="mb-8">
+        <nav class="flex flex-wrap gap-1 border-b border-gray-200" aria-label="Settings sections">
+          <button
+            type="button"
+            @click="settingsSection = 'integrations'"
+            :class="sectionNavClass('integrations')"
+          >
+            <svg class="w-4 h-4 mr-2 hidden sm:inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+            </svg>
+            Integrations
+          </button>
+          <button
+            type="button"
+            @click="settingsSection = 'email-forms'"
+            :class="sectionNavClass('email-forms')"
+          >
+            <svg class="w-4 h-4 mr-2 hidden sm:inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Email &amp; Forms
+          </button>
+          <button
+            type="button"
+            @click="settingsSection = 'system'"
+            :class="sectionNavClass('system')"
+          >
+            <svg class="w-4 h-4 mr-2 hidden sm:inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 0H3m2 0h2m2 0h2M5 15H3m2 0H3m2 0h2m2 0h2M19 9h2m-2 0h-2m-2 0h-2M19 15h2m-2 0h-2m-2 0h-2" />
+            </svg>
+            System
+          </button>
+        </nav>
+      </div>
+
+      <!-- Integrations: Configuration Status Overview -->
+      <div v-show="settingsSection === 'integrations'" class="space-y-8">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Google Drive Status -->
         <div class="bg-white shadow rounded-lg p-6">
@@ -664,7 +701,10 @@
           </div>
         </form>
       </div>
+      </div>
 
+      <!-- Email & Forms -->
+      <div v-show="settingsSection === 'email-forms'" class="space-y-8">
       <!-- Notification & Email Recipients -->
       <div class="bg-white shadow rounded-lg p-6 mb-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-4">Notification & Email Recipients</h2>
@@ -819,29 +859,225 @@
           </div>
         </div>
       </div>
+      </div>
 
-      <!-- Trusted proxy IP (real client IP when behind reverse proxy) -->
-      <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 class="text-2xl font-bold text-gray-900 mb-2">Client IP &amp; Proxy</h2>
-        <p class="text-sm text-gray-600 mb-4">
-          When the app is behind a reverse proxy (e.g. nginx, load balancer), the server only sees the proxy&apos;s IP.
-          Add the proxy&apos;s IP address here so we use the <code class="px-1 py-0.5 bg-gray-100 rounded text-xs">X-Forwarded-For</code> or <code class="px-1 py-0.5 bg-gray-100 rounded text-xs">X-Real-IP</code> header for the real client IP in audit logs, login attempts, and rate limiting.
-        </p>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Trusted proxy IP address(es)</label>
-          <input
-            v-model="settings.trusted_proxy_ips"
-            type="text"
-            placeholder="e.g. 10.0.0.1 or 127.0.0.1, 192.168.1.1"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-          />
-          <p class="mt-1 text-xs text-gray-500">
-            Comma-separated list of proxy IPs. When a request comes from one of these IPs, the client IP is taken from the forwarding headers. Leave blank when not behind a proxy.
-          </p>
+      <!-- System (Health, Tests, PDF Templates) -->
+      <div v-show="settingsSection === 'system'" class="space-y-8">
+        <div class="border-b border-gray-200 mb-6">
+          <nav class="flex -mb-px">
+            <button
+              type="button"
+              @click="systemTab = 'health'"
+              :class="[
+                'px-4 py-2 text-sm font-medium border-b-2',
+                systemTab === 'health'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ]"
+            >
+              System Health
+            </button>
+            <button
+              type="button"
+              @click="systemTab = 'tests'"
+              :class="[
+                'px-4 py-2 text-sm font-medium border-b-2',
+                systemTab === 'tests'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ]"
+            >
+              Tests
+            </button>
+            <button
+              type="button"
+              @click="systemTab = 'templates'"
+              :class="[
+                'px-4 py-2 text-sm font-medium border-b-2',
+                systemTab === 'templates'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ]"
+            >
+              PDF Templates
+            </button>
+          </nav>
+        </div>
+
+        <!-- System Health -->
+        <div v-if="systemTab === 'health'" class="space-y-6">
+          <div class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 mb-2">Database</h4>
+                <p class="text-sm text-gray-600">Status: <span class="font-medium text-green-600">{{ dashboard.systemHealth.value.database?.status || 'Unknown' }}</span></p>
+                <p class="text-sm text-gray-600">Size: {{ dashboard.systemHealth.value.database?.sizeMB || '0' }} MB</p>
+                <div class="mt-4">
+                  <h5 class="text-sm font-medium text-gray-700 mb-2">Table Counts:</h5>
+                  <ul class="text-sm text-gray-600 space-y-1">
+                    <li v-for="(count, table) in dashboard.systemHealth.value.database?.tables" :key="table">
+                      {{ table }}: {{ count }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 mb-2">Server</h4>
+                <p class="text-sm text-gray-600">Status: <span class="font-medium text-green-600">{{ dashboard.systemHealth.value.server?.status || 'Unknown' }}</span></p>
+                <p class="text-sm text-gray-600">Node Version: {{ dashboard.systemHealth.value.server?.nodeVersion || 'Unknown' }}</p>
+                <p class="text-sm text-gray-600">Start Time: {{ formatDate(dashboard.systemHealth.value.server?.startTime) }}</p>
+              </div>
+            </div>
+            <!-- Google Drive Utilities -->
+            <div class="mt-6 bg-gray-50 rounded-lg p-4">
+              <h4 class="font-semibold text-gray-900 mb-2">Google Drive Utilities</h4>
+              <div class="mb-4">
+                <p class="text-sm text-gray-600 mb-2">
+                  Fix permissions on existing Google Drive files to make them viewable by anyone with the link.
+                </p>
+                <div class="flex items-center flex-wrap gap-4">
+                  <button
+                    type="button"
+                    @click="fixGDrivePermissions"
+                    :disabled="fixingPermissions"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 flex items-center text-sm"
+                  >
+                    <svg v-if="!fixingPermissions" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ fixingPermissions ? 'Fixing...' : 'Fix File Permissions' }}</span>
+                  </button>
+                  <span v-if="permissionFixResult" :class="permissionFixResult.success ? 'text-green-600' : 'text-red-600'" class="text-sm">
+                    {{ permissionFixResult.message }}
+                  </span>
+                </div>
+              </div>
+              <div class="pt-4 border-t border-gray-200">
+                <p class="text-sm text-gray-600 mb-2">
+                  Regenerate corrupted PDFs — deletes old files and uploads fresh copies from stored form data.
+                </p>
+                <div class="flex items-center flex-wrap gap-4">
+                  <button
+                    type="button"
+                    @click="regeneratePdfs"
+                    :disabled="regeneratingPdfs"
+                    class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 flex items-center text-sm"
+                  >
+                    <svg v-if="!regeneratingPdfs" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{{ regeneratingPdfs ? 'Regenerating...' : 'Regenerate All PDFs' }}</span>
+                  </button>
+                  <span v-if="regeneratePdfsResult" :class="regeneratePdfsResult.success ? 'text-green-600' : 'text-red-600'" class="text-sm">
+                    {{ regeneratePdfsResult.message }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div v-if="dashboard.systemHealth.value.recentErrors && dashboard.systemHealth.value.recentErrors.length > 0" class="mt-6">
+              <h4 class="font-semibold text-gray-900 mb-2">Recent Errors</h4>
+              <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <ul class="space-y-2">
+                  <li v-for="error in dashboard.systemHealth.value.recentErrors" :key="error.id" class="text-sm text-red-800">
+                    <strong>{{ formatDate(error.createdAt) }}:</strong> {{ error.action }} — {{ error.resourceType }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Client IP & Proxy (trusted proxy when behind reverse proxy) -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Client IP &amp; Proxy</h3>
+            <p class="text-sm text-gray-600 mb-4">
+              When the app is behind a reverse proxy (e.g. nginx, load balancer), the server only sees the proxy&apos;s IP.
+              Add the proxy&apos;s IP address here so we use the <code class="px-1 py-0.5 bg-gray-100 rounded text-xs">X-Forwarded-For</code> or <code class="px-1 py-0.5 bg-gray-100 rounded text-xs">X-Real-IP</code> header for the real client IP in audit logs, login attempts, and rate limiting.
+            </p>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Trusted proxy IP address(es)</label>
+              <input
+                v-model="settings.trusted_proxy_ips"
+                type="text"
+                placeholder="e.g. 10.0.0.1 or 127.0.0.1, 192.168.1.1"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+              />
+              <p class="mt-1 text-xs text-gray-500">
+                Comma-separated list of proxy IPs. When a request comes from one of these IPs, the client IP is taken from the forwarding headers. Leave blank when not behind a proxy.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tests -->
+        <div v-if="systemTab === 'tests'" class="bg-white shadow rounded-lg p-6">
+          <div class="mb-6 flex justify-between items-center">
+            <h3 class="text-lg font-semibold text-gray-900">Unit Tests</h3>
+            <button
+              type="button"
+              @click="runTests"
+              :disabled="runningTests"
+              class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 flex items-center"
+            >
+              <svg v-if="!runningTests" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <svg v-else class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{{ runningTests ? 'Running...' : 'Run All Tests' }}</span>
+            </button>
+          </div>
+          <div v-if="!testResults && !runningTests" class="text-center py-12 text-gray-500">
+            <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="text-lg font-medium">No test results yet</p>
+            <p class="text-sm mt-2">Click "Run All Tests" to execute backend and frontend unit tests</p>
+          </div>
+          <div v-if="testResults" class="space-y-6">
+            <TestResultsPanel :results="testResults" />
+          </div>
+        </div>
+
+        <!-- PDF Templates and Signature Placement -->
+        <div v-if="systemTab === 'templates'" class="space-y-6">
+          <PdfTemplatesPanel />
+          <SignaturePlacementPanel />
+          <div class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Manager Signature Requirements</h3>
+            <p class="text-sm text-gray-500 mb-4">Select which form types require a manager/employer signature. Submitted documents for these forms will enter an approval queue.</p>
+            <div class="space-y-2 mb-4">
+              <label v-for="ft in managerSigFormTypes" :key="ft.code" class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  :checked="managerRequiredForms.includes(ft.code)"
+                  @change="toggleManagerRequiredForm(ft.code)"
+                  class="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                {{ ft.label }}
+              </label>
+            </div>
+            <button type="button" @click="saveManagerRequiredForms" :disabled="savingManagerRequired" class="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 transition">
+              {{ savingManagerRequired ? 'Saving...' : 'Save Requirements' }}
+            </button>
+            <span v-if="managerRequiredSaveMsg" class="ml-3 text-sm" :class="managerRequiredSaveSuccess ? 'text-green-600' : 'text-red-600'">{{ managerRequiredSaveMsg }}</span>
+          </div>
+          <SignaturePlacementPanel placementType="manager" />
         </div>
       </div>
       
       <!-- Save Button and Status Messages -->
+      <div class="mt-8">
       <div class="bg-white shadow rounded-lg p-6">
         <div v-if="error" class="rounded-md bg-red-50 p-4 mb-4">
           <div class="flex">
@@ -879,6 +1115,7 @@
             <span v-else>Save All Settings</span>
           </button>
         </div>
+      </div>
       </div>
     </div>
 
@@ -1028,13 +1265,173 @@
         </div>
       </div>
     </div>
+
+    <PdfDownloadPromptDialog
+      :open="showPdfDownloadPrompt"
+      @start-download="onStartPdfDownload"
+    />
+    <PdfTemplateDownloadModal
+      :open="showPdfDownloadModal"
+      @close="showPdfDownloadModal = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import api from '../services/api.js'
+import { useAdminDashboard } from '../composables/useAdminDashboard.js'
 import NotificationBell from '../components/NotificationBell.vue'
+import TestResultsPanel from '../components/admin/TestResultsPanel.vue'
+import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
+import PdfDownloadPromptDialog from '../components/admin/PdfDownloadPromptDialog.vue'
+import PdfTemplateDownloadModal from '../components/admin/PdfTemplateDownloadModal.vue'
+import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
+
+const route = useRoute()
+const dashboard = useAdminDashboard()
+
+// Section navigation: integrations | email-forms | system
+const settingsSection = ref('integrations')
+const systemTab = ref('health')
+
+// Section nav button class
+function sectionNavClass(section) {
+  const active = settingsSection.value === section
+  return [
+    'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center',
+    active ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+  ]
+}
+
+// System tab state (Health, Tests, PDF Templates)
+const fixingPermissions = ref(false)
+const permissionFixResult = ref(null)
+const regeneratingPdfs = ref(false)
+const regeneratePdfsResult = ref(null)
+const runningTests = ref(false)
+const testResults = ref(null)
+const showPdfDownloadPrompt = ref(false)
+const showPdfDownloadModal = ref(false)
+
+// Manager signature requirements
+const managerRequiredForms = ref([])
+const savingManagerRequired = ref(false)
+const managerRequiredSaveMsg = ref('')
+const managerRequiredSaveSuccess = ref(false)
+const managerSigFormTypes = [
+  { code: 'W4', label: 'W-4' },
+  { code: 'I9', label: 'I-9' },
+  { code: 'BACKGROUND', label: 'Background Check' },
+  { code: 'DIRECT_DEPOSIT', label: 'Direct Deposit' },
+  { code: 'ACKNOWLEDGEMENTS', label: 'Acknowledgements' },
+  { code: '8850', label: 'Form 8850' },
+  { code: '9061', label: 'ETA Form 9061' }
+]
+
+function formatDate(dateString) {
+  if (!dateString) return 'N/A'
+  return new Date(dateString).toLocaleString()
+}
+
+async function loadManagerRequiredForms() {
+  try {
+    const res = await api.get('/admin/settings/manager-signature-required')
+    managerRequiredForms.value = res.data?.forms || []
+  } catch {
+    managerRequiredForms.value = []
+  }
+}
+
+function toggleManagerRequiredForm(code) {
+  const idx = managerRequiredForms.value.indexOf(code)
+  if (idx >= 0) {
+    managerRequiredForms.value = managerRequiredForms.value.filter(f => f !== code)
+  } else {
+    managerRequiredForms.value = [...managerRequiredForms.value, code]
+  }
+  managerRequiredSaveMsg.value = ''
+}
+
+async function saveManagerRequiredForms() {
+  savingManagerRequired.value = true
+  managerRequiredSaveMsg.value = ''
+  try {
+    await api.put('/admin/settings/manager-signature-required', { forms: managerRequiredForms.value })
+    managerRequiredSaveMsg.value = 'Saved successfully.'
+    managerRequiredSaveSuccess.value = true
+  } catch (err) {
+    managerRequiredSaveMsg.value = err.response?.data?.error || 'Failed to save.'
+    managerRequiredSaveSuccess.value = false
+  } finally {
+    savingManagerRequired.value = false
+  }
+}
+
+async function fixGDrivePermissions() {
+  if (!confirm('This will set public viewer permissions on all Google Drive files. Continue?')) return
+  fixingPermissions.value = true
+  permissionFixResult.value = null
+  try {
+    const response = await api.post('/admin/fix-gdrive-permissions')
+    permissionFixResult.value = {
+      success: true,
+      message: `Fixed ${response.data.results.success} of ${response.data.results.total} files`
+    }
+  } catch (error) {
+    permissionFixResult.value = {
+      success: false,
+      message: error.response?.data?.error || 'Failed to fix permissions'
+    }
+  } finally {
+    fixingPermissions.value = false
+  }
+}
+
+async function regeneratePdfs() {
+  if (!confirm('This will delete all existing Google Drive PDFs and regenerate them from stored form data. This may take a while. Continue?')) return
+  regeneratingPdfs.value = true
+  regeneratePdfsResult.value = null
+  try {
+    const response = await api.post('/admin/regenerate-pdfs')
+    regeneratePdfsResult.value = {
+      success: true,
+      message: `Regenerated ${response.data.results.success} of ${response.data.results.total} PDFs`
+    }
+    dashboard.loadAllData?.()
+  } catch (error) {
+    regeneratePdfsResult.value = {
+      success: false,
+      message: error.response?.data?.error || 'Failed to regenerate PDFs'
+    }
+  } finally {
+    regeneratingPdfs.value = false
+  }
+}
+
+async function runTests() {
+  runningTests.value = true
+  testResults.value = null
+  try {
+    const response = await api.post('/admin/tests/run')
+    testResults.value = response.data.results
+  } catch (error) {
+    console.error('Error running tests:', error)
+    testResults.value = {
+      timestamp: new Date().toISOString(),
+      backend: { success: false, error: error.message },
+      frontend: null
+    }
+  } finally {
+    runningTests.value = false
+  }
+}
+
+function onStartPdfDownload() {
+  showPdfDownloadPrompt.value = false
+  showPdfDownloadModal.value = true
+}
 
 const settings = ref({
   google_drive_base_folder_id: '',
@@ -1116,21 +1513,35 @@ const mailgunConfigured = computed(() => {
   return !!(settings.value.mailgun_api_key && settings.value.mailgun_domain)
 })
 
+// Apply route query so alerts can deep-link to Settings → System → PDF Templates
+watch(() => route.query, (query) => {
+  if (query.section === 'system') {
+    settingsSection.value = 'system'
+    if (query.tab === 'templates') systemTab.value = 'templates'
+    else if (query.tab === 'tests') systemTab.value = 'tests'
+    else systemTab.value = 'health'
+  }
+}, { immediate: true })
+
+watch(settingsSection, (section) => {
+  if (section === 'system') {
+    dashboard.loadSystemHealth?.()
+    loadManagerRequiredForms()
+  }
+})
+
 onMounted(async () => {
   loadingSettings.value = true
   try {
     const response = await api.get('/settings')
     settings.value = { ...settings.value, ...response.data }
     
-    // Set drive type based on saved settings
     if (settings.value.google_shared_drive_id) {
       driveType.value = 'sharedDrive'
       selectedSharedDriveId.value = settings.value.google_shared_drive_id
-      // Load shared drive name
       await loadSharedDriveName(settings.value.google_shared_drive_id)
     }
     
-    // Load folder name if folder ID is set
     if (settings.value.google_drive_base_folder_id) {
       await loadFolderName(settings.value.google_drive_base_folder_id)
     }
@@ -1138,6 +1549,16 @@ onMounted(async () => {
     console.error('Error loading settings:', err)
   } finally {
     loadingSettings.value = false
+  }
+
+  // PDF template status: prompt to download if any are missing
+  try {
+    const statusRes = await api.get('/admin/pdf-templates/status')
+    const templates = statusRes.data?.templates || {}
+    const anyMissing = Object.values(templates).some((t) => t && t.exists === false)
+    if (anyMissing) showPdfDownloadPrompt.value = true
+  } catch (err) {
+    console.error('Error checking PDF template status:', err)
   }
 })
 
