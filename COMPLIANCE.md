@@ -387,6 +387,20 @@ All of the following events must be logged:
    - Timestamp
    - IP address
 
+8. **Pending approval storage (temporary blob)**
+   - **DOCUMENT_PENDING_APPROVAL_STORED**: When a form that requires manager signoff is submitted, the PDF is stored encrypted in `storage/pending-approval/` instead of being uploaded to Google Drive. This event logs submission ID, form type, and a note that the blob will be erased after upload following signoff.
+   - **PENDING_APPROVAL_BLOB_ERASED**: When a manager approves and signs the document, the signed PDF is uploaded to Google Drive (or saved to local encrypted storage), then the temporary pending file is deleted. This event logs that the blob was erased per compliance (no retention of pre-signoff copies).
+
+### Temporary document storage (pending manager signoff)
+
+For form types that require manager approval (e.g. W-4, I-9, Form 8850), the system does **not** upload the generated PDF to Google Drive at submission time. Instead:
+
+1. The PDF is encrypted and stored in **pending-approval** storage (`backend/storage/pending-approval/`).
+2. Audit event **DOCUMENT_PENDING_APPROVAL_STORED** is recorded.
+3. When a manager approves and signs the document, the signed PDF is uploaded to Google Drive (or local encrypted storage), the pending file is **erased**, and **PENDING_APPROVAL_BLOB_ERASED** is recorded.
+
+This ensures the only retained copy is the final, signed document. Pending blobs are encrypted at rest and must not be retained after successful upload.
+
 ### Audit Log Storage
 
 - **Table**: `audit_log` in database

@@ -21,6 +21,7 @@ build/
 uploads/
 backend/storage/encrypted-pdfs/
 backend/storage/encrypted-i9-docs/
+backend/storage/pending-approval/
 
 # Logs
 *.log

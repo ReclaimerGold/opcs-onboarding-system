@@ -18,6 +18,7 @@ frontend/dist/
 # Storage (exclude runtime data, keep templates)
 backend/storage/encrypted-pdfs/
 backend/storage/encrypted-i9-docs/
+backend/storage/pending-approval/
 backend/uploads/
 
 # Logs

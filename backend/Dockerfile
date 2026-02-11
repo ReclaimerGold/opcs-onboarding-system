@@ -46,7 +46,7 @@ COPY storage/pdf-templates ./storage/pdf-templates
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -u 1001 -g nodejs -s /bin/bash nodejs && \
-    mkdir -p /app/database /app/storage/encrypted-pdfs /app/storage/encrypted-i9-docs /app/uploads && \
+    mkdir -p /app/database /app/storage/encrypted-pdfs /app/storage/encrypted-i9-docs /app/storage/pending-approval /app/uploads && \
     chown -R nodejs:nodejs /app
 
 USER nodejs

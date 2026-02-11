@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { requireAuth, requireManager } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
-import { addManagerSignatureToPdf } from '../services/pdfService.js'
+import { addManagerSignatureToPdf, getSigningManagerSignatureForApplicant, loadPendingApprovalPdf } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
 import { downloadFromGoogleDrive } from '../services/googleDriveService.js'
 import { decryptBuffer } from '../services/encryptionService.js'
@@ -222,7 +222,7 @@ router.get('/:id/pdf', requireManager, async (req, res) => {
   try {
     const db = getDatabase()
     const approval = db.prepare(`
-      SELECT da.id, da.applicant_id, da.manager_id, fs.google_drive_id, fs.pdf_filename, fs.pdf_encrypted_path
+      SELECT da.id, da.applicant_id, da.manager_id, fs.google_drive_id, fs.pdf_filename, fs.pdf_encrypted_path, fs.pending_pdf_path
       FROM document_approvals da
       JOIN form_submissions fs ON da.submission_id = fs.id
       WHERE da.id = ?
@@ -244,8 +244,14 @@ router.get('/:id/pdf', requireManager, async (req, res) => {
     }
 
     let pdfBuffer
-
-    if (approval.google_drive_id) {
+    if (approval.pending_pdf_path) {
+      try {
+        pdfBuffer = await loadPendingApprovalPdf(approval.pending_pdf_path)
+      } catch (err) {
+        console.error('Pending approval PDF read error:', err)
+        return res.status(500).json({ error: 'Failed to retrieve document from pending storage' })
+      }
+    } else if (approval.google_drive_id) {
       try {
         // Google Drive stores raw PDF (not encrypted); use download as-is
         pdfBuffer = await downloadFromGoogleDrive(approval.google_drive_id)
@@ -322,10 +328,13 @@ router.post('/:id/approve', requireManager, async (req, res) => {
       }
     }
 
-    // Get manager's signature
-    const signatureData = req.body.signatureData || currentUser.signature_data
+    // Whose signature goes on the document: assigned manager if set (and has signature), else first admin as default
+    const signingManager = getSigningManagerSignatureForApplicant(approval.applicant_id)
+    const signatureData = req.body.signatureData || (signingManager?.signatureData ?? null)
     if (!signatureData) {
-      return res.status(400).json({ error: 'Manager signature is required. Please set up your signature first.' })
+      return res.status(400).json({
+        error: 'No manager signature available for this document. Set up the default admin signature (Admin onboarding), or assign a manager with a captured signature to this applicant.'
+      })
     }
 
     // Embed manager signature on PDF (pass approval date for 8850 employer signature date)

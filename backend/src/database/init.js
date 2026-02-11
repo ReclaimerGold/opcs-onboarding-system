@@ -121,6 +121,13 @@ export function initializeDatabase() {
     // Column already exists, ignore
   }
 
+  // Pending approval: PDF stored locally until manager signoff, then uploaded to Drive and blob erased
+  try {
+    db.exec(`ALTER TABLE form_submissions ADD COLUMN pending_pdf_path TEXT`)
+  } catch (error) {
+    // Column already exists, ignore
+  }
+
   // Audit log for compliance (required for I-9 electronic storage)
   db.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (

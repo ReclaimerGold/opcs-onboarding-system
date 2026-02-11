@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { requireAuth } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
-import { generateAndSavePDF, getSignaturePlacement, getSignaturePlacementStatus, getManagerSignatureRequiredForms, flattenPdfBuffer } from '../services/pdfService.js'
+import { generateAndSavePDF, getSignaturePlacement, getSignaturePlacementStatus, getManagerSignatureRequiredForms, flattenPdfBuffer, loadPendingApprovalPdf } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
 import { uploadToGoogleDrive, downloadFromGoogleDrive, isGoogleDriveConfigured, deleteFromGoogleDrive } from '../services/googleDriveService.js'
 import { encryptBuffer, decryptBuffer } from '../services/encryptionService.js'
@@ -324,7 +324,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     `).get(req.applicantId)
     const distinctStepCount = distinctSteps?.count ?? 0
     const existingForStep = db.prepare(`
-      SELECT id, google_drive_id, pdf_encrypted_path FROM form_submissions
+      SELECT id, google_drive_id, pdf_encrypted_path, pending_pdf_path FROM form_submissions
       WHERE applicant_id = ? AND step_number = ?
       ORDER BY submitted_at DESC LIMIT 1
     `).get(req.applicantId, step)
@@ -332,18 +332,34 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     const existingSubmission = shouldOverwrite ? {
       id: existingForStep.id,
       google_drive_id: existingForStep.google_drive_id || '',
-      pdf_encrypted_path: existingForStep.pdf_encrypted_path
+      pdf_encrypted_path: existingForStep.pdf_encrypted_path,
+      pending_pdf_path: existingForStep.pending_pdf_path || null
     } : null
 
-    // Generate PDF (validated for corruption), upload, then update or insert submission
+    // For forms requiring manager approval: store PDF in pending-approval until signoff; otherwise upload/save now
+    const managerRequiredForms = getManagerSignatureRequiredForms()
+    const requiresApproval = managerRequiredForms.includes(formType)
     const pdfResult = await generateAndSavePDF(
       req.applicantId,
       step,
       formType,
       formData,
       applicant,
-      existingSubmission
+      existingSubmission,
+      requiresApproval
     )
+
+    if (requiresApproval && pdfResult.storageType === 'pending_approval') {
+      await auditLog({
+        userId: req.applicantId,
+        action: 'DOCUMENT_PENDING_APPROVAL_STORED',
+        resourceType: 'FORM_SUBMISSION',
+        resourceId: pdfResult.submissionId,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { step, formType, filename: pdfResult.filename, note: 'PDF stored until manager signoff; blob will be erased after upload to Google Drive.' }
+      })
+    }
 
     // Set retention_until on I-9 identity documents to match I-9 form (IRCA)
     if (step === 2 && pdfResult.retentionUntil) {
@@ -352,11 +368,7 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       `).run(pdfResult.retentionUntil, req.applicantId)
     }
 
-    // Check if this form type requires manager approval
-    const managerRequiredForms = getManagerSignatureRequiredForms()
-    const requiresApproval = managerRequiredForms.includes(formType)
     let approvalId = null
-
     if (requiresApproval) {
       // If overwriting, mark any existing pending approval for this step as superseded
       if (shouldOverwrite) {
@@ -752,7 +764,7 @@ router.get('/submissions/:id/view', async (req, res) => {
   try {
     const db = getDatabase()
     const submission = db.prepare(`
-      SELECT google_drive_id, pdf_filename, pdf_encrypted_path, applicant_id, web_view_link
+      SELECT google_drive_id, pdf_filename, pdf_encrypted_path, applicant_id, web_view_link, pending_pdf_path
       FROM form_submissions
       WHERE id = ?
     `).get(parseInt(req.params.id))
@@ -772,8 +784,15 @@ router.get('/submissions/:id/view', async (req, res) => {
 
     let decryptedBuffer
 
-    // Check if document is in Google Drive or local storage
-    if (submission.google_drive_id) {
+    // Check if document is in pending-approval, Google Drive, or local storage
+    if (submission.pending_pdf_path) {
+      try {
+        decryptedBuffer = await loadPendingApprovalPdf(submission.pending_pdf_path)
+      } catch (err) {
+        console.error('Pending approval PDF read error:', err)
+        return res.status(500).json({ error: 'Failed to retrieve document from pending storage' })
+      }
+    } else if (submission.google_drive_id) {
       // Google Drive stores raw PDF (not encrypted); use download as-is
       const { downloadFromGoogleDrive } = await import('../services/googleDriveService.js')
       try {

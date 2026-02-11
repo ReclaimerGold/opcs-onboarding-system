@@ -87,7 +87,7 @@ RUN sed -i 's/proxy_pass http:\/\/backend:3000/proxy_pass http:\/\/127.0.0.1:300
 RUN rm -f /etc/nginx/sites-enabled/default
 
 # Create necessary directories
-RUN mkdir -p /app/database /app/storage/encrypted-pdfs /app/storage/encrypted-i9-docs /app/uploads /var/log/supervisor && \
+RUN mkdir -p /app/database /app/storage/encrypted-pdfs /app/storage/encrypted-i9-docs /app/storage/pending-approval /app/uploads /var/log/supervisor && \
     chown -R opcs:opcs /app /var/log/supervisor
 
 # Copy supervisor configuration

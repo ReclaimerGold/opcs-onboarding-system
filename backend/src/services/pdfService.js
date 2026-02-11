@@ -23,12 +23,15 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { redactFormDataForStorage } from '../utils/redactFormData.js'
 import { getSetting } from '../utils/getSetting.js'
+import { auditLog } from './auditService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Local storage directory for encrypted PDFs when Google Drive is not configured
 const LOCAL_STORAGE_DIR = path.join(__dirname, '../../storage/encrypted-pdfs')
+// Pending approval: encrypted PDF stored until manager signoff, then uploaded to Drive and file erased
+const PENDING_APPROVAL_DIR = path.join(__dirname, '../../storage/pending-approval')
 
 /** Form types that support signature placement */
 const SIGNATURE_PLACEMENT_FORM_TYPES = ['W4', 'I9', '8850', '9061']
@@ -188,10 +191,10 @@ async function drawSignatureOnPdf(pdfDoc, formType, signatureBase64) {
 }
 
 /**
- * Get the first admin's stored signature (for employer/authorized rep pre-fill on 8850).
+ * Get the first admin's stored signature (for employer/authorized rep pre-fill on 8850 and default manager signoff).
  * @returns {string|null} Base64 signature data or null
  */
-function getFirstAdminSignature() {
+export function getFirstAdminSignature() {
   const db = getDatabase()
   const row = db.prepare(`
     SELECT signature_data FROM applicants
@@ -199,6 +202,39 @@ function getFirstAdminSignature() {
     ORDER BY id ASC LIMIT 1
   `).get()
   return row?.signature_data ?? null
+}
+
+/**
+ * Get the signature to use for manager signoff on a document for the given applicant.
+ * When the applicant has an assigned manager with a captured signature, that manager's signature is used;
+ * otherwise the first admin's signature is used as the default.
+ * @param {number} applicantId - The applicant (document owner) id
+ * @returns {{ signatureData: string, managerId: number|null }|null} signatureData and the manager id whose signature is used, or null if none available
+ */
+export function getSigningManagerSignatureForApplicant(applicantId) {
+  const db = getDatabase()
+  const applicant = db.prepare('SELECT assigned_manager_id FROM applicants WHERE id = ?').get(applicantId)
+  const assignedManagerId = applicant?.assigned_manager_id ?? null
+  const firstAdminSignature = getFirstAdminSignature()
+
+  if (assignedManagerId) {
+    const manager = db.prepare('SELECT id, signature_data FROM applicants WHERE id = ?').get(assignedManagerId)
+    const sig = manager?.signature_data && String(manager.signature_data).trim() ? manager.signature_data : null
+    if (sig) {
+      return { signatureData: sig, managerId: assignedManagerId }
+    }
+  }
+
+  if (firstAdminSignature) {
+    const firstAdmin = db.prepare(`
+      SELECT id FROM applicants
+      WHERE is_admin = 1 AND signature_data IS NOT NULL AND TRIM(signature_data) != ''
+      ORDER BY id ASC LIMIT 1
+    `).get()
+    return { signatureData: firstAdminSignature, managerId: firstAdmin?.id ?? null }
+  }
+
+  return null
 }
 
 /**
@@ -1335,6 +1371,44 @@ async function saveToLocalStorage(encryptedBuffer, filename, applicant) {
 }
 
 /**
+ * Save encrypted PDF to pending-approval storage (used until manager signoff, then uploaded and erased).
+ * @param {Buffer} encryptedBuffer - Encrypted PDF buffer
+ * @param {number} submissionId - form_submissions.id
+ * @returns {Promise<string>} Relative path (e.g. "123.bin") for pending_pdf_path
+ */
+async function savePendingApprovalPdf(encryptedBuffer, submissionId) {
+  await fs.mkdir(PENDING_APPROVAL_DIR, { recursive: true })
+  const filename = `${submissionId}.bin`
+  const fullPath = path.join(PENDING_APPROVAL_DIR, filename)
+  await fs.writeFile(fullPath, encryptedBuffer)
+  return filename
+}
+
+/**
+ * Load and decrypt a pending-approval PDF.
+ * @param {string} relativePath - Value of pending_pdf_path (e.g. "123.bin")
+ * @returns {Promise<Buffer>} Decrypted PDF buffer
+ */
+export async function loadPendingApprovalPdf(relativePath) {
+  const fullPath = path.join(PENDING_APPROVAL_DIR, relativePath)
+  const encryptedBuffer = await fs.readFile(fullPath)
+  return decryptBuffer(encryptedBuffer)
+}
+
+/**
+ * Delete a pending-approval PDF file (after successful upload to Drive).
+ * @param {string} relativePath - Value of pending_pdf_path
+ */
+async function deletePendingApprovalPdf(relativePath) {
+  const fullPath = path.join(PENDING_APPROVAL_DIR, relativePath)
+  try {
+    await fs.unlink(fullPath)
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('Error erasing pending approval blob:', e.message)
+  }
+}
+
+/**
  * Main function to generate and save PDF.
  * When existingSubmission is provided (during onboarding overwrite), updates that row and replaces the file.
  * Otherwise inserts a new submission record.
@@ -1418,7 +1492,7 @@ export function getManagerSignatureRequiredForms() {
 export async function addManagerSignatureToPdf(submissionId, managerSignatureBase64, approvalDate) {
   const db = getDatabase()
   const submission = db.prepare(`
-    SELECT id, applicant_id, form_type, pdf_filename, google_drive_id, pdf_encrypted_path, web_view_link
+    SELECT id, applicant_id, form_type, pdf_filename, google_drive_id, pdf_encrypted_path, web_view_link, pending_pdf_path
     FROM form_submissions WHERE id = ?
   `).get(submissionId)
 
@@ -1432,9 +1506,11 @@ export async function addManagerSignatureToPdf(submissionId, managerSignatureBas
     throw new Error(`Manager signature placement not configured for form type: ${formType}`)
   }
 
-  // Load existing PDF bytes
+  // Load existing PDF bytes (from pending-approval blob, Drive, or local encrypted)
   let pdfBytes
-  if (submission.google_drive_id && isGoogleDriveConfigured()) {
+  if (submission.pending_pdf_path) {
+    pdfBytes = await loadPendingApprovalPdf(submission.pending_pdf_path)
+  } else if (submission.google_drive_id && isGoogleDriveConfigured()) {
     const downloadResult = await downloadFromGoogleDrive(submission.google_drive_id)
     pdfBytes = downloadResult
   } else if (submission.pdf_encrypted_path) {
@@ -1497,11 +1573,33 @@ export async function addManagerSignatureToPdf(submissionId, managerSignatureBas
 
   const updatedPdfBytes = await pdfDoc.save()
 
-  // Re-upload / re-save
+  // Re-upload / re-save (when was pending: upload to Drive, clear pending_pdf_path, erase blob, compliance audit)
   const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(submission.applicant_id)
+  const hadPendingBlob = !!submission.pending_pdf_path
 
-  if (submission.google_drive_id && isGoogleDriveConfigured()) {
-    // Delete old and upload new
+  if (hadPendingBlob && isGoogleDriveConfigured()) {
+    // First-time upload after signoff: upload signed PDF to Drive, clear pending, erase blob
+    const uploadResult = await uploadToGoogleDrive(
+      Buffer.from(updatedPdfBytes),
+      submission.pdf_filename,
+      applicant,
+      'application/pdf'
+    )
+    db.prepare(`
+      UPDATE form_submissions SET google_drive_id = ?, web_view_link = ?, pending_pdf_path = NULL WHERE id = ?
+    `).run(uploadResult.fileId, uploadResult.webViewLink, submissionId)
+    await deletePendingApprovalPdf(submission.pending_pdf_path)
+    await auditLog({
+      userId: null,
+      action: 'PENDING_APPROVAL_BLOB_ERASED',
+      resourceType: 'FORM_SUBMISSION',
+      resourceId: submissionId,
+      ipAddress: null,
+      userAgent: null,
+      details: { reason: 'Document signed and uploaded to Google Drive; temporary blob erased per compliance.' }
+    })
+  } else if (submission.google_drive_id && isGoogleDriveConfigured()) {
+    // Was already on Drive: replace with signed version
     try {
       await deleteFromGoogleDrive(submission.google_drive_id)
     } catch (error) {
@@ -1514,19 +1612,37 @@ export async function addManagerSignatureToPdf(submissionId, managerSignatureBas
       'application/pdf'
     )
     db.prepare(`
-      UPDATE form_submissions SET google_drive_id = ?, web_view_link = ? WHERE id = ?
+      UPDATE form_submissions SET google_drive_id = ?, web_view_link = ?, pending_pdf_path = NULL WHERE id = ?
     `).run(uploadResult.fileId, uploadResult.webViewLink, submissionId)
   } else {
-    // Re-encrypt and save locally
-    if (submission.pdf_encrypted_path) {
-      const fullPath = path.join(LOCAL_STORAGE_DIR, submission.pdf_encrypted_path)
-      try { await fs.unlink(fullPath) } catch { /* ignore */ }
+    // Local storage (or pending but Drive not configured: save locally and erase pending)
+    if (submission.pending_pdf_path) {
+      const encryptedBuffer = encryptBuffer(Buffer.from(updatedPdfBytes))
+      const localPath = await saveToLocalStorage(encryptedBuffer, submission.pdf_filename, applicant)
+      db.prepare(`
+        UPDATE form_submissions SET pdf_encrypted_path = ?, pending_pdf_path = NULL WHERE id = ?
+      `).run(localPath, submissionId)
+      await deletePendingApprovalPdf(submission.pending_pdf_path)
+      await auditLog({
+        userId: null,
+        action: 'PENDING_APPROVAL_BLOB_ERASED',
+        resourceType: 'FORM_SUBMISSION',
+        resourceId: submissionId,
+        ipAddress: null,
+        userAgent: null,
+        details: { reason: 'Document signed and saved to local storage; temporary blob erased per compliance.' }
+      })
+    } else {
+      if (submission.pdf_encrypted_path) {
+        const fullPath = path.join(LOCAL_STORAGE_DIR, submission.pdf_encrypted_path)
+        try { await fs.unlink(fullPath) } catch { /* ignore */ }
+      }
+      const encryptedBuffer = encryptBuffer(Buffer.from(updatedPdfBytes))
+      const localPath = await saveToLocalStorage(encryptedBuffer, submission.pdf_filename, applicant)
+      db.prepare(`
+        UPDATE form_submissions SET pdf_encrypted_path = ? WHERE id = ?
+      `).run(localPath, submissionId)
     }
-    const encryptedBuffer = encryptBuffer(Buffer.from(updatedPdfBytes))
-    const localPath = await saveToLocalStorage(encryptedBuffer, submission.pdf_filename, applicant)
-    db.prepare(`
-      UPDATE form_submissions SET pdf_encrypted_path = ? WHERE id = ?
-    `).run(localPath, submissionId)
   }
 
   return { success: true }
@@ -1554,7 +1670,11 @@ async function validatePdfBuffer(pdfBytes) {
   }
 }
 
-export async function generateAndSavePDF(applicantId, stepNumber, formType, formData, applicantData, existingSubmission = null) {
+/**
+ * @param {{ id: number, google_drive_id?: string, pdf_encrypted_path?: string|null, pending_pdf_path?: string|null }} [existingSubmission]
+ * @param {boolean} [deferUploadForApproval] - If true, store PDF in pending-approval storage until manager signoff; do not upload to Drive yet.
+ */
+export async function generateAndSavePDF(applicantId, stepNumber, formType, formData, applicantData, existingSubmission = null, deferUploadForApproval = false) {
   let pdfBytes
 
   // Generate PDF based on form type
@@ -1599,7 +1719,7 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     applicant.termination_date
   )
 
-  // If overwriting, delete old file from Drive or local storage first
+  // If overwriting, delete old file from Drive, local storage, or pending-approval
   if (existingSubmission) {
     if (existingSubmission.google_drive_id) {
       try {
@@ -1616,15 +1736,73 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
         console.error('Error deleting old PDF from local storage:', error)
       }
     }
+    if (existingSubmission.pending_pdf_path) {
+      await deletePendingApprovalPdf(existingSubmission.pending_pdf_path)
+    }
   }
 
+  const formDataToStore = redactFormDataForStorage(formData, stepNumber)
   let googleDriveId = null
   let webViewLink = null
   let localPath = null
+  let pendingPdfPath = null
 
-  // Check if Google Drive is configured
+  if (deferUploadForApproval) {
+    // Store encrypted PDF in pending-approval; upload to Drive only after manager signoff
+    let submissionId
+    if (existingSubmission) {
+      submissionId = existingSubmission.id
+      db.prepare(`
+        UPDATE form_submissions
+        SET form_data = ?, pdf_filename = ?, google_drive_id = ?, pdf_encrypted_path = ?, retention_until = ?, web_view_link = ?, pending_pdf_path = ?, submitted_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        JSON.stringify(formDataToStore),
+        filename,
+        '',
+        null,
+        retentionUntil,
+        null,
+        null,
+        existingSubmission.id
+      )
+    } else {
+      const run = db.prepare(`
+        INSERT INTO form_submissions
+        (applicant_id, step_number, form_type, form_data, pdf_filename, google_drive_id, pdf_encrypted_path, retention_until, web_view_link, pending_pdf_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        applicantId,
+        stepNumber,
+        formType,
+        JSON.stringify(formDataToStore),
+        filename,
+        '',
+        null,
+        retentionUntil,
+        null,
+        null
+      )
+      submissionId = run.lastInsertRowid
+    }
+    const encryptedBuffer = encryptBuffer(pdfBytes)
+    pendingPdfPath = await savePendingApprovalPdf(encryptedBuffer, submissionId)
+    db.prepare(`UPDATE form_submissions SET pending_pdf_path = ? WHERE id = ?`).run(pendingPdfPath, submissionId)
+    console.log(`PDF stored pending approval (encrypted): ${pendingPdfPath} for submission ${submissionId}`)
+    return {
+      filename,
+      googleDriveId: null,
+      webViewLink: null,
+      localPath: null,
+      pendingPdfPath,
+      submissionId,
+      retentionUntil,
+      storageType: 'pending_approval'
+    }
+  }
+
+  // Normal flow: upload to Drive or save to local
   if (isGoogleDriveConfigured()) {
-    // Upload raw PDF to Google Drive (Google handles its own encryption)
     const pdfBuffer = Buffer.from(pdfBytes)
     const uploadResult = await uploadToGoogleDrive(
       pdfBuffer,
@@ -1639,7 +1817,6 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     webViewLink = uploadResult.webViewLink ?? null
     console.log(`PDF uploaded to Google Drive: ${googleDriveId}`)
   } else {
-    // Encrypt the PDF for local storage only
     const encryptedBuffer = encryptBuffer(pdfBytes)
     localPath = await saveToLocalStorage(encryptedBuffer, filename, applicant)
     const fullPath = path.join(LOCAL_STORAGE_DIR, localPath)
@@ -1651,12 +1828,10 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     console.log(`PDF saved to local storage (encrypted): ${localPath} (Google Drive not configured)`)
   }
 
-  const formDataToStore = redactFormDataForStorage(formData, stepNumber)
-
   if (existingSubmission) {
     db.prepare(`
       UPDATE form_submissions
-      SET form_data = ?, pdf_filename = ?, google_drive_id = ?, pdf_encrypted_path = ?, retention_until = ?, web_view_link = ?, submitted_at = CURRENT_TIMESTAMP
+      SET form_data = ?, pdf_filename = ?, google_drive_id = ?, pdf_encrypted_path = ?, retention_until = ?, web_view_link = ?, pending_pdf_path = ?, submitted_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       JSON.stringify(formDataToStore),
@@ -1665,6 +1840,7 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
       localPath,
       retentionUntil,
       webViewLink,
+      null,
       existingSubmission.id
     )
     return {
@@ -1678,11 +1854,10 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     }
   }
 
-  // Insert new form submission record (SSN redacted from form_data for compliance)
   const submissionId = db.prepare(`
     INSERT INTO form_submissions 
-    (applicant_id, step_number, form_type, form_data, pdf_filename, google_drive_id, pdf_encrypted_path, retention_until, web_view_link)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (applicant_id, step_number, form_type, form_data, pdf_filename, google_drive_id, pdf_encrypted_path, retention_until, web_view_link, pending_pdf_path)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     applicantId,
     stepNumber,
@@ -1692,7 +1867,8 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     googleDriveId || '',
     localPath,
     retentionUntil,
-    webViewLink
+    webViewLink,
+    null
   ).lastInsertRowid
 
   return {
