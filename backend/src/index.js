@@ -21,6 +21,7 @@ import notificationRoutes from './routes/notifications.js'
 import { initializeDatabase } from './database/init.js'
 import { startRetentionScheduler } from './services/retentionService.js'
 import { auditMiddleware } from './middleware/audit.js'
+import { clientIpMiddleware } from './middleware/clientIp.js'
 import { initializeTemplates, updateAllTemplates } from './services/pdfTemplateService.js'
 import { sendDigestEmails, checkStaleOnboarding, checkOnboardingReminders, checkDocumentRetention } from './services/notificationService.js'
 
@@ -42,9 +43,9 @@ const sessionsDb = new Database(sessionsDbPath)
 const app = express()
 const PORT = process.env.PORT || 3000
 
-// Trust proxy (required when behind nginx/load balancer)
-// This fixes X-Forwarded-For header issues with rate limiting and session
-app.set('trust proxy', 1)
+// Client IP: use trusted proxy setting so we get real client IP from X-Forwarded-For
+// when behind a reverse proxy. See middleware/clientIp.js and Settings → Trusted proxy IPs.
+app.set('trust proxy', false)
 
 // Initialize database
 initializeDatabase()
@@ -63,6 +64,9 @@ app.use(cookieParser())
 // Note: secure cookies require HTTPS. Set SECURE_COOKIES=true when serving over HTTPS.
 // For local development/testing over HTTP, leave SECURE_COOKIES unset or set to 'false'.
 const isSecureCookies = process.env.SECURE_COOKIES === 'true'
+
+// Resolve real client IP when behind a trusted proxy (must run before rate limit and audit)
+app.use(clientIpMiddleware)
 
 app.use(session({
   store: new SqliteStore({

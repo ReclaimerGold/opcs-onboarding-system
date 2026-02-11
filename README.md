@@ -446,6 +446,7 @@ This system is designed to comply with:
   - **Storage/APIs:** `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`, `mailgun_api_key`, `mailgun_domain`, `mailgun_from_email`
   - **Notification & email recipients:** `no_bank_account_email`, `judy_email`, `daphne_email`, `completion_notification_email`, `thanks_io_recipient_email`, `non_gmail_alert_email`, `background_check_state_email`, `background_check_state_verbiage`
   - **Form options:** `w4_educational_link_url`, `w4_educational_link_label`, `i9_employer_authorized_rep_name`, `8850_employer_ein`, `8850_employer_address`, `8850_employer_city`, `8850_employer_state`, `8850_employer_zip`, `8850_employer_phone`
+  - **Client IP:** `trusted_proxy_ips` — Comma-separated proxy IPs; when the request comes from one of these, the real client IP is taken from `X-Forwarded-For` or `X-Real-IP` (audit logs, login attempts, rate limiting).
 - `GET /api/settings/google-drive/folders` - List Google Drive folders (admin only)
 - `GET /api/settings/google-drive/folder/:id` - Get folder info (admin only)
 - `GET /api/settings/google-drive/browse` - Browse Google Drive folders with search (admin only)

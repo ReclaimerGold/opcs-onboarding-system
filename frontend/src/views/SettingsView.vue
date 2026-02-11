@@ -819,6 +819,27 @@
           </div>
         </div>
       </div>
+
+      <!-- Trusted proxy IP (real client IP when behind reverse proxy) -->
+      <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Client IP &amp; Proxy</h2>
+        <p class="text-sm text-gray-600 mb-4">
+          When the app is behind a reverse proxy (e.g. nginx, load balancer), the server only sees the proxy&apos;s IP.
+          Add the proxy&apos;s IP address here so we use the <code class="px-1 py-0.5 bg-gray-100 rounded text-xs">X-Forwarded-For</code> or <code class="px-1 py-0.5 bg-gray-100 rounded text-xs">X-Real-IP</code> header for the real client IP in audit logs, login attempts, and rate limiting.
+        </p>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Trusted proxy IP address(es)</label>
+          <input
+            v-model="settings.trusted_proxy_ips"
+            type="text"
+            placeholder="e.g. 10.0.0.1 or 127.0.0.1, 192.168.1.1"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+          />
+          <p class="mt-1 text-xs text-gray-500">
+            Comma-separated list of proxy IPs. When a request comes from one of these IPs, the client IP is taken from the forwarding headers. Leave blank when not behind a proxy.
+          </p>
+        </div>
+      </div>
       
       <!-- Save Button and Status Messages -->
       <div class="bg-white shadow rounded-lg p-6">
@@ -1041,7 +1062,8 @@ const settings = ref({
   '8850_employer_city': '',
   '8850_employer_state': '',
   '8850_employer_zip': '',
-  '8850_employer_phone': ''
+  '8850_employer_phone': '',
+  trusted_proxy_ips: ''
 })
 
 const loading = ref(false)
