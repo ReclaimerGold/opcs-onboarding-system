@@ -663,6 +663,161 @@
           </div>
         </form>
       </div>
+
+      <!-- Notification & Email Recipients -->
+      <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Notification & Email Recipients</h2>
+        <p class="text-sm text-gray-600 mb-6">
+          Optional email addresses to receive specific notifications. Leave blank to use default (admins/managers). Mailgun must be configured for these emails to be sent.
+        </p>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">No Bank Account (Direct Deposit)</label>
+            <input
+              v-model="settings.no_bank_account_email"
+              type="email"
+              placeholder="e.g. hr@company.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">When an applicant selects "I DO NOT HAVE A BANK ACCOUNT", send an email to this address in addition to in-app notifications.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Judy (W-4 completion / Banking info)</label>
+            <input
+              v-model="settings.judy_email"
+              type="email"
+              placeholder="e.g. judy@company.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">Receives completed W-4 and direct deposit/banking info notifications.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Daphne (Acknowledgements / Emergency contact)</label>
+            <input
+              v-model="settings.daphne_email"
+              type="email"
+              placeholder="e.g. daphne@company.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">Receives Step 5 data: name, address, email, phone, emergency contact name and phone.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Completion notification override</label>
+            <input
+              v-model="settings.completion_notification_email"
+              type="email"
+              placeholder="e.g. onboarding@company.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">Optional: also send onboarding-complete emails to this address.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Thanks.io card list (DOB)</label>
+            <input
+              v-model="settings.thanks_io_recipient_email"
+              type="email"
+              placeholder="e.g. thanksio@company.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">When onboarding completes, send applicant name and date of birth to this address for the Thanks.io card list.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Non-Gmail alert recipient</label>
+            <input
+              v-model="settings.non_gmail_alert_email"
+              type="email"
+              placeholder="e.g. admin@company.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">When an applicant signs up with a non-Gmail address, send an alert here so you can manually update if needed.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Background check – email to State</label>
+            <input
+              v-model="settings.background_check_state_email"
+              type="email"
+              placeholder="e.g. state-background@state.sd.gov"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">When an applicant submits the Background Check form (Step 3), send a summary to this address (on behalf of the applicant, with authorization verbiage).</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Background check state email – custom verbiage</label>
+            <textarea
+              v-model="settings.background_check_state_verbiage"
+              rows="3"
+              placeholder="Optional: custom text included in the email to the state (e.g. signature/authorization statement)."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- W-4 and I-9 form options -->
+      <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Form Options</h2>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">W-4 Educational link (URL)</label>
+            <input
+              v-model="settings.w4_educational_link_url"
+              type="url"
+              placeholder="https://..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">Optional. Shown on Step 1 (W-4) as "For Educational Purposes only" — opens in new window.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">W-4 Educational link label</label>
+            <input
+              v-model="settings.w4_educational_link_label"
+              type="text"
+              placeholder="e.g. Example of how the new tax form works"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">I-9 / 8850 Employer authorized rep name <span class="text-red-600">(Required)</span></label>
+            <input
+              v-model="settings.i9_employer_authorized_rep_name"
+              type="text"
+              placeholder="e.g. Jason"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+            <p class="mt-1 text-xs text-gray-500">Name used for employer/authorized representative on I-9 and Form 8850. Must be set before applicants can access onboarding forms.</p>
+          </div>
+          <div class="border-t pt-4 mt-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">Form 8850 employer (Page 2) <span class="text-red-600">– required</span></h4>
+            <p class="text-xs text-gray-500 mb-3">Used to auto-fill employer section on Form 8850. All fields below must be completed before applicants can access onboarding forms; otherwise employer information will be missing from documents.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer EIN</label>
+                <input v-model="settings['8850_employer_ein']" type="text" placeholder="XX-XXXXXXX" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer phone</label>
+                <input v-model="settings['8850_employer_phone']" type="text" placeholder="(XXX) XXX-XXXX" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer address</label>
+                <input v-model="settings['8850_employer_address']" type="text" placeholder="Street address" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer city</label>
+                <input v-model="settings['8850_employer_city']" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer state</label>
+                <input v-model="settings['8850_employer_state']" type="text" maxlength="2" placeholder="SD" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary uppercase" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer ZIP</label>
+                <input v-model="settings['8850_employer_zip']" type="text" placeholder="57104" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       
       <!-- Save Button and Status Messages -->
       <div class="bg-white shadow rounded-lg p-6">
@@ -867,7 +1022,24 @@ const settings = ref({
   google_address_validation_api_key: '',
   mailgun_api_key: '',
   mailgun_domain: '',
-  mailgun_from_email: ''
+  mailgun_from_email: '',
+  no_bank_account_email: '',
+  judy_email: '',
+  daphne_email: '',
+  completion_notification_email: '',
+  thanks_io_recipient_email: '',
+  non_gmail_alert_email: '',
+  background_check_state_email: '',
+  background_check_state_verbiage: '',
+  w4_educational_link_url: '',
+  w4_educational_link_label: '',
+  i9_employer_authorized_rep_name: '',
+  '8850_employer_ein': '',
+  '8850_employer_address': '',
+  '8850_employer_city': '',
+  '8850_employer_state': '',
+  '8850_employer_zip': '',
+  '8850_employer_phone': ''
 })
 
 const loading = ref(false)

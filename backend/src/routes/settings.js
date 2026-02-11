@@ -15,7 +15,7 @@ function parseGoogleDriveError(error) {
   const errorMessage = error.message || ''
   const errorCode = error.code || error.response?.data?.error || ''
   const errorDescription = error.response?.data?.error_description || ''
-  
+
   // Common OAuth errors
   if (errorMessage.includes('unauthorized_client') || errorCode === 'unauthorized_client') {
     return {
@@ -31,7 +31,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://console.cloud.google.com/apis/credentials'
     }
   }
-  
+
   if (errorMessage.includes('invalid_client') || errorCode === 'invalid_client') {
     return {
       message: 'Invalid client - The Client ID or Client Secret is incorrect.',
@@ -46,7 +46,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://console.cloud.google.com/apis/credentials'
     }
   }
-  
+
   if (errorMessage.includes('invalid_grant') || errorCode === 'invalid_grant') {
     return {
       message: 'Invalid grant - The refresh token has expired or been revoked.',
@@ -62,7 +62,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://developers.google.com/oauthplayground'
     }
   }
-  
+
   if (errorMessage.includes('access_denied') || errorCode === 'access_denied') {
     return {
       message: 'Access denied - The user denied the authorization request.',
@@ -75,7 +75,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://console.cloud.google.com/apis/credentials/consent'
     }
   }
-  
+
   if (errorMessage.includes('API has not been enabled') || errorMessage.includes('accessNotConfigured')) {
     return {
       message: 'Google Drive API is not enabled for this project.',
@@ -90,7 +90,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://console.cloud.google.com/apis/library/drive.googleapis.com'
     }
   }
-  
+
   if (errorMessage.includes('quota') || errorMessage.includes('rateLimitExceeded')) {
     return {
       message: 'API quota exceeded - Too many requests to Google Drive.',
@@ -102,7 +102,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://console.cloud.google.com/apis/api/drive.googleapis.com/quotas'
     }
   }
-  
+
   if (errorMessage.includes('insufficientPermissions') || errorMessage.includes('forbidden')) {
     return {
       message: 'Insufficient permissions - The app does not have required Drive permissions.',
@@ -115,7 +115,7 @@ function parseGoogleDriveError(error) {
       helpUrl: 'https://developers.google.com/oauthplayground'
     }
   }
-  
+
   if (errorMessage.includes('notFound') || errorCode === 404) {
     return {
       message: 'Folder not found - The specified Google Drive folder does not exist.',
@@ -128,7 +128,7 @@ function parseGoogleDriveError(error) {
       helpUrl: null
     }
   }
-  
+
   // Generic error with the original message
   return {
     message: `Connection error: ${errorMessage || errorDescription || 'Unknown error'}`,
@@ -153,7 +153,7 @@ router.get('/google-address-validation-key', requireAuth, (req, res) => {
   try {
     const db = getDatabase()
     const setting = db.prepare('SELECT value, is_encrypted FROM settings WHERE key = ?').get('google_address_validation_api_key')
-    
+
     if (setting && setting.value) {
       const apiKey = setting.is_encrypted ? decryptText(setting.value) : setting.value
       res.json({ apiKey })
@@ -167,6 +167,27 @@ router.get('/google-address-validation-key', requireAuth, (req, res) => {
 })
 
 /**
+ * GET /api/settings/form-options
+ * Returns non-sensitive settings needed for form display (e.g. W-4 educational link).
+ * Requires authentication.
+ */
+router.get('/form-options', requireAuth, (req, res) => {
+  try {
+    const db = getDatabase()
+    const keys = ['w4_educational_link_url', 'w4_educational_link_label']
+    const result = {}
+    for (const key of keys) {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key)
+      result[key] = (row && row.value != null) ? String(row.value) : ''
+    }
+    res.json(result)
+  } catch (error) {
+    console.error('Get form-options error:', error)
+    res.status(500).json({ error: 'Failed to retrieve form options' })
+  }
+})
+
+/**
  * GET /api/settings
  * Get all settings (decrypt sensitive values)
  * Note: Requires authentication, but only admin can see all settings
@@ -175,7 +196,7 @@ router.get('/', requireAuth, (req, res) => {
   try {
     const db = getDatabase()
     const settings = db.prepare('SELECT key, value, is_encrypted FROM settings').all()
-    
+
     const decryptedSettings = {}
     for (const setting of settings) {
       // Only return Google Address Validation API key for non-admin users
@@ -203,7 +224,7 @@ router.get('/', requireAuth, (req, res) => {
         }
       }
     }
-    
+
     res.json(decryptedSettings)
   } catch (error) {
     console.error('Get settings error:', error)
@@ -220,7 +241,7 @@ router.post('/', requireAdmin, (req, res) => {
   try {
     const db = getDatabase()
     const { settings } = req.body
-    
+
     // Define which settings should be encrypted
     const encryptedKeys = [
       'google_client_id',
@@ -229,14 +250,14 @@ router.post('/', requireAdmin, (req, res) => {
       'google_address_validation_api_key',
       'mailgun_api_key'
     ]
-    
+
     for (const [key, value] of Object.entries(settings)) {
       // Skip if value is undefined
       if (value === undefined) continue
-      
+
       const isEncrypted = encryptedKeys.includes(key)
       const finalValue = isEncrypted && value ? encryptText(value) : (value || '')
-      
+
       db.prepare(`
         INSERT INTO settings (key, value, is_encrypted, updated_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -246,7 +267,7 @@ router.post('/', requireAdmin, (req, res) => {
           updated_at = CURRENT_TIMESTAMP
       `).run(key, finalValue, isEncrypted ? 1 : 0, finalValue, isEncrypted ? 1 : 0)
     }
-    
+
     res.json({ success: true })
   } catch (error) {
     console.error('Update settings error:', error)
@@ -293,15 +314,15 @@ router.get('/google-drive/folder/:id', requireAdmin, async (req, res) => {
 router.post('/test/google-drive', requireAdmin, async (req, res) => {
   try {
     const db = getDatabase()
-    
+
     // Get credentials from database
     const clientId = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_client_id')
     const clientSecret = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_client_secret')
     const refreshToken = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_refresh_token')
-    
+
     if (!clientId || !clientSecret || !refreshToken) {
-      return res.json({ 
-        success: false, 
+      return res.json({
+        success: false,
         error: 'Google Drive credentials not configured.',
         instructions: [
           '1. Enter your OAuth Client ID from Google Cloud Console',
@@ -312,15 +333,15 @@ router.post('/test/google-drive', requireAdmin, async (req, res) => {
         helpUrl: 'https://console.cloud.google.com/apis/credentials'
       })
     }
-    
+
     // Check if values are actually set (not just empty)
     const decClientId = decryptText(clientId.value)
     const decClientSecret = decryptText(clientSecret.value)
     const decRefreshToken = decryptText(refreshToken.value)
-    
+
     if (!decClientId || !decClientSecret || !decRefreshToken) {
-      return res.json({ 
-        success: false, 
+      return res.json({
+        success: false,
         error: 'One or more credentials are empty.',
         instructions: [
           '1. Make sure all three fields are filled in: Client ID, Client Secret, and Refresh Token',
@@ -331,20 +352,20 @@ router.post('/test/google-drive', requireAdmin, async (req, res) => {
         helpUrl: 'https://developers.google.com/oauthplayground'
       })
     }
-    
+
     // Try to list folders to test connection
     try {
       const folders = await listFolders('root')
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `Connection successful! Found ${folders.length} folder(s) in root directory.`,
         folderCount: folders.length
       })
     } catch (driveError) {
       console.error('Google Drive test connection error:', driveError)
       const parsedError = parseGoogleDriveError(driveError)
-      res.json({ 
-        success: false, 
+      res.json({
+        success: false,
         error: parsedError.message,
         instructions: parsedError.instructions,
         helpUrl: parsedError.helpUrl,
@@ -354,8 +375,8 @@ router.post('/test/google-drive', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Google Drive test error:', error)
     const parsedError = parseGoogleDriveError(error)
-    res.json({ 
-      success: false, 
+    res.json({
+      success: false,
       error: parsedError.message,
       instructions: parsedError.instructions,
       helpUrl: parsedError.helpUrl,
@@ -372,22 +393,22 @@ router.post('/test/google-drive', requireAdmin, async (req, res) => {
 router.post('/test/address-validation', requireAdmin, async (req, res) => {
   try {
     const db = getDatabase()
-    
+
     // Get API key from database
     const setting = db.prepare('SELECT value, is_encrypted FROM settings WHERE key = ?').get('google_address_validation_api_key')
-    
+
     if (!setting || !setting.value) {
-      return res.json({ 
-        success: false, 
-        error: 'Google Address Validation API key not configured.' 
+      return res.json({
+        success: false,
+        error: 'Google Address Validation API key not configured.'
       })
     }
-    
+
     const apiKey = setting.is_encrypted ? decryptText(setting.value) : setting.value
-    
+
     // Test with a sample address
     const testAddress = '1600 Amphitheatre Parkway, Mountain View, CA'
-    
+
     try {
       const response = await fetch(
         `https://addressvalidation.googleapis.com/v1:validateAddress?key=${apiKey}`,
@@ -402,21 +423,21 @@ router.post('/test/address-validation', requireAdmin, async (req, res) => {
           })
         }
       )
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error?.message || `HTTP ${response.status}`
-        return res.json({ 
-          success: false, 
-          error: `API error: ${errorMessage}` 
+        return res.json({
+          success: false,
+          error: `API error: ${errorMessage}`
         })
       }
-      
+
       const data = await response.json()
-      
+
       if (data.result) {
-        res.json({ 
-          success: true, 
+        res.json({
+          success: true,
           message: 'Connection successful! Address Validation API is working.',
           testResult: {
             addressComplete: data.result.verdict?.addressComplete,
@@ -424,15 +445,15 @@ router.post('/test/address-validation', requireAdmin, async (req, res) => {
           }
         })
       } else {
-        res.json({ 
-          success: false, 
-          error: 'API returned no result' 
+        res.json({
+          success: false,
+          error: 'API returned no result'
         })
       }
     } catch (fetchError) {
-      res.json({ 
-        success: false, 
-        error: `Connection failed: ${fetchError.message}` 
+      res.json({
+        success: false,
+        error: `Connection failed: ${fetchError.message}`
       })
     }
   } catch (error) {
@@ -450,39 +471,39 @@ router.post('/test/address-validation', requireAdmin, async (req, res) => {
 router.get('/google-drive/browse', requireAdmin, async (req, res) => {
   try {
     const { parentId = 'root', search = '', sharedDriveId = '' } = req.query
-    
+
     // Import the function to initialize drive client
     const { google } = await import('googleapis')
     const db = getDatabase()
-    
+
     const clientId = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_client_id')
     const clientSecret = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_client_secret')
     const refreshToken = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_refresh_token')
-    
+
     if (!clientId || !clientSecret || !refreshToken) {
       return res.status(400).json({ error: 'Google Drive credentials not configured' })
     }
-    
+
     const decryptedClientId = decryptText(clientId.value)
     const decryptedClientSecret = decryptText(clientSecret.value)
     const decryptedRefreshToken = decryptText(refreshToken.value)
-    
+
     const oauth2Client = new google.auth.OAuth2(
       decryptedClientId,
       decryptedClientSecret,
       'http://localhost:3000/oauth2callback'
     )
-    
+
     oauth2Client.setCredentials({ refresh_token: decryptedRefreshToken })
-    
+
     const driveClient = google.drive({ version: 'v3', auth: oauth2Client })
-    
+
     // Determine actual parent ID for Shared Drives
     const actualParentId = sharedDriveId && parentId === 'root' ? sharedDriveId : parentId
-    
+
     // Build query
     let query = `mimeType='application/vnd.google-apps.folder' and trashed=false`
-    
+
     if (search) {
       // Search by name
       query += ` and name contains '${search.replace(/'/g, "\\'")}'`
@@ -490,7 +511,7 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
       // Browse by parent
       query += ` and '${actualParentId}' in parents`
     }
-    
+
     // Build request parameters with Shared Drive support
     const listParams = {
       q: query,
@@ -500,15 +521,15 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
       supportsAllDrives: true,
       includeItemsFromAllDrives: true
     }
-    
+
     // Add Shared Drive specific parameters
     if (sharedDriveId) {
       listParams.corpora = 'drive'
       listParams.driveId = sharedDriveId
     }
-    
+
     const response = await driveClient.files.list(listParams)
-    
+
     // Get parent folder info if not root
     let parentInfo = null
     if (parentId !== 'root' && actualParentId !== sharedDriveId) {
@@ -523,7 +544,7 @@ router.get('/google-drive/browse', requireAdmin, async (req, res) => {
         // Parent info not critical
       }
     }
-    
+
     res.json({
       folders: response.data.files || [],
       parentId,
@@ -575,35 +596,35 @@ router.get('/google-drive/shared-drive/:id', requireAdmin, async (req, res) => {
 router.post('/test/mailgun', requireAdmin, async (req, res) => {
   try {
     const { testEmail } = req.body
-    
+
     if (!testEmail) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Test email address is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Test email address is required'
       })
     }
-    
+
     // Import Mailgun service
     const { sendTestEmail, isMailgunConfigured } = await import('../services/mailgunService.js')
-    
+
     if (!isMailgunConfigured()) {
-      return res.json({ 
-        success: false, 
-        error: 'Mailgun is not configured. Please enter your API key and domain first.' 
+      return res.json({
+        success: false,
+        error: 'Mailgun is not configured. Please enter your API key and domain first.'
       })
     }
-    
+
     try {
       await sendTestEmail(testEmail)
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `Test email sent successfully to ${testEmail}!`
       })
     } catch (mailError) {
       console.error('Mailgun test error:', mailError)
-      res.json({ 
-        success: false, 
-        error: `Failed to send email: ${mailError.message}` 
+      res.json({
+        success: false,
+        error: `Failed to send email: ${mailError.message}`
       })
     }
   } catch (error) {
