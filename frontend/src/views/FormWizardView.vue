@@ -6,6 +6,7 @@
       :open="showOnboardingModal"
       :startAtSignature="showStartAtSignatureOnly"
       v-model:consented="dashboardConsented"
+      @consent-given="onConsentGiven"
       @signature="onDashboardOnboardingComplete"
     />
     <!-- Re-prompt for SSN when cookie has expired so forms can be filled -->
@@ -33,6 +34,21 @@
       </div>
     </nav>
 
+    <!-- When gate modal is open: only show short message (no step content, so no duplicate consent modals) -->
+    <div v-if="showOnboardingModal" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16 text-center">
+      <p class="text-gray-600">Complete the steps in the dialog above to continue to your forms.</p>
+    </div>
+    <!-- Onboarding status loading -->
+    <div v-else-if="onboardingLoading" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16 flex items-center justify-center">
+      <div class="text-center">
+        <svg class="animate-spin h-10 w-10 text-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-gray-600">Loading...</p>
+      </div>
+    </div>
+    <template v-else>
     <!-- Checking availability (before template-status has loaded) -->
     <div v-if="!templateStatusLoaded" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16 flex items-center justify-center">
       <div class="text-center">
@@ -75,6 +91,22 @@
         <h2 class="text-lg font-semibold text-amber-800 mb-2">Forms are not yet available</h2>
         <p class="text-sm text-amber-700 mb-4">
           Your administrator must configure signature placement for W-4, I-9, Form 8850, and Form 9061 before you can complete onboarding. Please contact your administrator or try again later.
+        </p>
+        <router-link
+          to="/dashboard"
+          class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light"
+        >
+          Go to Dashboard
+        </router-link>
+      </div>
+    </div>
+
+    <!-- Business information required: admin must complete employer/8850 settings -->
+    <div v-else-if="!employerInfoConfigured" class="max-w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-16">
+      <div class="max-w-xl mx-auto bg-amber-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-sm">
+        <h2 class="text-lg font-semibold text-amber-800 mb-2">Business information required</h2>
+        <p class="text-sm text-amber-700 mb-4">
+          Your administrator must complete the business information (employer name and Form 8850 employer section) in <strong>Admin → Settings → Form Options</strong> before you can complete onboarding. Otherwise employer information will be missing from your documents.
         </p>
         <router-link
           to="/dashboard"
@@ -522,6 +554,7 @@
       </div>
     </div>
     </template>
+    </template>
   </div>
 </template>
 
@@ -551,6 +584,7 @@ const dashboardConsented = ref(false)
 
 // Unwrap composable refs so template gets booleans (SSNConsentModal expects open: Boolean)
 const showOnboardingModal = computed(() => !!dashboardOnboarding.needsOnboardingModal?.value)
+const onboardingLoading = computed(() => !!dashboardOnboarding.loading?.value)
 const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSignatureOnly?.value)
 
 // SSN re-prompt when cookie expired (steps 1, 2, 6, 7 need SSN for forms)
@@ -579,6 +613,15 @@ function onSSNRePromptSaved(ssn) {
 }
 
 const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
+
+async function onConsentGiven() {
+  try {
+    await dashboardOnboarding.recordConsent()
+    sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
+  } catch (err) {
+    console.error('Failed to record SSN consent:', err)
+  }
+}
 
 async function onDashboardOnboardingComplete(signatureData) {
   if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled
@@ -616,7 +659,7 @@ const previewError = ref(null)
 const loadingProgress = ref(false)
 const loadingApplicant = ref(false)
 const sessionSignature = ref(null)
-const templateStatus = ref({ w4: false, i9: false, 8850: false, 9061: false })
+const templateStatus = ref({ w4: false, i9: false, 8850: false, 9061: false, employerInfoConfigured: false })
 const templateStatusLoaded = ref(false)
 /** True when template-status request failed (e.g. network); distinct from "placements not configured" */
 const templateStatusError = ref(false)
@@ -625,6 +668,7 @@ let previewDebounceTimer = null
 const allSignaturePlacementsReady = computed(() =>
   templateStatus.value.w4 && templateStatus.value.i9 && !!templateStatus.value['8850'] && !!templateStatus.value['9061']
 )
+const employerInfoConfigured = computed(() => !!templateStatus.value.employerInfoConfigured)
 
 const stepLabels = {
   1: 'W-4',
@@ -681,14 +725,20 @@ const loadTemplateStatus = async (isRetry = false) => {
   templateStatusError.value = false
   try {
     const res = await api.get('/forms/template-status')
-    templateStatus.value = { w4: !!res.data.w4, i9: !!res.data.i9, 8850: !!res.data['8850'], 9061: !!res.data['9061'] }
+    templateStatus.value = {
+      w4: !!res.data.w4,
+      i9: !!res.data.i9,
+      8850: !!res.data['8850'],
+      9061: !!res.data['9061'],
+      employerInfoConfigured: !!res.data.employerInfoConfigured
+    }
   } catch (err) {
     if (!isRetry) {
       await new Promise(r => setTimeout(r, 1000))
       return loadTemplateStatus(true)
     }
     templateStatusError.value = true
-    templateStatus.value = { w4: false, i9: false, 8850: false, 9061: false }
+    templateStatus.value = { w4: false, i9: false, 8850: false, 9061: false, employerInfoConfigured: false }
   } finally {
     templateStatusLoaded.value = true
   }
@@ -696,8 +746,9 @@ const loadTemplateStatus = async (isRetry = false) => {
 
 onMounted(async () => {
   await loadTemplateStatus()
-  const ready = templateStatus.value.w4 && templateStatus.value.i9 && templateStatus.value['8850'] && templateStatus.value['9061']
-  if (!ready) return
+  const placementReady = templateStatus.value.w4 && templateStatus.value.i9 && templateStatus.value['8850'] && templateStatus.value['9061']
+  const employerReady = !!templateStatus.value.employerInfoConfigured
+  if (!placementReady || !employerReady) return
 
   await loadProgress()
   await loadApplicantData()

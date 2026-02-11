@@ -961,7 +961,7 @@
           :disabled="loading"
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
         >
-          <span v-if="loading">Submitting...</span>
+          <span v-if="loading">Generating PDF & saving…</span>
           <span v-else>Continue to Step 3</span>
         </button>
       </div>

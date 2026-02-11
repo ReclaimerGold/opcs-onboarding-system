@@ -153,70 +153,180 @@
           </div>
         </div>
         
-        <div class="mt-6 space-y-4">
+        <div class="mt-6 space-y-6">
           <p class="text-sm text-gray-600 mb-4">
-            You must manually check one box per question to confirm your answer. Do not leave any question unanswered.
+            Select one option per question. Do not leave any question unanswered.
           </p>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Have you ever been convicted of a crime resulting in your classification as a sex offender in any state? <span class="text-red-500">*</span>
-              <span class="ml-1 text-xs text-red-600">(Required — check one)</span>
-            </label>
-            <div class="space-y-2">
-              <label class="flex items-center">
-                <input
-                  type="checkbox"
-                  :checked="formData.sexOffender === 'yes'"
-                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
-                  @change="onSexOffenderChange($event, 'yes')"
-                />
-                <span>I confirm: Yes, I have been convicted of a crime resulting in sex offender classification.</span>
-              </label>
-              <label class="flex items-center">
-                <input
-                  type="checkbox"
-                  :checked="formData.sexOffender === 'no'"
-                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
-                  @change="onSexOffenderChange($event, 'no')"
-                />
-                <span>I confirm: No, I have not been convicted of a crime resulting in sex offender classification.</span>
-              </label>
+            <fieldset class="space-y-2">
+              <legend class="block text-sm font-medium text-gray-700 mb-2">
+                Sex offender classification in any state? <span class="text-red-500">*</span>
+                <span class="ml-1 text-xs text-red-600">(Required)</span>
+              </legend>
+              <div class="flex flex-wrap gap-x-6 gap-y-1">
+                <label class="flex items-center cursor-pointer">
+                  <input
+                    v-model="formData.sexOffender"
+                    type="radio"
+                    name="sexOffender"
+                    value="yes"
+                    class="mr-2 border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>Yes</span>
+                </label>
+                <label class="flex items-center cursor-pointer">
+                  <input
+                    v-model="formData.sexOffender"
+                    type="radio"
+                    name="sexOffender"
+                    value="no"
+                    class="mr-2 border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>No</span>
+                </label>
+              </div>
+            </fieldset>
+            <div v-if="formData.sexOffender === 'yes'" class="mt-3 p-4 border border-gray-200 rounded-md bg-gray-50 space-y-4">
+              <h4 class="text-sm font-semibold text-gray-800">Offenses</h4>
+              <div
+                v-for="(offense, idx) in formData.sexOffenderOffenses"
+                :key="'sex-' + idx"
+                class="rounded border border-gray-200 bg-white p-3 space-y-3"
+              >
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-medium text-gray-500">Offense {{ idx + 1 }}</span>
+                  <button
+                    v-if="formData.sexOffenderOffenses.length > 1"
+                    type="button"
+                    @click="removeSexOffenderOffense(idx)"
+                    class="text-xs text-red-600 hover:text-red-800"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date of offense</label>
+                    <input
+                      v-model="offense.dateOfOffense"
+                      type="date"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type of offense</label>
+                    <input
+                      v-model="offense.typeOfOffense"
+                      type="text"
+                      placeholder="e.g. misdemeanor, felony"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Comments</label>
+                  <textarea
+                    v-model="offense.comments"
+                    rows="2"
+                    placeholder="Additional details..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="addSexOffenderOffense"
+                class="text-sm text-primary hover:text-primary-light font-medium"
+              >
+                + Add another offense
+              </button>
             </div>
           </div>
-          
+
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Have you been convicted of any crimes in the past 7 years? <span class="text-red-500">*</span>
-              <span class="ml-1 text-xs text-red-600">(Required — check one)</span>
-            </label>
-            <div class="space-y-2">
-              <label class="flex items-center">
-                <input
-                  type="checkbox"
-                  :checked="formData.crimesPast7Years === 'yes'"
-                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
-                  @change="onCrimesPast7YearsChange($event, 'yes')"
-                />
-                <span>I confirm: Yes, I have been convicted of crimes in the past 7 years.</span>
-              </label>
-              <label class="flex items-center">
-                <input
-                  type="checkbox"
-                  :checked="formData.crimesPast7Years === 'no'"
-                  class="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
-                  @change="onCrimesPast7YearsChange($event, 'no')"
-                />
-                <span>I confirm: No, I have not been convicted of any crimes in the past 7 years.</span>
-              </label>
-            </div>
-            <div v-if="formData.crimesPast7Years === 'yes'" class="mt-2">
-              <textarea
-                v-model="formData.crimeDetails"
-                placeholder="Please provide details..."
-                rows="4"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-              />
+            <fieldset class="space-y-2">
+              <legend class="block text-sm font-medium text-gray-700 mb-2">
+                Convicted of any crimes in the past 7 years? <span class="text-red-500">*</span>
+                <span class="ml-1 text-xs text-red-600">(Required)</span>
+              </legend>
+              <div class="flex flex-wrap gap-x-6 gap-y-1">
+                <label class="flex items-center cursor-pointer">
+                  <input
+                    v-model="formData.crimesPast7Years"
+                    type="radio"
+                    name="crimesPast7Years"
+                    value="yes"
+                    class="mr-2 border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>Yes</span>
+                </label>
+                <label class="flex items-center cursor-pointer">
+                  <input
+                    v-model="formData.crimesPast7Years"
+                    type="radio"
+                    name="crimesPast7Years"
+                    value="no"
+                    class="mr-2 border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>No</span>
+                </label>
+              </div>
+            </fieldset>
+            <div v-if="formData.crimesPast7Years === 'yes'" class="mt-3 p-4 border border-gray-200 rounded-md bg-gray-50 space-y-4">
+              <h4 class="text-sm font-semibold text-gray-800">Offenses</h4>
+              <div
+                v-for="(offense, idx) in formData.crimes7Offenses"
+                :key="'crimes7-' + idx"
+                class="rounded border border-gray-200 bg-white p-3 space-y-3"
+              >
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-medium text-gray-500">Offense {{ idx + 1 }}</span>
+                  <button
+                    v-if="formData.crimes7Offenses.length > 1"
+                    type="button"
+                    @click="removeCrimes7Offense(idx)"
+                    class="text-xs text-red-600 hover:text-red-800"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date of offense</label>
+                    <input
+                      v-model="offense.dateOfOffense"
+                      type="date"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type of offense</label>
+                    <input
+                      v-model="offense.typeOfOffense"
+                      type="text"
+                      placeholder="e.g. misdemeanor, felony"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Comments</label>
+                  <textarea
+                    v-model="offense.comments"
+                    rows="2"
+                    placeholder="Additional details..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="addCrimes7Offense"
+                class="text-sm text-primary hover:text-primary-light font-medium"
+              >
+                + Add another offense
+              </button>
             </div>
           </div>
 
@@ -251,10 +361,8 @@
         
         <div class="mt-6">
           <label class="block text-sm font-medium text-gray-700 mb-2">
-            Upload Photo ID
-            <!-- TODO: Re-add required after PDF testing -->
-            <!-- <span class="text-red-500">*</span> -->
-            <span class="ml-1 text-xs text-gray-500">(Optional for now)</span>
+            Upload Photo ID <span class="text-red-500">*</span>
+            <span class="ml-1 text-xs text-red-600">(Required)</span>
           </label>
           <input
             type="file"
@@ -262,18 +370,20 @@
             @change="handleFileUpload"
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
           />
+          <p v-if="!formData.photoIdFile" class="mt-1 text-xs text-red-600">Please upload a photo of your ID.</p>
         </div>
       </div>
       
       <div class="flex justify-end">
         <button
           type="submit"
-          :disabled="loading || !formData.sexOffender || !formData.crimesPast7Years || !formData.perjuryCertified || !formData.sdBackgroundCheckAuthorized"
+          :disabled="loading || !formData.sexOffender || !formData.crimesPast7Years || !formData.perjuryCertified || !formData.sdBackgroundCheckAuthorized || !formData.photoIdFile"
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
         >
-          <span v-if="loading">Submitting...</span>
+          <span v-if="loading">Generating PDF & saving…</span>
           <span v-else-if="!formData.sexOffender || !formData.crimesPast7Years">Check one option per question to continue</span>
           <span v-else-if="!formData.perjuryCertified || !formData.sdBackgroundCheckAuthorized">Complete the certification and authorization checkboxes to continue</span>
+          <span v-else-if="!formData.photoIdFile">Please upload your Photo ID to continue</span>
           <span v-else>Continue to Step 4</span>
         </button>
       </div>
@@ -282,13 +392,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 
 const emit = defineEmits(['submitted'])
 
 const { applicantData, loading: loadingApplicant } = useApplicantData()
+
+const emptyOffense = () => ({ dateOfOffense: '', typeOfOffense: '', comments: '' })
 
 const formData = ref({
   firstName: '',
@@ -302,6 +414,8 @@ const formData = ref({
   sexOffender: '',
   crimesPast7Years: '',
   crimeDetails: '',
+  sexOffenderOffenses: [emptyOffense()],
+  crimes7Offenses: [emptyOffense()],
   perjuryCertified: false,
   sdBackgroundCheckAuthorized: false,
   photoIdFile: null
@@ -310,6 +424,31 @@ const formData = ref({
 const loading = ref(false)
 const addressLocked = ref(false)
 const middleNameLocked = ref(false)
+
+function addSexOffenderOffense() {
+  formData.value.sexOffenderOffenses.push(emptyOffense())
+}
+function removeSexOffenderOffense(index) {
+  formData.value.sexOffenderOffenses.splice(index, 1)
+}
+function addCrimes7Offense() {
+  formData.value.crimes7Offenses.push(emptyOffense())
+}
+function removeCrimes7Offense(index) {
+  formData.value.crimes7Offenses.splice(index, 1)
+}
+
+// When "Yes" is selected, ensure at least one offense entry
+watch(() => formData.value.sexOffender, (val) => {
+  if (val === 'yes' && (!formData.value.sexOffenderOffenses || formData.value.sexOffenderOffenses.length === 0)) {
+    formData.value.sexOffenderOffenses = [emptyOffense()]
+  }
+})
+watch(() => formData.value.crimesPast7Years, (val) => {
+  if (val === 'yes' && (!formData.value.crimes7Offenses || formData.value.crimes7Offenses.length === 0)) {
+    formData.value.crimes7Offenses = [emptyOffense()]
+  }
+})
 
 // Load applicant data and auto-populate fields (applicant first, then Step 1 draft as fallback)
 onMounted(async () => {
@@ -389,23 +528,6 @@ onMounted(async () => {
     console.error('Error loading Step 1 draft:', error)
   }
 })
-
-// Mutually exclusive checkbox: checking one sets value, unchecks the other
-const onSexOffenderChange = (e, value) => {
-  if (e.target.checked) {
-    formData.value.sexOffender = value
-  } else {
-    formData.value.sexOffender = ''
-  }
-}
-
-const onCrimesPast7YearsChange = (e, value) => {
-  if (e.target.checked) {
-    formData.value.crimesPast7Years = value
-  } else {
-    formData.value.crimesPast7Years = ''
-  }
-}
 
 const handleFileUpload = (e) => {
   formData.value.photoIdFile = e.target.files[0]

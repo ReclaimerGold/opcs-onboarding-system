@@ -252,7 +252,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:consented', 'signature'])
+const emit = defineEmits(['update:consented', 'signature', 'consent-given'])
 
 // Slide state: 1 = consent, 2 = password setup, 3 = add signature
 const slide = ref(1)
@@ -298,11 +298,14 @@ watch(
   }
 )
 
-// Handle consent click - check if password is already set, then show signature step
+// Handle consent click - persist consent immediately, then check password and show next step
 const handleConsentClick = async () => {
   if (!localConsented.value) {
     return
   }
+
+  // Persist consent as soon as user clicks so they are never asked again (even if they leave before signing)
+  emit('consent-given')
 
   checkingPassword.value = true
   

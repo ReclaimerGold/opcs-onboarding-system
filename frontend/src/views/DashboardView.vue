@@ -6,6 +6,7 @@
       :open="showOnboardingModal"
       :startAtSignature="showStartAtSignatureOnly"
       v-model:consented="dashboardConsented"
+      @consent-given="onConsentGiven"
       @signature="onDashboardOnboardingComplete"
     />
     <div v-else-if="onboardingLoading" class="min-h-screen flex items-center justify-center bg-gray-50">
@@ -838,6 +839,15 @@ const showStartAtSignatureOnly = computed(() => !!dashboardOnboarding.startAtSig
 const onboardingLoading = computed(() => !!dashboardOnboarding.loading?.value)
 
 const CONSENT_STORAGE_KEY = 'opcsSsnConsentAcknowledged'
+
+async function onConsentGiven() {
+  try {
+    await dashboardOnboarding.recordConsent()
+    sessionStorage.setItem(CONSENT_STORAGE_KEY, 'true')
+  } catch (err) {
+    console.error('Failed to record SSN consent:', err)
+  }
+}
 
 async function onDashboardOnboardingComplete(signatureData) {
   if (!signatureData || !String(signatureData).trim()) return // cannot continue until filled

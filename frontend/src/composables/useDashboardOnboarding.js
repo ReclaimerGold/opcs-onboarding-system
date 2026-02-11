@@ -44,10 +44,15 @@ async function _fetchStatus() {
     }
   } catch (err) {
     console.error('Failed to check dashboard onboarding status:', err)
-    ssnConsentGiven.value = false
-    passwordSet.value = false
-    isAdmin.value = false
-    hasSignatureInDb.value = false
+    // Only clear state on auth failure so transient errors don't force the user through the gate again
+    const status = err.response?.status
+    if (status === 401 || status === 403) {
+      ssnConsentGiven.value = false
+      passwordSet.value = false
+      isAdmin.value = false
+      hasSignatureInDb.value = false
+    }
+    // Otherwise leave refs unchanged (e.g. keep true if already completed)
   } finally {
     loading.value = false
   }
