@@ -1065,18 +1065,15 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     const fileExtension = path.extname(req.file.originalname) || '.pdf'
     const filename = `${name}-I9-${documentType}-${documentCategory}-${dateStr}-${timeStr}${fileExtension}`
 
-    // Encrypt the document in memory
-    const encryptedBuffer = encryptBuffer(fileBuffer)
-
     let googleDriveId = null
     let webViewLink = null
     let localFilePath = null
 
     // Check if Google Drive is configured
     if (isGoogleDriveConfigured()) {
-      // Upload encrypted document directly to Google Drive
+      // Upload flattened PDF to Google Drive (plain PDF so preview and download work)
       const uploadResult = await uploadToGoogleDrive(
-        encryptedBuffer,
+        fileBuffer,
         filename,
         applicant,
         req.file.mimetype || 'application/pdf'
@@ -1085,7 +1082,8 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       webViewLink = uploadResult.webViewLink
       console.log(`I-9 document uploaded to Google Drive: ${googleDriveId}`)
     } else {
-      // Fallback to local storage
+      // Fallback to local storage: encrypt at rest
+      const encryptedBuffer = encryptBuffer(fileBuffer)
       const applicantFolder = `${applicant.first_name}${applicant.last_name}`.replace(/\s/g, '')
       const folderPath = path.join(LOCAL_I9_STORAGE_DIR, applicantFolder)
       await fs.mkdir(folderPath, { recursive: true })
@@ -1269,23 +1267,27 @@ router.get('/i9/documents/:id/view', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' })
     }
 
-    let decryptedBuffer
+    let bufferToSend
 
     // Check if document is in Google Drive or local storage
     if (document.google_drive_id) {
-      // Download and decrypt file from Google Drive
+      // Download from Google Drive (new uploads are plain PDF; legacy may be encrypted)
       try {
-        const encryptedBuffer = await downloadFromGoogleDrive(document.google_drive_id)
-        decryptedBuffer = decryptBuffer(encryptedBuffer)
+        const downloaded = await downloadFromGoogleDrive(document.google_drive_id)
+        try {
+          bufferToSend = decryptBuffer(downloaded)
+        } catch {
+          bufferToSend = downloaded
+        }
       } catch (downloadError) {
-        console.error('Download/decryption error:', downloadError)
+        console.error('Download error:', downloadError)
         return res.status(500).json({ error: 'Failed to retrieve document from Google Drive' })
       }
     } else if (document.file_path) {
-      // Read from local storage
+      // Read and decrypt from local storage (encrypted at rest)
       try {
         const encryptedBuffer = await fs.readFile(path.join(LOCAL_I9_STORAGE_DIR, document.file_path))
-        decryptedBuffer = decryptBuffer(encryptedBuffer)
+        bufferToSend = decryptBuffer(encryptedBuffer)
       } catch (readError) {
         console.error('Local file read/decryption error:', readError)
         return res.status(500).json({ error: 'Failed to retrieve document from local storage' })
@@ -1306,7 +1308,7 @@ router.get('/i9/documents/:id/view', async (req, res) => {
 
     res.setHeader('Content-Type', document.mime_type || 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="${document.file_name}"`)
-    res.send(decryptedBuffer)
+    res.send(bufferToSend)
   } catch (error) {
     console.error('Error viewing document:', error)
     res.status(500).json({ error: 'Failed to retrieve document', details: error.message })

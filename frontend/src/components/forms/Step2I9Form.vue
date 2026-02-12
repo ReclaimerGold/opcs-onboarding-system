@@ -1512,6 +1512,10 @@ const handleSubmit = async () => {
       alert(ssnCheck.message || 'Please enter a valid Social Security Number (XXX-XX-XXXX).')
       return
     }
+    // Use List C SSN for Section 1 when cookie was missing/expired so backend validation passes
+    if (!formData.value.ssn || !/^\d{3}-\d{2}-\d{4}$/.test(formData.value.ssn)) {
+      formData.value.ssn = formData.value.listCDocumentNumber
+    }
   }
 
   if (!formData.value.signatureData) {
@@ -1521,18 +1525,12 @@ const handleSubmit = async () => {
   
   loading.value = true
   try {
-    const formDataToSend = new FormData()
-    formDataToSend.append('formData', JSON.stringify(formData.value))
-    
-    await api.post('/forms/submit/2', formDataToSend, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    await api.post('/forms/submit/2', { formData: formData.value })
     emit('submitted', 2)
   } catch (error) {
     console.error('Submit error:', error)
-    alert('Failed to submit form. Please try again.')
+    const message = error.response?.data?.error || error.message || 'Failed to submit form. Please try again.'
+    alert(message)
   } finally {
     loading.value = false
   }
