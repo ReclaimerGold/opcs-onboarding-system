@@ -599,10 +599,10 @@ function checkSSNExpiredAndShowRePrompt() {
   if (showOnboardingModal.value) return
   if (!STEPS_REQUIRING_SSN.includes(currentStep.value)) return
   if (getSSNCookie()) return
-  // Only show re-prompt when the SSN was previously entered in this session
-  // (i.e. the cookie expired). Don't show for first-time users who haven't
-  // entered their SSN yet — the form itself collects it on the first visit.
-  if (!wasSSNEnteredThisSession()) return
+  // On Step 1, only show re-prompt if they had entered SSN this session (cookie expired).
+  // First-time users on Step 1 enter SSN in the form, so no modal.
+  // On steps 2, 6, 7 we always prompt when SSN is missing so documents can be autofilled.
+  if (currentStep.value === 1 && !wasSSNEnteredThisSession()) return
   showSSNRePromptModal.value = true
 }
 
