@@ -1,4 +1,4 @@
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import api from '../services/api.js'
 
 export function useFormDraft(stepNumber, formData, options = {}) {
@@ -6,11 +6,17 @@ export function useFormDraft(stepNumber, formData, options = {}) {
   const isSaving = ref(false)
   const lastSaved = ref(null)
   const saveTimeout = ref(null)
+  const isMounted = ref(true)
 
-  // Load draft on mount
+  onUnmounted(() => {
+    isMounted.value = false
+  })
+
+  // Load draft on mount; ignore response if user already navigated away (component unmounted)
   onMounted(async () => {
     try {
       const response = await api.get(`/forms/draft/${stepNumber}`)
+      if (!isMounted.value) return
       if (response.data.success && response.data.formData) {
         // Merge draft data into form
         Object.assign(formData.value, response.data.formData)
@@ -18,7 +24,9 @@ export function useFormDraft(stepNumber, formData, options = {}) {
         console.log(`Loaded draft for step ${stepNumber}`)
       }
     } catch (error) {
-      console.error('Error loading draft:', error)
+      if (isMounted.value) {
+        console.error('Error loading draft:', error)
+      }
     }
   })
 

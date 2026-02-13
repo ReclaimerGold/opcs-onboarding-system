@@ -794,8 +794,12 @@ router.get('/submissions/:id/view', async (req, res) => {
         return res.status(500).json({ error: 'Failed to retrieve document from pending storage' })
       }
     } else if (submission.google_drive_id) {
+      if (!isGoogleDriveConfigured()) {
+        return res.status(503).json({
+          error: 'Document was stored on Google Drive but Drive is not currently configured. Contact your administrator.'
+        })
+      }
       // Google Drive stores raw PDF (not encrypted); use download as-is
-      const { downloadFromGoogleDrive } = await import('../services/googleDriveService.js')
       try {
         decryptedBuffer = await downloadFromGoogleDrive(submission.google_drive_id)
       } catch (downloadError) {
@@ -1046,11 +1050,19 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
       return res.status(404).json({ error: 'Applicant not found' })
     }
 
-    // Read uploaded file into buffer
-    let fileBuffer = await fs.readFile(req.file.path)
-
-    // Clean up temporary file immediately
-    await fs.unlink(req.file.path)
+    // Read uploaded file into buffer; always clean up temp file (even if read fails)
+    let fileBuffer
+    try {
+      fileBuffer = await fs.readFile(req.file.path)
+    } finally {
+      try {
+        await fs.unlink(req.file.path)
+      } catch (e) {
+        if (e?.code !== 'ENOENT') {
+          console.error('Error cleaning up I-9 upload temp file:', e)
+        }
+      }
+    }
 
     // Flatten PDFs so stored copies are non-editable (compliance)
     if (req.file.mimetype === 'application/pdf') {
@@ -1204,12 +1216,14 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     })
   } catch (error) {
     console.error('Document upload error:', error)
-    // Clean up file if it exists
-    if (req.file) {
+    // Clean up temp file if it still exists (e.g. error before readFile completed)
+    if (req.file?.path) {
       try {
         await fs.unlink(req.file.path)
       } catch (cleanupError) {
-        console.error('Error cleaning up file:', cleanupError)
+        if (cleanupError?.code !== 'ENOENT') {
+          console.error('Error cleaning up file:', cleanupError)
+        }
       }
     }
     res.status(500).json({ error: 'Failed to upload document' })
@@ -1271,6 +1285,11 @@ router.get('/i9/documents/:id/view', async (req, res) => {
 
     // Check if document is in Google Drive or local storage
     if (document.google_drive_id) {
+      if (!isGoogleDriveConfigured()) {
+        return res.status(503).json({
+          error: 'Document was stored on Google Drive but Drive is not currently configured. Contact your administrator.'
+        })
+      }
       // Download from Google Drive (new uploads are plain PDF; legacy may be encrypted)
       try {
         const downloaded = await downloadFromGoogleDrive(document.google_drive_id)

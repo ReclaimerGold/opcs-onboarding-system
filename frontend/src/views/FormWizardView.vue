@@ -170,7 +170,7 @@
           <div class="absolute top-5 left-0 right-0 h-1 bg-gray-200 z-0"></div>
           <div 
             class="absolute top-5 left-0 h-1 bg-primary z-0 transition-all duration-300"
-            :style="{ width: `${((currentStep - 1) / 6) * 100}%` }"
+            :style="{ width: `${((currentStep - 1) / 7) * 100}%` }"
           ></div>
           
           <!-- Step Circles Container -->

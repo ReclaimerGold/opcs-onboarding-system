@@ -7,7 +7,8 @@ let driveClient = null
 
 /**
  * Check if Google Drive credentials are configured
- * @returns {boolean} True if credentials are available
+ * Decrypts and verifies values are non-empty so we do not report "configured" when credentials decrypt to empty.
+ * @returns {boolean} True if credentials are available and usable
  */
 export function isGoogleDriveConfigured() {
   const db = getDatabase()
@@ -15,8 +16,17 @@ export function isGoogleDriveConfigured() {
   const clientSecret = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_client_secret')
   const refreshToken = db.prepare('SELECT value FROM settings WHERE key = ? AND is_encrypted = 1').get('google_refresh_token')
 
-  // Must check both that the row exists AND that the value is not empty
-  return !!(clientId?.value && clientSecret?.value && refreshToken?.value)
+  if (!clientId?.value || !clientSecret?.value || !refreshToken?.value) {
+    return false
+  }
+  try {
+    const decryptedClientId = decryptText(clientId.value)
+    const decryptedClientSecret = decryptText(clientSecret.value)
+    const decryptedRefreshToken = decryptText(refreshToken.value)
+    return !!(decryptedClientId?.trim() && decryptedClientSecret?.trim() && decryptedRefreshToken?.trim())
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -39,6 +49,10 @@ async function initializeDriveClient() {
   const decryptedClientId = decryptText(clientId.value)
   const decryptedClientSecret = decryptText(clientSecret.value)
   const decryptedRefreshToken = decryptText(refreshToken.value)
+
+  if (!decryptedClientId?.trim() || !decryptedClientSecret?.trim() || !decryptedRefreshToken?.trim()) {
+    throw new Error('Google Drive credentials not configured. Please set them in Settings.')
+  }
 
   const oauth2Client = new google.auth.OAuth2(
     decryptedClientId,

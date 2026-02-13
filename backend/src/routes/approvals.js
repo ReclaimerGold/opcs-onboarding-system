@@ -6,7 +6,7 @@ import { requireAuth, requireManager } from '../middleware/auth.js'
 import { getDatabase } from '../database/init.js'
 import { addManagerSignatureToPdf, getSigningManagerSignatureForApplicant, loadPendingApprovalPdf } from '../services/pdfService.js'
 import { auditLog } from '../services/auditService.js'
-import { downloadFromGoogleDrive } from '../services/googleDriveService.js'
+import { downloadFromGoogleDrive, isGoogleDriveConfigured } from '../services/googleDriveService.js'
 import { decryptBuffer } from '../services/encryptionService.js'
 import { createNotification } from '../services/notificationService.js'
 import { getClientIp } from '../middleware/clientIp.js'
@@ -253,6 +253,11 @@ router.get('/:id/pdf', requireManager, async (req, res) => {
         return res.status(500).json({ error: 'Failed to retrieve document from pending storage' })
       }
     } else if (approval.google_drive_id) {
+      if (!isGoogleDriveConfigured()) {
+        return res.status(503).json({
+          error: 'Document was stored on Google Drive but Drive is not currently configured. Contact your administrator.'
+        })
+      }
       try {
         // Google Drive stores raw PDF (not encrypted); use download as-is
         pdfBuffer = await downloadFromGoogleDrive(approval.google_drive_id)
