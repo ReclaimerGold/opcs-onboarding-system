@@ -379,7 +379,7 @@ All admin tables support:
 - **Encryption**: All sensitive documents encrypted with AES-256-GCM
 - **Settings Encryption**: API keys and credentials encrypted at rest
 - **Audit Logging**: All document access and form submissions logged
-- **Session Security**: HTTP-only cookies, secure in production
+- **Session Security**: HTTP-only cookies, secure in production. Optional "Remember me" extends the session cookie to 30 days on login/signup; otherwise session expires after 15 minutes of inactivity. SSN is stored in a separate, short-lived cookie (1 hour) for form auto-fill only and is never stored in the database; the SSN re-prompt modal appears when that cookie has expired and the user is on a step that needs SSN.
 - **Login Security**: 
   - All login attempts logged with IP address and user agent
   - Rate limiting (50 auth requests per 15 minutes per IP)
@@ -400,10 +400,10 @@ This system is designed to comply with:
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/signup` - Create new applicant account
-- `POST /api/auth/login` - Login to existing account (two-phase for users with passwords)
-  - Phase 1: Submit credentials (firstName, lastName, email) → returns `requiresPassword: true/false`
-  - Phase 2 (if password required): Submit credentials + password → completes authentication
+- `POST /api/auth/signup` - Create new applicant account. Body may include `rememberMe: true` to extend session cookie to 30 days.
+- `POST /api/auth/login` - Login to existing account (two-phase for users with passwords). Body may include `rememberMe: true` to extend session cookie to 30 days.
+  - Phase 1: Submit credentials (firstName, lastName, email, rememberMe?) → returns `requiresPassword: true/false`
+  - Phase 2 (if password required): Submit credentials + password + rememberMe? → completes authentication
 - `POST /api/auth/logout` - Logout
 - `POST /api/auth/keepalive` - Refresh session expiration for active users
 - `GET /api/auth/me` - Get current user info

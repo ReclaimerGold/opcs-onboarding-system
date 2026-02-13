@@ -125,6 +125,19 @@
           </router-link>
         </div>
 
+        <!-- Remember me: longer-lived session cookie (SSN cookie stays 1 hour) -->
+        <div class="flex items-center">
+          <input
+            id="rememberMe"
+            v-model="rememberMe"
+            type="checkbox"
+            class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <label for="rememberMe" class="ml-2 block text-sm text-gray-700">
+            Remember me for 30 days (stay signed in on this device)
+          </label>
+        </div>
+
         <div v-if="error" class="rounded-md bg-red-50 border border-red-200 p-4">
           <div class="flex items-start">
             <svg class="h-5 w-5 text-red-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -211,6 +224,7 @@ const loading = ref(false)
 const error = ref('')
 const requiresPassword = ref(false)
 const loginPhase = ref(1) // 1 = name/email, 2 = password
+const rememberMe = ref(false)
 
 const handleSubmit = async () => {
   error.value = ''
@@ -220,7 +234,8 @@ const handleSubmit = async () => {
     const credentials = {
       firstName: firstName.value,
       lastName: lastName.value,
-      email: email.value
+      email: email.value,
+      rememberMe: rememberMe.value
     }
     if (requiresPassword.value && password.value) {
       credentials.password = password.value
@@ -238,7 +253,8 @@ const handleSubmit = async () => {
         response = await api.post('/auth/signup', {
           firstName: firstName.value,
           lastName: lastName.value,
-          email: email.value
+          email: email.value,
+          rememberMe: rememberMe.value
         })
       } else {
         throw loginErr
@@ -306,7 +322,8 @@ const handleSubmit = async () => {
         const loginCheck = await api.post('/auth/login', {
           firstName: firstName.value,
           lastName: lastName.value,
-          email: email.value
+          email: email.value,
+          rememberMe: rememberMe.value
         })
         if (loginCheck.data?.requiresPassword) {
           requiresPassword.value = true

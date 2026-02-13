@@ -10,6 +10,15 @@ import { getClientIp } from '../middleware/clientIp.js'
 
 const router = express.Router()
 
+/** Session cookie duration when "Remember me" is checked (30 days). Default is 15 min (set in index.js). */
+const SESSION_MAX_AGE_REMEMBER_ME = 30 * 24 * 60 * 60 * 1000
+
+function applyRememberMe(req) {
+  if (req.body.rememberMe === true || req.body.rememberMe === 'true') {
+    req.session.cookie.maxAge = SESSION_MAX_AGE_REMEMBER_ME
+  }
+}
+
 /**
  * POST /api/auth/signup
  * Sign up to start the onboarding process
@@ -67,6 +76,7 @@ router.post('/signup', async (req, res) => {
     req.session.applicantId = applicant.id
     req.session.applicantEmail = applicant.email
     req.session.isAdmin = applicant.is_admin === 1
+    applyRememberMe(req)
 
     // Audit log
     await auditLog({
@@ -281,6 +291,7 @@ router.post('/login', async (req, res) => {
         req.session.applicantId = applicant.id
         req.session.isAdmin = true
         req.session.needsPasswordSetup = true
+        applyRememberMe(req)
 
         return res.json({
           success: true,
@@ -318,6 +329,7 @@ router.post('/login', async (req, res) => {
         req.session.applicantId = applicant.id
         req.session.isAdmin = true
         req.session.needsPasswordSetup = true
+        applyRememberMe(req)
 
         return res.json({
           success: true,
@@ -435,6 +447,7 @@ router.post('/login', async (req, res) => {
     req.session.applicantId = applicant.id
     req.session.applicantEmail = applicant.email
     req.session.isAdmin = applicant.is_admin === 1
+    applyRememberMe(req)
 
     // Audit log
     await auditLog({
