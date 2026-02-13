@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatPhoneNumber, formatSSN, validatePhoneNumber, validateSSN, validateEmail } from '../validation.js'
+import { formatPhoneNumber, formatSSN, formatEIN, validatePhoneNumber, validateSSN, validateEIN, validateEmail } from '../validation.js'
 
 describe('Validation Utilities', () => {
   describe('formatPhoneNumber', () => {
@@ -63,6 +63,44 @@ describe('Validation Utilities', () => {
 
     it('should handle empty input', () => {
       expect(formatSSN('')).toBe('')
+    })
+  })
+
+  describe('formatEIN', () => {
+    it('should format 9 digits as XX-XXXXXXX', () => {
+      expect(formatEIN('123456789')).toBe('12-3456789')
+    })
+
+    it('should handle partial input', () => {
+      expect(formatEIN('12')).toBe('12')
+      expect(formatEIN('123')).toBe('12-3')
+      expect(formatEIN('1234567')).toBe('12-34567')
+    })
+
+    it('should strip non-digits and limit to 9', () => {
+      expect(formatEIN('12-3456789')).toBe('12-3456789')
+      expect(formatEIN('12345678901')).toBe('12-3456789')
+    })
+
+    it('should handle empty input', () => {
+      expect(formatEIN('')).toBe('')
+    })
+  })
+
+  describe('validateEIN', () => {
+    it('should accept valid EIN format', () => {
+      expect(validateEIN('12-3456789').valid).toBe(true)
+      expect(validateEIN('123456789').valid).toBe(true)
+    })
+
+    it('should reject empty or short EIN', () => {
+      expect(validateEIN('').valid).toBe(false)
+      expect(validateEIN('12-345678').valid).toBe(false)
+      expect(validateEIN('12345678').valid).toBe(false)
+    })
+
+    it('should reject more than 9 digits', () => {
+      expect(validateEIN('12-34567890').valid).toBe(false)
     })
   })
 

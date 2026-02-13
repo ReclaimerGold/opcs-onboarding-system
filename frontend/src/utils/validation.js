@@ -23,6 +23,29 @@ export function validateSSN(ssn) {
 }
 
 /**
+ * Format EIN (Employer Identification Number) as XX-XXXXXXX (9 digits)
+ * @param {string} value - Raw input
+ * @returns {string} Formatted EIN or partial (e.g. "12-3456789")
+ */
+export function formatEIN(value) {
+  if (!value) return ''
+  const digits = value.replace(/\D/g, '').slice(0, 9)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`
+}
+
+/**
+ * Validate EIN format (XX-XXXXXXX, 9 digits)
+ */
+export function validateEIN(ein) {
+  if (!ein) return { valid: false, message: 'EIN is required' }
+  const digits = ein.replace(/\D/g, '')
+  if (digits.length < 9) return { valid: false, message: 'EIN must be 9 digits' }
+  if (digits.length > 9) return { valid: false, message: 'EIN must be exactly 9 digits' }
+  return { valid: true, message: '' }
+}
+
+/**
  * Format US phone number to (XXX) XXX-XXXX
  */
 export function formatPhoneNumber(value) {

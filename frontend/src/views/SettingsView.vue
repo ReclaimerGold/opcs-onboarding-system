@@ -833,11 +833,28 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer EIN</label>
-                <input v-model="settings['8850_employer_ein']" type="text" placeholder="XX-XXXXXXX" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+                <input
+                  :value="settings['8850_employer_ein']"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="10"
+                  placeholder="XX-XXXXXXX"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  @input="onEmployerEINInput"
+                />
+                <p class="mt-1 text-xs text-gray-500">Format: XX-XXXXXXX (9 digits). Auto-formatted as you type.</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer phone</label>
-                <input v-model="settings['8850_employer_phone']" type="text" placeholder="(XXX) XXX-XXXX" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+                <input
+                  :value="settings['8850_employer_phone']"
+                  type="text"
+                  inputmode="tel"
+                  placeholder="(XXX) XXX-XXXX"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  @input="onEmployerPhoneInput"
+                />
+                <p class="mt-1 text-xs text-gray-500">US format: (XXX) XXX-XXXX. Auto-formatted as you type.</p>
               </div>
               <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer address</label>
@@ -1288,6 +1305,7 @@ import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
 import PdfDownloadPromptDialog from '../components/admin/PdfDownloadPromptDialog.vue'
 import PdfTemplateDownloadModal from '../components/admin/PdfTemplateDownloadModal.vue'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
+import { formatEIN, formatPhoneNumber } from '../utils/validation.js'
 
 const route = useRoute()
 const dashboard = useAdminDashboard()
@@ -1468,6 +1486,14 @@ const loadingSettings = ref(true)
 const error = ref('')
 const success = ref(false)
 
+function onEmployerEINInput(e) {
+  settings.value['8850_employer_ein'] = formatEIN(e.target.value)
+}
+
+function onEmployerPhoneInput(e) {
+  settings.value['8850_employer_phone'] = formatPhoneNumber(e.target.value)
+}
+
 // Test states
 const testingDrive = ref(false)
 const testingAddress = ref(false)
@@ -1535,7 +1561,14 @@ onMounted(async () => {
   try {
     const response = await api.get('/settings')
     settings.value = { ...settings.value, ...response.data }
-    
+    // Normalize employer EIN and phone so saved values display in standard format
+    if (settings.value['8850_employer_ein']) {
+      settings.value['8850_employer_ein'] = formatEIN(settings.value['8850_employer_ein'])
+    }
+    if (settings.value['8850_employer_phone']) {
+      settings.value['8850_employer_phone'] = formatPhoneNumber(settings.value['8850_employer_phone'])
+    }
+
     if (settings.value.google_shared_drive_id) {
       driveType.value = 'sharedDrive'
       selectedSharedDriveId.value = settings.value.google_shared_drive_id
