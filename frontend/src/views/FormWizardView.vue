@@ -408,8 +408,8 @@
         </div>
       </div>
 
-      <!-- Resubmission Notice (shown when navigating from a rejected approval) -->
-      <div v-if="resubmitReason" class="bg-red-50 border-l-4 border-red-400 rounded-md p-4 mb-4">
+      <!-- Resubmission Notice (shown only on the rejected step when navigating from a rejected approval) -->
+      <div v-if="resubmitReason && resubmitStepNumber === currentStep" class="bg-red-50 border-l-4 border-red-400 rounded-md p-4 mb-4">
         <div class="flex">
           <div class="flex-shrink-0">
             <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
@@ -652,6 +652,8 @@ const hasDrafts = ref(false)
 const completedSteps = ref(new Set())
 const applicantData = ref(null)
 const resubmitReason = ref('')
+/** Step number for which we are showing resubmit reason; banner only shows when currentStep matches */
+const resubmitStepNumber = ref(null)
 const stepWarnings = ref({})
 const submissions = ref([])
 const currentFormData = ref(null)
@@ -723,6 +725,27 @@ watch(() => dashboardOnboarding.ssnConsentGiven?.value, (given) => {
   if (given) nextTick(checkSSNExpiredAndShowRePrompt)
 })
 
+// When navigating to /forms?step=N (e.g. Resubmit from dashboard while already on forms), apply step and resubmit state
+watch(() => route.query.step, async (queryStep) => {
+  const step = queryStep ? parseInt(queryStep) : 0
+  if (step < 1 || step > 7) return
+  navigateToStep(step)
+  try {
+    const approvalRes = await api.get('/approvals/applicant-status')
+    const latestForStep = (approvalRes.data || []).find(a => a.step_number === step)
+    if (latestForStep && latestForStep.status === 'rejected') {
+      resubmitReason.value = latestForStep.rejection_reason || 'Please correct and resubmit this form.'
+      resubmitStepNumber.value = step
+    } else {
+      resubmitReason.value = ''
+      resubmitStepNumber.value = null
+    }
+  } catch {
+    // Ignore
+  }
+  updatePreviewForStep(step)
+}, { immediate: false })
+
 const loadTemplateStatus = async (isRetry = false) => {
   templateStatusError.value = false
   try {
@@ -766,12 +789,16 @@ onMounted(async () => {
     const step = parseInt(route.query.step)
     if (step >= 1 && step <= 7) {
       navigateToStep(step)
-      // Check if this step has a rejection reason to show
+      // Check if the latest approval for this step is rejected (API returns step_number, created_at DESC)
       try {
         const approvalRes = await api.get('/approvals/applicant-status')
-        const rejected = (approvalRes.data || []).find(a => a.step_number === step && a.status === 'rejected')
-        if (rejected) {
-          resubmitReason.value = rejected.rejection_reason || 'Please correct and resubmit this form.'
+        const latestForStep = (approvalRes.data || []).find(a => a.step_number === step)
+        if (latestForStep && latestForStep.status === 'rejected') {
+          resubmitReason.value = latestForStep.rejection_reason || 'Please correct and resubmit this form.'
+          resubmitStepNumber.value = step
+        } else {
+          resubmitReason.value = ''
+          resubmitStepNumber.value = null
         }
       } catch {
         // Ignore - approval status not critical for form wizard
@@ -835,13 +862,17 @@ const loadProgress = async () => {
       // Drafts might not exist yet, that's okay
     }
     
-    // Set current step to first incomplete step
+    // Set current step: respect resubmit link (query) so we don't overwrite with first incomplete
     if (completedSteps.value.size < 7) {
-      // Find first incomplete step
-      for (let i = 1; i <= 7; i++) {
-        if (!completedSteps.value.has(i)) {
-          currentStep.value = i
-          break
+      const queryStep = route.query.step ? parseInt(route.query.step) : 0
+      if (queryStep >= 1 && queryStep <= 7) {
+        currentStep.value = queryStep
+      } else {
+        for (let i = 1; i <= 7; i++) {
+          if (!completedSteps.value.has(i)) {
+            currentStep.value = i
+            break
+          }
         }
       }
     } else {

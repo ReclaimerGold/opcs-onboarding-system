@@ -277,6 +277,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import api from '@/services/api'
+import { useDateFormat } from '@/composables/useDateFormat.js'
 
 const loading = ref(false)
 const error = ref(null)
@@ -307,9 +308,8 @@ const toggleCategory = (categoryName) => {
   expandedCategories[categoryName] = !expandedCategories[categoryName]
 }
 
-const formatTimestamp = (timestamp) => {
-  return new Date(timestamp).toLocaleString()
-}
+const { formatDate } = useDateFormat()
+const formatTimestamp = formatDate
 
 const formatStatKey = (key) => {
   return key

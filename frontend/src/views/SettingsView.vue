@@ -880,6 +880,21 @@
 
       <!-- System (Health, Tests, PDF Templates) -->
       <div v-show="settingsSection === 'system'" class="space-y-8">
+        <!-- Display (timezone) -->
+        <div class="bg-white shadow rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Display</h3>
+          <p class="text-sm text-gray-600 mb-4">Choose the timezone for displaying dates and times across the app. If not set, times use the browser’s local timezone.</p>
+          <div class="max-w-md">
+            <label for="timezone" class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+            <select
+              id="timezone"
+              v-model="settings.timezone"
+              class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm py-2 px-3 focus:border-primary focus:ring-primary sm:text-sm"
+            >
+              <option v-for="opt in timezoneOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+        </div>
         <div class="border-b border-gray-200 mb-6">
           <nav class="flex -mb-px">
             <button
@@ -1306,8 +1321,12 @@ import PdfDownloadPromptDialog from '../components/admin/PdfDownloadPromptDialog
 import PdfTemplateDownloadModal from '../components/admin/PdfTemplateDownloadModal.vue'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
 import { formatEIN, formatPhoneNumber } from '../utils/validation.js'
+import { useDateFormat, invalidateDateFormatCache } from '../composables/useDateFormat.js'
+import { TIMEZONE_OPTIONS } from '../utils/timezones.js'
 
 const route = useRoute()
+const { formatDate } = useDateFormat()
+const timezoneOptions = TIMEZONE_OPTIONS
 const dashboard = useAdminDashboard()
 
 // Section navigation: integrations | email-forms | system
@@ -1348,10 +1367,6 @@ const managerSigFormTypes = [
   { code: '9061', label: 'ETA Form 9061' }
 ]
 
-function formatDate(dateString) {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleString()
-}
 
 async function loadManagerRequiredForms() {
   try {
@@ -1478,7 +1493,8 @@ const settings = ref({
   '8850_employer_state': '',
   '8850_employer_zip': '',
   '8850_employer_phone': '',
-  trusted_proxy_ips: ''
+  trusted_proxy_ips: '',
+  timezone: ''
 })
 
 const loading = ref(false)
@@ -1669,6 +1685,7 @@ const handleSave = async () => {
   
   try {
     await api.post('/settings', { settings: settings.value })
+    invalidateDateFormatCache()
     success.value = true
     setTimeout(() => {
       success.value = false

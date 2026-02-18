@@ -424,7 +424,7 @@
             <span v-else>Save Draft</span>
           </button>
           <span v-if="lastSaved" class="text-xs text-gray-500">
-            Draft saved {{ formatTime(lastSaved) }}
+            Draft saved {{ formatRelativeTime(lastSaved) }}
           </span>
         </div>
         <button
@@ -453,6 +453,7 @@ import SignaturePad from '../ui/SignaturePad.vue'
 import api from '../../services/api.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
+import { useDateFormat } from '../../composables/useDateFormat.js'
 import { formatPhoneNumber, formatSSN as formatSSNUtil, validatePhoneNumber, validateEmail as validateEmailUtil, formatEmail } from '../../utils/validation.js'
 import { getSSNCookie, setSSNCookie } from '../../utils/cookies.js'
 
@@ -622,19 +623,7 @@ function onOnboardingSignature(signatureDataUrl) {
 
 const showConsentModal = computed(() => !props.consentAlreadyGiven && !ssnConsented.value)
 
-const formatTime = (dateString) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now - date
-  const diffMins = Math.floor(diffMs / 60000)
-  
-  if (diffMins < 1) return 'just now'
-  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
-  const diffHours = Math.floor(diffMins / 60)
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
-  return date.toLocaleDateString()
-}
+const { formatRelativeTime } = useDateFormat()
 
 const formatSSN = (e) => {
   const value = formatSSNUtil(e.target.value)

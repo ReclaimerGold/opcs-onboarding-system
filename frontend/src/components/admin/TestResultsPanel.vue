@@ -123,6 +123,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useDateFormat } from '../../composables/useDateFormat.js'
 
 defineProps({
   results: {
@@ -134,9 +135,6 @@ defineProps({
 const showBackendOutput = ref(false)
 const showFrontendOutput = ref(false)
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleString()
-}
+const { formatDate } = useDateFormat()
 </script>
 

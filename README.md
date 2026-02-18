@@ -59,7 +59,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - Automated document retention management
 - AES-256-GCM encryption for sensitive documents and settings
 - Session-based authentication with persistent SQLite session store
-- **Admin Settings Panel**: Central configuration for Google Drive and Address Validation APIs with status indicators and connection test buttons
+- **Admin Settings Panel**: Central configuration for Google Drive and Address Validation APIs with status indicators and connection test buttons. **Display timezone** can be set in Settings → System so all dates and times app-wide use that timezone (or the browser’s local timezone if not set).
 - **Google Drive Folder Browser**: Browse and search your Google Drive folders to select a base folder for document storage
 - **Signature Placement (Admin, required)**: Per-document, optional per-page configuration for where the e-signature image is drawn on W-4, I-9, and Form 8850 PDFs (Admin → System → PDF Templates). High-resolution PDF preview; sidebar lists pages and a draggable “Signature field” to drop onto any page. Signature box can be moved and resized horizontally. Admins must complete the setup wizard (/admin/setup) before using the dashboard; API keys are optional and can be set later in Settings.
 - **Liability Compliance Checker**: Comprehensive compliance verification for Federal and South Dakota state requirements
@@ -440,12 +440,13 @@ This system is designed to comply with:
 
 ### Settings
 - `GET /api/settings` - Get all settings (authenticated)
-- `GET /api/settings/form-options` - Get non-sensitive form display options (authenticated). Returns `w4_educational_link_url`, `w4_educational_link_label` for the W-4 "For Educational Purposes only" link.
+- `GET /api/settings/form-options` - Get non-sensitive form display options (authenticated). Returns `w4_educational_link_url`, `w4_educational_link_label` (W-4 "For Educational Purposes only" link), and `timezone` (IANA timezone for displaying dates/times app-wide; empty = browser local).
 - `GET /api/settings/google-address-validation-key` - Get Google Address Validation API key (authenticated)
 - `POST /api/settings` - Update settings (admin only)
   - **Storage/APIs:** `google_drive_base_folder_id`, `google_client_id`, `google_client_secret`, `google_refresh_token`, `google_address_validation_api_key`, `mailgun_api_key`, `mailgun_domain`, `mailgun_from_email`
   - **Notification & email recipients:** `no_bank_account_email`, `judy_email`, `daphne_email`, `completion_notification_email`, `thanks_io_recipient_email`, `non_gmail_alert_email`, `background_check_state_email`, `background_check_state_verbiage`
   - **Form options:** `w4_educational_link_url`, `w4_educational_link_label`, `i9_employer_authorized_rep_name`, `8850_employer_ein`, `8850_employer_address`, `8850_employer_city`, `8850_employer_state`, `8850_employer_zip`, `8850_employer_phone`
+  - **Display:** `timezone` — IANA timezone (e.g. `America/Chicago`) for showing dates and times across the app; leave empty to use the browser’s local timezone.
   - **Client IP:** `trusted_proxy_ips` — Comma-separated proxy IPs; when the request comes from one of these, the real client IP is taken from `X-Forwarded-For` or `X-Real-IP` (audit logs, login attempts, rate limiting).
 - `GET /api/settings/google-drive/folders` - List Google Drive folders (admin only)
 - `GET /api/settings/google-drive/folder/:id` - Get folder info (admin only)

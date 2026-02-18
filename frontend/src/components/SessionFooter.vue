@@ -37,6 +37,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useDateFormat } from '../composables/useDateFormat.js'
 
 const props = defineProps({
   remainingMs: {
@@ -55,6 +56,8 @@ const props = defineProps({
 
 defineEmits(['extend'])
 
+const { formatTime } = useDateFormat()
+
 const appVersion = import.meta.env.VITE_APP_VERSION || ''
 
 const formattedRemaining = computed(() => {
@@ -65,14 +68,8 @@ const formattedRemaining = computed(() => {
 })
 
 const formattedExpiryLabel = computed(() => {
-  if (!props.expiresAt) {
-    return ''
-  }
-  const formattedTime = new Date(props.expiresAt).toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-  return `Logs out at ${formattedTime}`
+  if (!props.expiresAt) return ''
+  return `Logs out at ${formatTime(new Date(props.expiresAt))}`
 })
 </script>
 

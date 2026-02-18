@@ -824,6 +824,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
+import { useDateFormat } from '../composables/useDateFormat.js'
 import SSNConsentModal from '../components/SSNConsentModal.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import { useDashboardOnboarding } from '../composables/useDashboardOnboarding.js'
@@ -1021,14 +1022,8 @@ const getStepComponent = (step) => {
   return 'div' // Locked - no link
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
+const { formatDateOnly, formatRelativeTime } = useDateFormat()
+const formatDate = formatDateOnly
 
 onMounted(async () => {
   try {
@@ -1095,20 +1090,7 @@ const loadUploadedDocuments = async () => {
   }
 }
 
-function formatNotifTime(dateStr) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'))
-  const now = new Date()
-  const diffMs = now - date
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
-}
+const formatNotifTime = formatRelativeTime
 
 const getDocumentByCategory = (category) => {
   return uploadedDocuments.value[category] || null

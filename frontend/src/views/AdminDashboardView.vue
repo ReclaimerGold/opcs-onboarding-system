@@ -691,6 +691,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { useAdminDashboard } from '../composables/useAdminDashboard.js'
 import { useTableFilters } from '../composables/useTableFilters.js'
+import { useDateFormat } from '../composables/useDateFormat.js'
 import api from '../services/api.js'
 import { exportToCSV } from '../utils/exportUtils.js'
 
@@ -922,11 +923,7 @@ const usersSearch = ref('')
 const usersData = ref([])
 
 // Helper functions
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleString()
-}
+const { formatDate } = useDateFormat()
 
 const formatStatus = (status) => {
   const map = { completed: 'Completed', in_progress: 'In Progress', not_started: 'Not Started' }

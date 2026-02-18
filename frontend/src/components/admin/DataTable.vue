@@ -185,7 +185,7 @@
                   </span>
                 </template>
                 <template v-else-if="column.type === 'date'">
-                  {{ formatDate(getCellValue(row, column)) }}
+                  {{ formatDateCell(getCellValue(row, column)) }}
                 </template>
                 <template v-else-if="column.type === 'progress'">
                   <div class="flex items-center space-x-2">
@@ -310,6 +310,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useDateFormat } from '../../composables/useDateFormat.js'
 import SearchBar from './SearchBar.vue'
 import FilterPanel from './FilterPanel.vue'
 
@@ -499,11 +500,8 @@ const formatCellValue = (row, column) => {
   return value
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return '-'
-  const date = new Date(dateString)
-  return date.toLocaleString()
-}
+const { formatDate } = useDateFormat()
+const formatDateCell = (v) => (v == null || v === '') ? '-' : formatDate(v)
 
 const getBadgeClass = (value, column) => {
   const baseClass = 'px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center'

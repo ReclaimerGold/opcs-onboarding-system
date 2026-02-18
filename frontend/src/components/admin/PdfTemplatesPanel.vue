@@ -146,6 +146,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../services/api.js'
+import { useDateFormat } from '../../composables/useDateFormat.js'
 
 const emit = defineEmits(['status-change'])
 
@@ -211,10 +212,7 @@ const previewTemplate = (formType) => {
   window.open(`/api/admin/pdf-templates/${formType}/preview`, '_blank')
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleString()
-}
+const { formatDate } = useDateFormat()
 
 const formatFileSize = (bytes) => {
   if (!bytes) return 'N/A'

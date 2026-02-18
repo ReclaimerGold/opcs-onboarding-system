@@ -114,7 +114,7 @@
                 <span class="text-sm text-gray-900">{{ formTypeLabel(approval.form_type) }}</span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ formatDate(approval.submitted_at || approval.created_at) }}
+                {{ formatDisplayDate(approval.submitted_at || approval.created_at) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span :class="statusBadgeClass(approval.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
@@ -250,6 +250,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import api from '../services/api.js'
+import { useDateFormat } from '../composables/useDateFormat.js'
 import SignaturePad from '../components/ui/SignaturePad.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 
@@ -301,11 +302,8 @@ function formTypeLabel(type) {
   return FORM_TYPE_LABELS[type] || type
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+const { formatDate } = useDateFormat()
+const formatDisplayDate = (v) => (v == null || v === '') ? '—' : formatDate(v)
 
 function statusBadgeClass(status) {
   switch (status) {

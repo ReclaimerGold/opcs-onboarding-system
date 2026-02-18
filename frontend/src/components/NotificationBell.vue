@@ -128,6 +128,7 @@
 import { ref, onMounted, onUnmounted, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotifications } from '../composables/useNotifications.js'
+import { useDateFormat } from '../composables/useDateFormat.js'
 
 const router = useRouter()
 const bellRef = ref(null)
@@ -186,21 +187,7 @@ async function handleDelete(id) {
   await deleteNotification(id)
 }
 
-function formatRelativeTime(dateStr) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'))
-  const now = new Date()
-  const diffMs = now - date
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
-}
+const { formatRelativeTime } = useDateFormat()
 
 function getIconClasses(type) {
   const map = {
