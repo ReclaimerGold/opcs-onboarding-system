@@ -130,39 +130,142 @@
           </div>
         </template>
 
-        <!-- Step 6: Email & Forms (notification recipients and form options) -->
+        <!-- Step 6: Email & Forms (required employer info + optional link to Settings) -->
         <template v-else-if="setupStep === 6">
           <div class="mb-8">
             <h2 class="text-lg font-semibold text-gray-900 mb-1">Step 6: Email &amp; Forms</h2>
             <p class="text-sm text-gray-600 mb-4">
-              Configure <strong>Notification &amp; Email Recipients</strong> and <strong>Form Options</strong> in Settings so that employer information appears on documents and the right people receive notifications (e.g. completion, no bank account, Judy/Daphne). All employer fields (I-9 authorized rep name and Form 8850 employer section) must be completed before applicants can access onboarding forms.
+              Enter the required employer information below so it appears on I-9 and Form 8850 and applicants can access onboarding forms. You can add notification emails and other options later in Settings.
             </p>
-            <div class="bg-white border rounded-lg p-6 shadow-sm">
-              <div v-if="setupStatus.emailAndFormsConfigured" class="flex items-center gap-3 text-green-700">
+
+            <!-- Success state -->
+            <div v-if="setupStatus.emailAndFormsConfigured" class="bg-white border border-green-200 rounded-lg p-6 shadow-sm mb-6">
+              <div class="flex items-center gap-3 text-green-700">
                 <svg class="w-6 h-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span class="font-medium">Email &amp; Forms are configured. You can continue to the dashboard.</span>
+                <span class="font-medium">Required employer information is complete. You can continue to the dashboard.</span>
               </div>
-              <div v-else class="flex items-start gap-3 text-amber-800">
-                <svg class="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+            </div>
+
+            <!-- Inline onboarding form (when not yet configured) -->
+            <div v-else class="bg-white border rounded-lg p-6 shadow-sm mb-6">
+              <h3 class="text-base font-semibold text-gray-900 mb-4">Required employer information</h3>
+              <p class="text-sm text-gray-600 mb-4">Fill in the fields below. These values are used on I-9 and Form 8850.</p>
+              <form class="space-y-4" @submit.prevent="saveEmployerSettings">
                 <div>
-                  <p class="font-medium mb-1">Complete the required fields in Settings → Email &amp; Forms:</p>
-                  <ul class="text-sm list-disc list-inside space-y-1 mb-4">
-                    <li>I-9 Employer authorized representative name</li>
-                    <li>Form 8850 employer section: EIN, address, city, state, zip, phone</li>
-                  </ul>
-                  <p class="text-sm mb-4">Optional: W-4 educational link, notification recipient emails (Judy, Daphne, completion notification, etc.).</p>
-                  <router-link
-                    :to="{ path: '/settings', query: { section: 'email-forms' } }"
-                    class="inline-flex px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    Open Settings → Email &amp; Forms
-                  </router-link>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">I-9 / 8850 Employer authorized representative name <span class="text-red-600">(Required)</span></label>
+                  <input
+                    v-model="employerForm.i9_employer_authorized_rep_name"
+                    type="text"
+                    placeholder="e.g. Jason"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
                 </div>
-              </div>
+                <div class="border-t pt-4 mt-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-2">Form 8850 employer (Page 2) – required</h4>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer EIN</label>
+                      <input
+                        :value="employerForm['8850_employer_ein']"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="12"
+                        placeholder="XX-XXXXXXX"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                        @input="onEmployerEINInput"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer phone</label>
+                      <input
+                        :value="employerForm['8850_employer_phone']"
+                        type="text"
+                        inputmode="tel"
+                        placeholder="(XXX) XXX-XXXX"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                        @input="onEmployerPhoneInput"
+                      />
+                    </div>
+                    <div class="md:col-span-2">
+                      <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer address</label>
+                      <input
+                        v-model="employerForm['8850_employer_address']"
+                        type="text"
+                        placeholder="Street address"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer city</label>
+                      <input
+                        v-model="employerForm['8850_employer_city']"
+                        type="text"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer state</label>
+                      <input
+                        v-model="employerForm['8850_employer_state']"
+                        type="text"
+                        maxlength="2"
+                        placeholder="e.g. SD"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer ZIP</label>
+                      <input
+                        v-model="employerForm['8850_employer_zip']"
+                        type="text"
+                        placeholder="e.g. 57104"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="border-t pt-4 mt-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-2">W-4 Educational link <span class="text-gray-500 font-normal">(optional)</span></h4>
+                  <p class="text-xs text-gray-500 mb-3">Shown on Step 1 (W-4) as "For Educational Purposes only" — opens in a new window.</p>
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">W-4 Educational link (URL)</label>
+                      <input
+                        v-model="employerForm.w4_educational_link_url"
+                        type="url"
+                        placeholder="https://..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">W-4 Educational link label</label>
+                      <input
+                        v-model="employerForm.w4_educational_link_label"
+                        type="text"
+                        placeholder="e.g. Example of how the new tax form works"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    :disabled="savingEmployer || !employerFormValid"
+                    class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {{ savingEmployer ? 'Saving…' : 'Save employer info' }}
+                  </button>
+                  <span v-if="!employerFormValid" class="text-sm text-gray-500">Fill all required fields above to enable Save.</span>
+                  <span v-if="employerSaveError" class="text-sm text-red-600">{{ employerSaveError }}</span>
+                </div>
+              </form>
+              <p class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-500">
+                Optional notification emails (Judy, Daphne, completion, etc.) can be configured in
+                <router-link :to="{ path: '/settings', query: { section: 'email-forms' } }" class="text-primary hover:underline">Settings → Email &amp; Forms</router-link>.
+              </p>
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-4">
@@ -189,7 +292,7 @@
               Refresh status
             </button>
             <span v-if="!setupStatus.emailAndFormsConfigured" class="text-sm text-gray-500">
-              Complete the required employer fields in Settings → Email &amp; Forms, then click Refresh status.
+              Save the required employer fields above, or complete them in Settings → Email &amp; Forms and click Refresh status.
             </span>
           </div>
         </template>
@@ -199,12 +302,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import SignaturePlacementPanel from '../components/admin/SignaturePlacementPanel.vue'
 import PdfTemplatesPanel from '../components/admin/PdfTemplatesPanel.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import api from '../services/api.js'
+import { formatEIN, formatPhoneNumber } from '../utils/validation.js'
 
 const router = useRouter()
 /** 1 = PDF templates, 2 = W-4 signature, 3 = I-9 signature, 4 = 8850 signature, 5 = 9061 signature */
@@ -216,6 +320,21 @@ const setupStatus = ref({
   signaturePlacementReady: { w4: false, i9: false, 8850: false, 9061: false },
   emailAndFormsConfigured: false
 })
+
+/** Step 6: inline employer + W-4 educational form (required for Email & Forms) */
+const employerForm = ref({
+  i9_employer_authorized_rep_name: '',
+  '8850_employer_ein': '',
+  '8850_employer_address': '',
+  '8850_employer_city': '',
+  '8850_employer_state': '',
+  '8850_employer_zip': '',
+  '8850_employer_phone': '',
+  w4_educational_link_url: '',
+  w4_educational_link_label: ''
+})
+const savingEmployer = ref(false)
+const employerSaveError = ref('')
 
 const stepFormTypes = ['W4', 'I9', '8850', '9061']
 const stepLabels = { W4: 'W-4', I9: 'I-9', 8850: 'Form 8850', 9061: 'ETA Form 9061' }
@@ -243,8 +362,76 @@ const currentStepComplete = computed(() => {
   return !!setupStatus.value.signaturePlacementReady['8850']
 })
 
+/** Step 6: all required employer fields non-empty (trimmed) */
+const employerFormValid = computed(() => {
+  const f = employerForm.value
+  return !!(
+    (f.i9_employer_authorized_rep_name || '').trim() &&
+    (f['8850_employer_ein'] || '').replace(/\D/g, '').length === 9 &&
+    (f['8850_employer_address'] || '').trim() &&
+    (f['8850_employer_city'] || '').trim() &&
+    (f['8850_employer_state'] || '').trim() &&
+    (f['8850_employer_zip'] || '').trim() &&
+    (f['8850_employer_phone'] || '').replace(/\D/g, '').length === 10
+  )
+})
+
 function onTemplateStatusChange(templates) {
   templateStatus.value = templates || {}
+}
+
+async function loadEmployerSettings() {
+  try {
+    const res = await api.get('/settings')
+    const s = res.data || {}
+    employerForm.value = {
+      i9_employer_authorized_rep_name: s.i9_employer_authorized_rep_name || '',
+      '8850_employer_ein': s['8850_employer_ein'] ? formatEIN(s['8850_employer_ein']) : '',
+      '8850_employer_address': s['8850_employer_address'] || '',
+      '8850_employer_city': s['8850_employer_city'] || '',
+      '8850_employer_state': s['8850_employer_state'] || '',
+      '8850_employer_zip': s['8850_employer_zip'] || '',
+      '8850_employer_phone': s['8850_employer_phone'] ? formatPhoneNumber(s['8850_employer_phone']) : '',
+      w4_educational_link_url: s.w4_educational_link_url || '',
+      w4_educational_link_label: s.w4_educational_link_label || ''
+    }
+  } catch (err) {
+    console.error('Load employer settings:', err)
+  }
+}
+
+function onEmployerEINInput(e) {
+  employerForm.value['8850_employer_ein'] = formatEIN(e.target.value)
+}
+
+function onEmployerPhoneInput(e) {
+  employerForm.value['8850_employer_phone'] = formatPhoneNumber(e.target.value)
+}
+
+async function saveEmployerSettings() {
+  if (!employerFormValid.value || savingEmployer.value) return
+  savingEmployer.value = true
+  employerSaveError.value = ''
+  try {
+    await api.post('/settings', {
+      settings: {
+        i9_employer_authorized_rep_name: (employerForm.value.i9_employer_authorized_rep_name || '').trim(),
+        '8850_employer_ein': (employerForm.value['8850_employer_ein'] || '').replace(/\D/g, '').length === 9 ? employerForm.value['8850_employer_ein'] : '',
+        '8850_employer_address': (employerForm.value['8850_employer_address'] || '').trim(),
+        '8850_employer_city': (employerForm.value['8850_employer_city'] || '').trim(),
+        '8850_employer_state': (employerForm.value['8850_employer_state'] || '').trim().slice(0, 2),
+        '8850_employer_zip': (employerForm.value['8850_employer_zip'] || '').trim(),
+        '8850_employer_phone': (employerForm.value['8850_employer_phone'] || '').replace(/\D/g, '').length === 10 ? employerForm.value['8850_employer_phone'] : '',
+        w4_educational_link_url: (employerForm.value.w4_educational_link_url || '').trim(),
+        w4_educational_link_label: (employerForm.value.w4_educational_link_label || '').trim()
+      }
+    })
+    await fetchSetupStatus()
+  } catch (err) {
+    employerSaveError.value = err.response?.data?.error || 'Failed to save. Try again.'
+  } finally {
+    savingEmployer.value = false
+  }
 }
 
 async function fetchSetupStatus() {
@@ -266,7 +453,12 @@ function goToDashboard() {
   router.push('/admin')
 }
 
+watch(setupStep, (step) => {
+  if (step === 6) loadEmployerSettings()
+})
+
 onMounted(() => {
   fetchSetupStatus()
+  if (setupStep.value === 6) loadEmployerSettings()
 })
 </script>
