@@ -114,9 +114,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Wait before creating release
+        run: sleep 10
+        # Ease API pressure after image pushes; avoids finalization retries (v2.5.0 regression)
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.4.2
         with:
+          tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           draft: false
           body: |
