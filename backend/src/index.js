@@ -19,6 +19,7 @@ import diagnosticsRoutes from './routes/diagnostics.js'
 import addressRoutes from './routes/address.js'
 import notificationRoutes from './routes/notifications.js'
 import { initializeDatabase } from './database/init.js'
+import { normalizeDateTimeStrings } from './utils/dateTimeResponse.js'
 import { startRetentionScheduler } from './services/retentionService.js'
 import { auditMiddleware } from './middleware/audit.js'
 import { clientIpMiddleware, getClientIp } from './middleware/clientIp.js'
@@ -59,6 +60,17 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
+
+// Normalize datetime strings in JSON responses to UTC (append 'Z') so the frontend
+// parses them as UTC. SQLite stores CURRENT_TIMESTAMP in UTC but returns values
+// without timezone; this ensures retroactive and new records display correctly in the user's timezone.
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res)
+  res.json = function (body) {
+    return originalJson(normalizeDateTimeStrings(body))
+  }
+  next()
+})
 
 // Session configuration
 // Note: secure cookies require HTTPS. Set SECURE_COOKIES=true when serving over HTTPS.
@@ -138,6 +150,7 @@ app.get('/api/health', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
+  console.log('Datetime response normalization: UTC (Z) applied to all API responses; retroactive records will display in user timezone.')
   startRetentionScheduler()
 
   // PDF templates are downloaded when the first admin opens the dashboard (see admin download-stream endpoint)

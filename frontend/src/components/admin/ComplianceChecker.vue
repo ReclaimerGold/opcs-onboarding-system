@@ -277,7 +277,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import api from '@/services/api'
-import { useDateFormat } from '@/composables/useDateFormat.js'
+import { useDateFormat, getTodayInAppTimezone } from '@/composables/useDateFormat.js'
 
 const loading = ref(false)
 const error = ref(null)
@@ -367,7 +367,7 @@ const exportReport = () => {
   
   const link = document.createElement('a')
   link.href = url
-  link.download = `compliance-report-${new Date().toISOString().split('T')[0]}.json`
+  link.download = `compliance-report-${getTodayInAppTimezone()}.json`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

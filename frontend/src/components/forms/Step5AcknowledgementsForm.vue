@@ -206,19 +206,24 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import api from '../../services/api.js'
 import { useApplicantData } from '../../composables/useApplicantData.js'
 import { useFormDraft } from '../../composables/useFormDraft.js'
+import { useDateFormat, getTodayInAppTimezone } from '../../composables/useDateFormat.js'
 import SignaturePad from '../ui/SignaturePad.vue'
 import { validatePhoneNumber } from '../../utils/validation.js'
 
 const props = defineProps({
   sessionSignature: { type: String, default: null }
 })
+
 const emit = defineEmits(['submitted', 'form-data-change'])
+
+const { ready: timezoneReady } = useDateFormat()
+
 const { applicantData, loading: loadingApplicant } = useApplicantData()
 
 const formData = ref({
   firstName: '',
   lastName: '',
-  date: new Date().toISOString().split('T')[0],
+  date: getTodayInAppTimezone(),
   signatureData: '',
   handbookAcknowledgement: false,
   emergencyContactName: '',
@@ -277,6 +282,11 @@ watch(() => props.sessionSignature, (sig) => {
     formData.value.signatureData = sig
     emit('form-data-change', { ...formData.value })
   }
+})
+
+// Sync default date to app timezone when timezone becomes available
+watch(timezoneReady, (ready) => {
+  if (ready) formData.value.date = getTodayInAppTimezone()
 })
 
 // Load applicant data to sync name fields (after draft may have loaded)

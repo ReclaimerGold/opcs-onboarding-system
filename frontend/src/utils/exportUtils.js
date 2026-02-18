@@ -2,6 +2,8 @@
  * Utility functions for exporting data to various formats
  */
 
+import { formatDateWithAppTimezone, getTodayInAppTimezone } from '../composables/useDateFormat.js'
+
 /**
  * Convert data to CSV format
  * @param {Array} data - Array of objects to export
@@ -15,22 +17,22 @@ export function toCSV(data, columns) {
 
   // Build header row
   const headers = columns.map(col => escapeCSVValue(col.label))
-  
+
   // Build data rows
   const rows = data.map(row => {
     return columns.map(col => {
       let value = getCellValue(row, col)
-      
+
       // Format value if formatter provided
       if (col.format) {
         value = col.format(value, row)
       }
-      
-      // Handle dates
+
+      // Handle dates (use app timezone so exported times match UI)
       if (col.type === 'date' && value) {
-        value = new Date(value).toLocaleString()
+        value = formatDateWithAppTimezone(value)
       }
-      
+
       return escapeCSVValue(value)
     })
   })
@@ -48,14 +50,14 @@ function escapeCSVValue(value) {
   if (value === null || value === undefined) {
     return ''
   }
-  
+
   const stringValue = String(value)
-  
+
   // If value contains comma, quote, or newline, wrap in quotes and escape quotes
   if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
     return `"${stringValue.replace(/"/g, '""')}"`
   }
-  
+
   return stringValue
 }
 
@@ -69,7 +71,7 @@ function getCellValue(row, column) {
   if (column.getValue) {
     return column.getValue(row)
   }
-  
+
   // Support nested keys like 'user.name'
   const keys = column.key.split('.')
   let value = row
@@ -89,15 +91,15 @@ export function downloadFile(content, filename, mimeType = 'text/csv') {
   const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
-  
+
   link.setAttribute('href', url)
   link.setAttribute('download', filename)
   link.style.visibility = 'hidden'
-  
+
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  
+
   // Clean up the URL object
   URL.revokeObjectURL(url)
 }
@@ -110,7 +112,7 @@ export function downloadFile(content, filename, mimeType = 'text/csv') {
  */
 export function exportToCSV(data, columns, filename = 'export') {
   const csv = toCSV(data, columns)
-  const timestamp = new Date().toISOString().split('T')[0]
+  const timestamp = getTodayInAppTimezone()
   downloadFile(csv, `${filename}_${timestamp}.csv`, 'text/csv')
 }
 
@@ -121,7 +123,7 @@ export function exportToCSV(data, columns, filename = 'export') {
  */
 export function exportToJSON(data, filename = 'export') {
   const json = JSON.stringify(data, null, 2)
-  const timestamp = new Date().toISOString().split('T')[0]
+  const timestamp = getTodayInAppTimezone()
   downloadFile(json, `${filename}_${timestamp}.json`, 'application/json')
 }
 
@@ -136,15 +138,15 @@ export function formatDataForExport(data, columns) {
     const formatted = {}
     columns.forEach(col => {
       let value = getCellValue(row, col)
-      
+
       if (col.format) {
         value = col.format(value, row)
       }
-      
+
       if (col.type === 'date' && value) {
-        value = new Date(value).toLocaleString()
+        value = formatDateWithAppTimezone(value)
       }
-      
+
       formatted[col.label] = value ?? ''
     })
     return formatted
@@ -165,7 +167,7 @@ export async function copyToClipboard(data, columns) {
   try {
     // Build header row
     const headers = columns.map(col => col.label)
-    
+
     // Build data rows
     const rows = data.map(row => {
       return columns.map(col => {
@@ -174,7 +176,7 @@ export async function copyToClipboard(data, columns) {
           value = col.format(value, row)
         }
         if (col.type === 'date' && value) {
-          value = new Date(value).toLocaleString()
+          value = formatDateWithAppTimezone(value)
         }
         return value ?? ''
       })
@@ -182,7 +184,7 @@ export async function copyToClipboard(data, columns) {
 
     // Combine with tab separators
     const content = [headers, ...rows].map(row => row.join('\t')).join('\n')
-    
+
     await navigator.clipboard.writeText(content)
     return true
   } catch (error) {

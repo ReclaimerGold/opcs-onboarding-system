@@ -691,7 +691,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { useAdminDashboard } from '../composables/useAdminDashboard.js'
 import { useTableFilters } from '../composables/useTableFilters.js'
-import { useDateFormat } from '../composables/useDateFormat.js'
+import { useDateFormat, getTodayInAppTimezone } from '../composables/useDateFormat.js'
 import api from '../services/api.js'
 import { exportToCSV } from '../utils/exportUtils.js'
 
@@ -873,11 +873,11 @@ const onboardingQuickFilters = [
   { label: 'Admins Only', filters: { isAdmin: 'true' } }
 ]
 
-const loginQuickFilters = [
+const loginQuickFilters = computed(() => [
   { label: 'Failed Only', filters: { success: 'false' } },
   { label: 'Success Only', filters: { success: 'true' } },
-  { label: 'Today', filters: { startDate: new Date().toISOString().split('T')[0] } }
-]
+  { label: 'Today', filters: { startDate: getTodayInAppTimezone() } }
+])
 
 // Filter state for each table
 const onboardingFilters = ref({ status: 'in_progress' })
