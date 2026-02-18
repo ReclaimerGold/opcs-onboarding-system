@@ -449,3 +449,28 @@ Before completing any feature or change:
 - [ ] API documentation updated if endpoints changed
 - [ ] Setup instructions updated if dependencies changed
 
+## Update Notification Manifest (Production Only)
+
+When the application is updated to a new version **in production**, admins and managers see a one-time popup with a summary of changes. This never appears in development or testing.
+
+### Manifest file
+- **Location**: `frontend/src/config/updateManifest.js`
+- **Structure**: `UPDATE_MANIFEST` is an object keyed by version string (e.g. `"1.6.0"`). Each entry has:
+  - `date` (string, e.g. `"2025-02"`)
+  - `title` (string, e.g. `"What's new in v1.6.0"`)
+  - `summary` (array of strings; each item is one bullet. Use `**text**` for bold.)
+
+### When to update the manifest
+- **Whenever you ship a new production version** (e.g. after a release tag or version bump), add an entry to `UPDATE_MANIFEST` for that version.
+- Summarize changes in user-friendly language: what’s new, what’s fixed, what admins/managers need to know.
+- Keep entries short and scannable (a few bullets per version).
+
+### Behavior (do not change without good reason)
+- Shown **only in production** (`import.meta.env.PROD`).
+- Shown **only to admins and managers** (role `admin` or `manager`).
+- Shown **once per version**; after the user dismisses, that version is not shown again (stored in `localStorage`: `opcs_update_last_seen_version`).
+- **"Don't show update notifications again"** checkbox: if checked and dismissed, the popup is never shown again until the user clears `opcs_update_hide_notifications` in localStorage.
+
+### Component
+- `frontend/src/components/UpdateNotificationModal.vue` — reads manifest, checks role and production, shows modal when conditions are met.
+

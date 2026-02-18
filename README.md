@@ -24,6 +24,7 @@ HR Onboarding application for Optimal Prime Cleaning Services with full US feder
 - **Tooltips**: Helpful tooltips explaining each field and how to fill it correctly
 - **Centralized Notification System**: In-app notifications with bell icon, toast popups, and configurable email notifications via Mailgun
   - Admin/manager alerts: no bank account, non-Gmail email, new signups, onboarding complete, document approval needed, stale onboarding, failed login security, document retention expiring, I-9 uploads
+- **Update notification (production only)**: When a new version is deployed to production, admins and managers see a one-time popup summarizing changes (from `frontend/src/config/updateManifest.js`). They can dismiss it or check "Don't show again" to suppress future update popups.
   - Applicant notifications: welcome message, form approved/rejected, onboarding reminders, completion confirmation
   - Per-user preferences: toggle in-app and email independently per notification type, choose real-time or daily digest email frequency
   - Scheduled checks: daily stale onboarding, onboarding reminders, document retention, and digest email batching
