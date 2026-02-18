@@ -462,7 +462,7 @@ This system is designed to comply with:
 - `GET /api/address/status` - Check if address validation is configured (authenticated)
 
 ### Admin (Admin Only)
-- `GET /api/admin/setup-status` - Returns whether required admin setup is complete (`{ signaturePlacementComplete: boolean, signaturePlacementReady: { w4, i9, 8850 } }`). Used to enforce the admin onboarding wizard; admins are redirected to `/admin/setup` until at least one signature placement is set per document (W-4, I-9, 8850). Not every page needs a placement.
+- `GET /api/admin/setup-status` - Returns whether required admin setup is complete (`{ signaturePlacementComplete: boolean, signaturePlacementReady: { w4, i9, 8850, 9061 }, emailAndFormsConfigured: boolean }`). Used to enforce the admin onboarding wizard; admins are redirected to `/admin/setup` until (1) at least one signature placement is set per document (W-4, I-9, 8850, 9061) and (2) Email & Forms is configured (I-9 employer authorized rep name and Form 8850 employer section: EIN, address, city, state, zip, phone). Not every page needs a signature placement.
 - `GET /api/admin/dashboard` - Get dashboard statistics
 - `GET /api/admin/login-attempts` - Get login attempts with filtering, search, and pagination
   - Query params: `search`, `success`, `startDate`, `endDate`, `page`, `limit`, `sortKey`, `sortDir`
