@@ -176,7 +176,7 @@ router.beforeEach(async (to, from, next) => {
       try {
         const api = (await import('../services/api.js')).default
         const setupStatus = await api.get('/admin/setup-status')
-        if (!setupStatus.data.signaturePlacementComplete) {
+        if (!setupStatus.data.signaturePlacementComplete || !setupStatus.data.emailAndFormsConfigured) {
           next('/admin/setup')
           return
         }

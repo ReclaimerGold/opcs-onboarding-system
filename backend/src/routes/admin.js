@@ -21,6 +21,25 @@ import {
 import { runAllComplianceChecks } from '../services/complianceService.js'
 import { fixAllFilePermissions, isGoogleDriveConfigured, deleteFromGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.js'
 import { generateW4PDF, generateI9PDF, generate8850PDF, generate9061PDF, generateGenericPDF, generateFilename, calculateRetentionDate, getSignaturePlacement, getSignaturePlacements, getSignaturePlacementStatus } from '../services/pdfService.js'
+import { getSetting } from '../utils/getSetting.js'
+
+/** Required settings for Email & Forms (employer/form options). Same as forms.js so applicants can complete onboarding. */
+const REQUIRED_EMPLOYER_SETTINGS = [
+  'i9_employer_authorized_rep_name',
+  '8850_employer_ein',
+  '8850_employer_address',
+  '8850_employer_city',
+  '8850_employer_state',
+  '8850_employer_zip',
+  '8850_employer_phone'
+]
+
+function isEmailAndFormsConfigured() {
+  return REQUIRED_EMPLOYER_SETTINGS.every(key => {
+    const v = getSetting(key)
+    return typeof v === 'string' && v.trim() !== ''
+  })
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -118,9 +137,11 @@ router.get('/setup-status', async (req, res) => {
   try {
     const ready = getSignaturePlacementStatus()
     const signaturePlacementComplete = ready.w4 && ready.i9 && ready['8850'] && ready['9061']
+    const emailAndFormsConfigured = isEmailAndFormsConfigured()
     res.json({
       signaturePlacementComplete,
-      signaturePlacementReady: ready
+      signaturePlacementReady: ready,
+      emailAndFormsConfigured
     })
   } catch (error) {
     console.error('Setup status error:', error)

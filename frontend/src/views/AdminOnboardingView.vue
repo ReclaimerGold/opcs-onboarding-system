@@ -18,15 +18,15 @@
 
     <div class="w-full overflow-x-auto">
       <div class="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
-        <!-- Progress: Step X of 5 (1 = PDF templates, 2–5 = signature placement) -->
+        <!-- Progress: Step X of 6 (1 = PDF templates, 2–5 = signature placement, 6 = Email & Forms) -->
         <div class="mb-6">
           <div class="flex items-center gap-2 text-sm text-gray-600 mb-1">
             <span class="font-medium">Setup progress</span>
-            <span>— Step {{ setupStep }} of 5</span>
+            <span>— Step {{ setupStep }} of 6</span>
           </div>
           <div class="flex gap-2">
             <div
-              v-for="s in 5"
+              v-for="s in 6"
               :key="s"
               :class="[
                 'h-2 flex-1 rounded-full transition-colors',
@@ -38,12 +38,13 @@
             <span>PDF templates</span>
             <span>W-4</span>
             <span>I-9</span>
-            <span>Form 8850</span>
-            <span>Form 9061</span>
+            <span>8850</span>
+            <span>9061</span>
+            <span>Email &amp; Forms</span>
           </div>
         </div>
 
-        <!-- Step 1: Download PDF templates (same as admin area: scan + download) -->
+        <!-- Step 1: Download PDF templates -->
         <template v-if="setupStep === 1">
           <div class="mb-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-1">Step 1: Download PDF templates</h2>
@@ -68,7 +69,7 @@
         </template>
 
         <!-- Steps 2–5: Signature placement (W-4, I-9, 8850, 9061) -->
-        <template v-else>
+        <template v-else-if="setupStep >= 2 && setupStep <= 5">
           <div class="mb-8">
             <h2 class="text-lg font-semibold text-gray-900 mb-1">
               Set up signature placement: {{ currentStepLabel }}
@@ -100,43 +101,96 @@
             >
               Next: {{ nextStepLabel }}
             </button>
-            <template v-else>
-              <button
-                type="button"
-                :disabled="!setupStatus.signaturePlacementComplete"
-                class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                @click="goToDashboard"
-              >
-                Continue to dashboard
-              </button>
-            </template>
+            <button
+              v-else
+              type="button"
+              :disabled="!currentStepComplete"
+              class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="setupStep = 6"
+            >
+              Next: Email &amp; Forms
+            </button>
             <span v-if="setupStep < 5 && !currentStepComplete" class="text-sm text-gray-500">
               Add at least one signature placement for {{ currentStepLabel }} to continue.
             </span>
           </div>
 
-          <!-- Optional: API keys -->
+          <!-- Optional: API keys (during signature steps) -->
           <div class="border-t border-gray-200 pt-8">
             <h2 class="text-lg font-semibold text-gray-900 mb-2">API keys and integrations <span class="text-gray-500 font-normal">(optional)</span></h2>
             <p class="text-sm text-gray-600 mb-4">
               Google Drive, Mailgun, and Address Validation can be configured anytime in <router-link to="/settings" class="text-primary hover:underline">Settings</router-link>. Employees can use the system without them.
             </p>
-            <div class="flex gap-3">
-              <router-link
-                to="/settings"
-                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Go to Settings
-              </router-link>
-              <button
-                type="button"
-                :disabled="!setupStatus.signaturePlacementComplete"
-                class="px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                @click="goToDashboard"
-              >
-                I'll do this later
-              </button>
+            <router-link
+              to="/settings"
+              class="inline-flex px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Go to Settings
+            </router-link>
+          </div>
+        </template>
+
+        <!-- Step 6: Email & Forms (notification recipients and form options) -->
+        <template v-else-if="setupStep === 6">
+          <div class="mb-8">
+            <h2 class="text-lg font-semibold text-gray-900 mb-1">Step 6: Email &amp; Forms</h2>
+            <p class="text-sm text-gray-600 mb-4">
+              Configure <strong>Notification &amp; Email Recipients</strong> and <strong>Form Options</strong> in Settings so that employer information appears on documents and the right people receive notifications (e.g. completion, no bank account, Judy/Daphne). All employer fields (I-9 authorized rep name and Form 8850 employer section) must be completed before applicants can access onboarding forms.
+            </p>
+            <div class="bg-white border rounded-lg p-6 shadow-sm">
+              <div v-if="setupStatus.emailAndFormsConfigured" class="flex items-center gap-3 text-green-700">
+                <svg class="w-6 h-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium">Email &amp; Forms are configured. You can continue to the dashboard.</span>
+              </div>
+              <div v-else class="flex items-start gap-3 text-amber-800">
+                <svg class="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <p class="font-medium mb-1">Complete the required fields in Settings → Email &amp; Forms:</p>
+                  <ul class="text-sm list-disc list-inside space-y-1 mb-4">
+                    <li>I-9 Employer authorized representative name</li>
+                    <li>Form 8850 employer section: EIN, address, city, state, zip, phone</li>
+                  </ul>
+                  <p class="text-sm mb-4">Optional: W-4 educational link, notification recipient emails (Judy, Daphne, completion notification, etc.).</p>
+                  <router-link
+                    :to="{ path: '/settings', query: { section: 'email-forms' } }"
+                    class="inline-flex px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    Open Settings → Email &amp; Forms
+                  </router-link>
+                </div>
+              </div>
             </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              @click="setupStep = 5"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              :disabled="!setupStatus.emailAndFormsConfigured"
+              class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="goToDashboard"
+            >
+              Continue to dashboard
+            </button>
+            <button
+              type="button"
+              class="px-4 py-2 border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50"
+              @click="fetchSetupStatus"
+            >
+              Refresh status
+            </button>
+            <span v-if="!setupStatus.emailAndFormsConfigured" class="text-sm text-gray-500">
+              Complete the required employer fields in Settings → Email &amp; Forms, then click Refresh status.
+            </span>
           </div>
         </template>
       </div>
@@ -159,7 +213,8 @@ const setupStep = ref(1)
 const templateStatus = ref({})
 const setupStatus = ref({
   signaturePlacementComplete: false,
-  signaturePlacementReady: { w4: false, i9: false, 8850: false, 9061: false }
+  signaturePlacementReady: { w4: false, i9: false, 8850: false, 9061: false },
+  emailAndFormsConfigured: false
 })
 
 const stepFormTypes = ['W4', 'I9', '8850', '9061']
@@ -207,6 +262,7 @@ function onPanelSaved() {
 
 function goToDashboard() {
   if (!setupStatus.value.signaturePlacementComplete) return
+  if (setupStep.value === 6 && !setupStatus.value.emailAndFormsConfigured) return
   router.push('/admin')
 }
 

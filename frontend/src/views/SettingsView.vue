@@ -1555,13 +1555,17 @@ const mailgunConfigured = computed(() => {
   return !!(settings.value.mailgun_api_key && settings.value.mailgun_domain)
 })
 
-// Apply route query so alerts can deep-link to Settings → System → PDF Templates
+// Apply route query so alerts and admin setup can deep-link to Settings sections
 watch(() => route.query, (query) => {
   if (query.section === 'system') {
     settingsSection.value = 'system'
     if (query.tab === 'templates') systemTab.value = 'templates'
     else if (query.tab === 'tests') systemTab.value = 'tests'
     else systemTab.value = 'health'
+  } else if (query.section === 'email-forms') {
+    settingsSection.value = 'email-forms'
+  } else if (query.section === 'integrations') {
+    settingsSection.value = 'integrations'
   }
 }, { immediate: true })
 
