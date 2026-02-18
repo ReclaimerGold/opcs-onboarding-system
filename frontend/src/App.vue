@@ -1,6 +1,7 @@
 <template>
   <div>
     <router-view />
+    <UpdateNotificationModal />
     <NotificationToast v-if="isAuthenticated" />
     <SessionFooter
       v-if="isActive"
@@ -16,6 +17,7 @@
 import { watch, computed, onMounted } from 'vue'
 import SessionFooter from './components/SessionFooter.vue'
 import NotificationToast from './components/NotificationToast.vue'
+import UpdateNotificationModal from './components/UpdateNotificationModal.vue'
 import { useSessionTimeout } from './composables/useSessionTimeout.js'
 import { useNotifications } from './composables/useNotifications.js'
 
