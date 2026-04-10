@@ -25,6 +25,7 @@ import { getSetting } from '../utils/getSetting.js'
 
 /** Required settings for Email & Forms (employer/form options). Same as forms.js so applicants can complete onboarding. */
 const REQUIRED_EMPLOYER_SETTINGS = [
+  '8850_employer_name',
   'i9_employer_authorized_rep_name',
   '8850_employer_ein',
   '8850_employer_address',

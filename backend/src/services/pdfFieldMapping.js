@@ -120,7 +120,14 @@ export const I9_FIELD_MAPPING = {
   listCDocumentTitle: ['List C Document Title 1'],
   listCIssuingAuthority: ['List C Issuing Authority 1'],
   listCDocumentNumber: ['List C Document Number 1'],
-  listCExpirationDate: ['List C Expiration Date 1']
+  listCExpirationDate: ['List C Expiration Date 1'],
+
+  // Section 2: Employer / authorized representative
+  firstDayEmployed: ['FirstDayEmployed mmddyyyy'],
+  employerSectionDate: ['S2 Todays Date mmddyyyy'],
+  employerAuthorizedRep: ['Last Name First Name and Title of Employer or Authorized Representative'],
+  employerBusinessName: ['Employers Business or Org Name'],
+  employerBusinessAddress: ['Employers Business or Org Address']
 }
 
 /**
@@ -168,12 +175,13 @@ export const F8850_FIELD_MAPPING = {
   employerState: ['topmostSubform[0].Page2[0].f2_5[0]', 'f2_5[0]', 'f2_5'],
   employerZip: ['topmostSubform[0].Page2[0].f2_6[0]', 'f2_6[0]', 'f2_6'],
   employerPhone: ['topmostSubform[0].Page2[0].f2_7[0]', 'f2_7[0]', 'f2_7'],
-  // Second telephone field on Page 2 (e.g. person to contact) — use same employer phone
-  employerPhone2: ['topmostSubform[0].Page2[0].f2_13[0]', 'f2_13[0]', 'f2_13'],
+  personToContact: ['topmostSubform[0].Page2[0].f2_13[0]', 'f2_13[0]', 'f2_13'],
   jobOfferedDate: ['topmostSubform[0].Page2[0].f2_8[0]', 'f2_8[0]', 'f2_8'],
   jobStartDate: ['topmostSubform[0].Page2[0].f2_9[0]', 'f2_9[0]', 'f2_9'],
   startingWage: ['topmostSubform[0].Page2[0].f2_10[0]', 'f2_10[0]', 'f2_10'],
-  jobTitle: ['topmostSubform[0].Page2[0].f2_11[0]', 'f2_11[0]', 'f2_11']
+  jobTitle: ['topmostSubform[0].Page2[0].f2_11[0]', 'f2_11[0]', 'f2_11'],
+  employerSignatureDate: ['topmostSubform[0].Page2[0].f2_14[0]', 'f2_14[0]', 'f2_14'],
+  employerTitle: ['topmostSubform[0].Page2[0].f2_15[0]', 'f2_15[0]', 'f2_15']
 }
 
 /**
@@ -201,6 +209,11 @@ export const F9061_FIELD_MAPPING = {
 
   // Box 6: Applicant Name (combined field: "Last, First MI")
   applicantName: ['6 Applicant Name Last First MI'],
+
+  // Boxes 9-11: Employment info
+  box9_EmploymentStartDate: ['9 Employment Start Date'],
+  box10_StartingWage: ['10 Starting Wage'],
+  box11_JobTitle: ['11 Job Position Title or SOC Standard Occupation Classification'],
 
   // Box 7: Social Security Number
   ssn: ['7. Social Security Number'],
@@ -470,12 +483,20 @@ export function getFormFieldInfo(form) {
  * @returns {Object} Mapped field values
  */
 export function mapW4FormData(formData) {
+  const cityStateZip = [formData.city, formData.state, formData.zipCode].filter(Boolean).join(', ').replace(', ', ', ')
+  const employerLines = [
+    formData.employerName || '',
+    [formData.employerAddress, formData.employerCity, formData.employerState, formData.employerZip].filter(Boolean).join(', '),
+    formData.employerEIN ? `EIN: ${formData.employerEIN}` : '',
+    formData.firstDateEmployment ? `First date of employment: ${formatDateForPDF(formData.firstDateEmployment)}` : ''
+  ].filter(Boolean)
+
   return {
     firstName: formData.firstName || '',
     lastName: formData.lastName || '',
     ssn: formatSSNForPDF(formData.ssn),
     address: formData.address || '',
-    cityStateZip: `${formData.city || ''}, ${formData.state || ''} ${formData.zipCode || ''}`.trim(),
+    cityStateZip: cityStateZip.trim(),
 
     // Filing status - map to checkbox
     filingStatusSingle: formData.filingStatus === 'single',
@@ -485,18 +506,17 @@ export function mapW4FormData(formData) {
     // Multiple jobs
     multipleJobsCheckbox: formData.multipleJobs === true,
 
-    // Dependents - calculate amounts (leave blank if no dependents per IRS instructions)
-    qualifyingChildrenAmount: formData.qualifyingChildren ? formatCurrencyForPDF(formData.qualifyingChildren * 2000) : '',
-    otherDependentsAmount: formData.dependents ? formatCurrencyForPDF(formData.dependents * 500) : '',
-    // Step 3 total should be blank if no dependents (value of 0 means leave blank)
-    totalCreditsStep3: (formData.qualifyingChildren || formData.dependents)
-      ? formatCurrencyForPDF(((formData.qualifyingChildren || 0) * 2000) + ((formData.dependents || 0) * 500))
-      : '',
+    // The business requirement is to render explicit zero placeholders.
+    qualifyingChildrenAmount: formatCurrencyForPDF((formData.qualifyingChildren || 0) * 2000) || '0',
+    otherDependentsAmount: formatCurrencyForPDF((formData.dependents || 0) * 500) || '0',
+    totalCreditsStep3: formatCurrencyForPDF(((formData.qualifyingChildren || 0) * 2000) + ((formData.dependents || 0) * 500)) || '0',
 
     // Step 4 adjustments
-    otherIncome: formatCurrencyForPDF(formData.otherIncome),
-    deductions: formatCurrencyForPDF(formData.deductions),
-    extraWithholding: formatCurrencyForPDF(formData.extraWithholding),
+    otherIncome: formatCurrencyForPDF(formData.otherIncome) || '0',
+    deductions: formatCurrencyForPDF(formData.deductions) || '0',
+    extraWithholding: formatCurrencyForPDF(formData.extraWithholding) || '0',
+
+    employerName: employerLines.join('\n'),
 
     // Signature date
     signatureDate: formatDateForPDF(new Date())
@@ -584,7 +604,12 @@ export function mapI9FormData(formData) {
     expirationDate: formatDateForPDF(formData.authorizationExpiration),
 
     // Signature date
-    signatureDateEmployee: formatDateForPDF(new Date())
+    signatureDateEmployee: formatDateForPDF(formData.signatureDate || new Date()),
+    firstDayEmployed: formatDateForPDF(formData.firstDayEmployed),
+    employerSectionDate: formatDateForPDF(formData.employerSectionDate),
+    employerAuthorizedRep: formData.employerAuthorizedRep || '',
+    employerBusinessName: formData.employerBusinessName || '',
+    employerBusinessAddress: formData.employerBusinessAddress || ''
   }
 
   // Section 2: List A (one document)
@@ -661,8 +686,8 @@ export function map8850FormData(formData) {
     targetGroup8: formData.targetGroups?.includes('ssi') || false,
     targetGroup9: formData.targetGroups?.includes('longTermUnemployed') || false,
 
-    // Date applicant gave information = date form is submitted (PDF generation date)
-    dateApplicantGaveInformation: formatDateForPDF(new Date()),
+    // Date applicant gave information tracks the applicant signing/submission date.
+    dateApplicantGaveInformation: formatDateForPDF(formData.applicantSignatureDate || formData.signatureDate || new Date()),
 
     // Employer section (Page 2) - from formData (populated from settings in pdfService)
     employerName: formData.employerName || '',
@@ -672,11 +697,13 @@ export function map8850FormData(formData) {
     employerState: formData.employerState || '',
     employerZip: formData.employerZip || '',
     employerPhone: formData.employerPhone || '',
-    employerPhone2: (formData.employerPhone2 ?? formData.employerPhone) || '',
+    personToContact: formData.personToContact || formData.employerAuthorizedRep || '',
     jobOfferedDate: formData.jobOfferedDate ? formatDateForPDF(formData.jobOfferedDate) : '',
     jobStartDate: formData.jobStartDate ? formatDateForPDF(formData.jobStartDate) : '',
     startingWage: formData.startingWage ?? '',
-    jobTitle: formData.jobTitle || ''
+    jobTitle: formData.jobTitle || '',
+    employerSignatureDate: formatDateForPDF(formData.employerSignatureDate || formData.approvalDate || new Date()),
+    employerTitle: formData.employerTitle || ''
   }
 }
 
@@ -723,6 +750,11 @@ export function map9061FormData(formData) {
 
     // Box 7: SSN
     ssn: formatSSNForPDF(formData.ssn),
+
+    // Boxes 9-11: Employment info
+    box9_EmploymentStartDate: formatDateForPDF(formData.jobStartDate || formData.approvalDate || new Date()),
+    box10_StartingWage: formData.startingWage || '',
+    box11_JobTitle: formData.jobTitle || '',
 
     // Box 12: TANF
     box12_TANF: formData.isTANFRecipient || false,
@@ -778,7 +810,7 @@ export function map9061FormData(formData) {
     unemploymentClaimsLocation: formData.unemploymentClaimsLocation || '',
 
     // Box 24: Signature date
-    signatureDate: formatDateForPDF(new Date())
+    signatureDate: formatDateForPDF(formData.signatureDate || formData.applicantSignatureDate || new Date())
   }
 }
 

@@ -190,6 +190,28 @@ async function drawSignatureOnPdf(pdfDoc, formType, signatureBase64) {
   await drawSignatureAtPlacements(pdfDoc, placements, signatureBase64)
 }
 
+function getEmployerSettings(overrides = {}) {
+  const legalEmployerName = getSetting('8850_employer_name') || 'Optimal Prime Cleaning Services'
+  const authorizedRepName = getSetting('i9_employer_authorized_rep_name') || legalEmployerName
+  const employerTitle = getSetting('i9_employer_authorized_rep_title') || 'Authorized Representative'
+  const employerEmail = getSetting('mailgun_from_email') || 'info@optimalprimeservices.com'
+
+  return {
+    legalEmployerName,
+    authorizedRepName,
+    contactName: getSetting('8850_contact_name') || authorizedRepName,
+    employerTitle,
+    employerEIN: getSetting('8850_employer_ein') || '',
+    employerAddress: getSetting('8850_employer_address') || '',
+    employerCity: getSetting('8850_employer_city') || '',
+    employerState: getSetting('8850_employer_state') || '',
+    employerZip: getSetting('8850_employer_zip') || '',
+    employerPhone: getSetting('8850_employer_phone') || '',
+    employerEmail,
+    ...overrides
+  }
+}
+
 /**
  * Get the first admin's stored signature (for employer/authorized rep pre-fill on 8850 and default manager signoff).
  * @returns {string|null} Base64 signature data or null
@@ -389,6 +411,17 @@ async function fillPDFTemplate(pdfDoc, fieldMapping, mappedData) {
  * Falls back to basic generation only if template is completely unavailable
  */
 export async function generateW4PDF(formData, applicantData) {
+  const employer = getEmployerSettings()
+  const formDataWithEmployer = {
+    ...formData,
+    employerName: employer.legalEmployerName,
+    employerEIN: employer.employerEIN,
+    employerAddress: employer.employerAddress,
+    employerCity: employer.employerCity,
+    employerState: employer.employerState,
+    employerZip: employer.employerZip,
+    firstDateEmployment: formData.firstDateEmployment || applicantData?.hire_date || ''
+  }
   // Try to use official template
   const templateBuffer = await getTemplate('W4')
 
@@ -402,20 +435,20 @@ export async function generateW4PDF(formData, applicantData) {
       const retryBuffer = await getTemplate('W4')
       if (retryBuffer) {
         console.log('W-4 template downloaded successfully, using template')
-        return await fillW4Template(retryBuffer, formData)
+        return await fillW4Template(retryBuffer, formDataWithEmployer)
       }
     }
 
     console.error('W-4 template unavailable after download attempt, using fallback')
-    return generateW4PDFFallback(formData, applicantData)
+    return generateW4PDFFallback(formDataWithEmployer, applicantData)
   }
 
   // Use template
   try {
-    return await fillW4Template(templateBuffer, formData)
+    return await fillW4Template(templateBuffer, formDataWithEmployer)
   } catch (error) {
     console.error('Failed to fill W-4 template, using fallback:', error.message)
-    return generateW4PDFFallback(formData, applicantData)
+    return generateW4PDFFallback(formDataWithEmployer, applicantData)
   }
 }
 
@@ -562,6 +595,7 @@ async function generateW4PDFFallback(formData, applicantData) {
  * Falls back to basic generation only if template is completely unavailable
  */
 export async function generateI9PDF(formData, applicantData) {
+  const employer = getEmployerSettings()
   // Merge applicant data into form data for I-9 (which needs address, DOB, SSN, etc.)
   const mergedFormData = {
     ...formData,
@@ -573,7 +607,13 @@ export async function generateI9PDF(formData, applicantData) {
     dateOfBirth: formData.dateOfBirth || applicantData?.date_of_birth || applicantData?.dateOfBirth || '',
     ssn: formData.ssn || applicantData?.ssn || '',
     email: formData.email || applicantData?.email || '',
-    phone: formData.phone || applicantData?.phone || ''
+    phone: formData.phone || applicantData?.phone || '',
+    employerAuthorizedRep: `${employer.authorizedRepName}${employer.employerTitle ? `, ${employer.employerTitle}` : ''}`,
+    employerBusinessName: employer.legalEmployerName,
+    employerBusinessAddress: [
+      employer.employerAddress,
+      [employer.employerCity, employer.employerState, employer.employerZip].filter(Boolean).join(' ')
+    ].filter(Boolean).join(', ')
   }
 
   // Try to use official template
@@ -617,8 +657,7 @@ async function fillI9Template(templateBuffer, formData) {
     console.log('Using official USCIS I-9 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = mapI9FormData(formData)
-    // Ensure signature date is always current (per-document)
-    mappedData.signatureDateEmployee = formatDateForPDF(new Date())
+    mappedData.signatureDateEmployee = mappedData.signatureDateEmployee || formatDateForPDF(new Date())
 
     const result = await fillPDFTemplate(pdfDoc, I9_FIELD_MAPPING, mappedData)
     console.log(`I-9: Successfully filled ${result.filledCount} fields`)
@@ -828,23 +867,24 @@ async function generateI9PDFFallback(formData, applicantData) {
  * Falls back to basic generation only if template is completely unavailable
  */
 export async function generate8850PDF(formData, applicantData) {
-  // Merge employer/authorized rep (Jason) from settings for 8850 Page 2
-  const employerName = getSetting('i9_employer_authorized_rep_name') || getSetting('8850_employer_name') || 'Optimal Prime Cleaning Services'
-  const employerPhone = getSetting('8850_employer_phone') || formData.employerPhone || ''
+  const employer = getEmployerSettings()
   const formDataWithEmployer = {
     ...formData,
-    employerName,
-    employerEIN: getSetting('8850_employer_ein') || formData.employerEIN || '',
-    employerAddress: getSetting('8850_employer_address') || formData.employerAddress || '',
-    employerCity: getSetting('8850_employer_city') || formData.employerCity || '',
-    employerState: getSetting('8850_employer_state') || formData.employerState || '',
-    employerZip: getSetting('8850_employer_zip') || formData.employerZip || '',
-    employerPhone,
-    employerPhone2: employerPhone,
-    jobOfferedDate: formData.jobOfferedDate || '',
-    jobStartDate: formData.jobStartDate || '',
+    employerName: employer.legalEmployerName,
+    employerAuthorizedRep: employer.authorizedRepName,
+    personToContact: employer.contactName,
+    employerEIN: employer.employerEIN || formData.employerEIN || '',
+    employerAddress: employer.employerAddress || formData.employerAddress || '',
+    employerCity: employer.employerCity || formData.employerCity || '',
+    employerState: employer.employerState || formData.employerState || '',
+    employerZip: employer.employerZip || formData.employerZip || '',
+    employerPhone: employer.employerPhone || formData.employerPhone || '',
+    jobOfferedDate: formData.jobOfferedDate || formData.signatureDate || new Date(),
+    jobStartDate: formData.jobStartDate || formData.signatureDate || new Date(),
     startingWage: formData.startingWage ?? '',
-    jobTitle: formData.jobTitle || ''
+    jobTitle: formData.jobTitle || '',
+    applicantSignatureDate: formData.date || formData.signatureDate || new Date(),
+    employerTitle: employer.employerTitle
   }
 
   // Try to use official template
@@ -888,8 +928,6 @@ async function fill8850Template(templateBuffer, formData) {
     console.log('Using official IRS Form 8850 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = map8850FormData(formData)
-    // Ensure signature / date applicant gave information is always current (per-document)
-    mappedData.dateApplicantGaveInformation = formatDateForPDF(new Date())
 
     const result = await fillPDFTemplate(pdfDoc, F8850_FIELD_MAPPING, mappedData)
     console.log(`8850: Successfully filled ${result.filledCount} fields`)
@@ -1013,18 +1051,22 @@ async function generate8850PDFFallback(formData, applicantData) {
  * Merges employer info (Box 3, 4, 5) from settings for employer name, address, phone, email, EIN.
  */
 export async function generate9061PDF(formData, applicantData) {
-  // Merge employer data from settings for Box 3 (name), Box 4 (address, phone, email), Box 5 (EIN)
-  const employerName = getSetting('i9_employer_authorized_rep_name') || getSetting('8850_employer_name') || 'Optimal Prime Cleaning Services'
+  const employer = getEmployerSettings()
   const formDataWithEmployer = {
     ...formData,
-    employerName,
-    employerEIN: getSetting('8850_employer_ein') || formData.employerEIN || '',
-    employerAddress: getSetting('8850_employer_address') || formData.employerAddress || '',
-    employerCity: getSetting('8850_employer_city') || formData.employerCity || '',
-    employerState: getSetting('8850_employer_state') || formData.employerState || '',
-    employerZip: getSetting('8850_employer_zip') || formData.employerZip || '',
-    employerPhone: getSetting('8850_employer_phone') || formData.employerPhone || '',
-    employerEmail: 'info@optimalprimeservices.com'
+    employerName: employer.legalEmployerName,
+    employerAuthorizedRep: employer.authorizedRepName,
+    employerEIN: employer.employerEIN || formData.employerEIN || '',
+    employerAddress: employer.employerAddress || formData.employerAddress || '',
+    employerCity: employer.employerCity || formData.employerCity || '',
+    employerState: employer.employerState || formData.employerState || '',
+    employerZip: employer.employerZip || formData.employerZip || '',
+    employerPhone: employer.employerPhone || formData.employerPhone || '',
+    employerEmail: employer.employerEmail,
+    startingWage: formData.startingWage || getSetting('9061_default_starting_wage') || '',
+    jobStartDate: formData.jobStartDate || formData.date || new Date(),
+    jobTitle: formData.jobTitle || 'New Hire',
+    applicantSignatureDate: formData.date || formData.signatureDate || new Date()
   }
 
   // Try to use official template
@@ -1067,8 +1109,7 @@ async function fill9061Template(templateBuffer, formData) {
     console.log('Using official ETA Form 9061 template')
     const pdfDoc = await PDFDocument.load(templateBuffer)
     const mappedData = map9061FormData(formData)
-    // Ensure Box 24 signature date is always current (per-document)
-    mappedData.signatureDate = formatDateForPDF(new Date())
+    mappedData.signatureDate = mappedData.signatureDate || formatDateForPDF(new Date())
 
     // fillPDFTemplate handles text fields and checkboxes but NOT radio groups.
     // We load the form before flattening to set radio groups manually.
@@ -1306,6 +1347,8 @@ export async function generateGenericPDF(formData, formType, applicantData) {
 
   const { width, height } = page.getSize()
   const fontSize = 12
+  const smallFontSize = 10
+  const lineHeight = 16
   const helveticaFont = await pdfDoc.embedFont('Helvetica')
   const helveticaBoldFont = await pdfDoc.embedFont('Helvetica-Bold')
 
@@ -1322,25 +1365,66 @@ export async function generateGenericPDF(formData, formType, applicantData) {
     font: helveticaBoldFont
   })
 
-  let yPos = height - 100
-  const formDataStr = JSON.stringify(formData, null, 2)
-  const lines = formDataStr.split('\n').slice(0, 30) // Limit lines
-  const lineHeight = 14
+  const applicantName = `${applicantData?.first_name || formData.firstName || ''} ${applicantData?.last_name || formData.lastName || ''}`.trim()
+  const signatureBase64 = formData.signatureData || applicantData?.signature_data || ''
   const maxWidth = width - 100
+  let yPos = height - 90
 
-  for (const line of lines) {
-    if (yPos < 50) break
-    const wrapped = wrapText(line, helveticaFont, 10, maxWidth)
-    for (const wrappedLine of wrapped) {
-      if (yPos < 50) break
-      page.drawText(wrappedLine, {
+  const writeLine = (label, value, bold = false) => {
+    if (!value && value !== 0) return
+    const lines = wrapText(`${label}${value}`, helveticaFont, smallFontSize, maxWidth)
+    for (const line of lines) {
+      page.drawText(line, {
         x: 50,
         y: yPos,
-        size: 10,
-        font: helveticaFont
+        size: smallFontSize,
+        font: bold ? helveticaBoldFont : helveticaFont
       })
       yPos -= lineHeight
     }
+  }
+
+  writeLine('Applicant: ', applicantName || 'Not provided', true)
+  writeLine('Email: ', applicantData?.email || formData.email || '')
+  writeLine('Date: ', formatDateForPDF(formData.date || new Date()))
+  yPos -= 8
+
+  if (formType === 'BACKGROUND') {
+    writeLine('Date of birth: ', formData.dateOfBirth || '')
+    writeLine('Address: ', [formData.address, formData.city, formData.state, formData.zipCode].filter(Boolean).join(', '))
+    writeLine('Sex offender classification: ', formData.sexOffender || 'Not answered')
+    writeLine('Crimes in past 7 years: ', formData.crimesPast7Years || 'Not answered')
+  } else if (formType === 'DIRECT_DEPOSIT') {
+    writeLine('Account type: ', formData.accountType || 'Not provided')
+    if (formData.accountType === 'checking' || formData.accountType === 'savings') {
+      writeLine('Bank name: ', formData.bankName || '')
+      writeLine('Routing number: ', formData.routingNumber || '')
+      writeLine('Account number: ', formData.accountNumber || '')
+    } else {
+      writeLine('Note: ', 'Applicant reported no bank account on file.')
+    }
+  } else if (formType === 'ACKNOWLEDGEMENTS') {
+    writeLine('Handbook opened: ', formData.handbookAcknowledgement ? 'Yes' : 'No')
+    writeLine('Employment agreement accepted: ', formData.employmentAgreementAccepted ? 'Yes' : 'No')
+    writeLine('Emergency contact: ', formData.emergencyContactName || '')
+    writeLine('Emergency contact phone: ', formData.emergencyContactPhone || '')
+  }
+
+  if (signatureBase64) {
+    yPos -= 20
+    page.drawText('Signature:', {
+      x: 50,
+      y: yPos,
+      size: fontSize,
+      font: helveticaBoldFont
+    })
+    await drawSignatureAtPlacements(pdfDoc, [{
+      pageIndex: 0,
+      x: 50,
+      y: Math.max(60, yPos - 55),
+      width: 180,
+      height: 45
+    }], signatureBase64)
   }
 
   const pdfBytes = await pdfDoc.save()
@@ -1797,7 +1881,8 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
       pendingPdfPath,
       submissionId,
       retentionUntil,
-      storageType: 'pending_approval'
+      storageType: 'pending_approval',
+      pdfBuffer: Buffer.from(pdfBytes)
     }
   }
 
@@ -1850,7 +1935,8 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
       localPath,
       submissionId: existingSubmission.id,
       retentionUntil,
-      storageType: googleDriveId ? 'google_drive' : 'local'
+      storageType: googleDriveId ? 'google_drive' : 'local',
+      pdfBuffer: Buffer.from(pdfBytes)
     }
   }
 
@@ -1878,6 +1964,7 @@ export async function generateAndSavePDF(applicantId, stepNumber, formType, form
     localPath,
     submissionId,
     retentionUntil,
-    storageType: googleDriveId ? 'google_drive' : 'local'
+    storageType: googleDriveId ? 'google_drive' : 'local',
+    pdfBuffer: Buffer.from(pdfBytes)
   }
 }

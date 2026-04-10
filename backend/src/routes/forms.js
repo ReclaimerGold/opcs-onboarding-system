@@ -32,6 +32,7 @@ router.use(requireAuth)
 
 /** Required settings keys for employer/business info (Form 8850 Page 2 and I-9/8850 rep name). Must all be set before applicants can fill forms. */
 const REQUIRED_EMPLOYER_SETTINGS = [
+  '8850_employer_name',
   'i9_employer_authorized_rep_name',
   '8850_employer_ein',
   '8850_employer_address',
@@ -475,10 +476,15 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
       if (step === 1) {
         const judyEmail = getSetting('judy_email')
         if (judyEmail && isMailgunConfigured()) {
-          sendEmail({
+          await sendEmail({
             to: judyEmail,
             subject: `W-4 submitted: ${applicant.first_name} ${applicant.last_name}`,
-            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted their completed W-4.`
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted their completed W-4.`,
+            attachments: pdfResult.pdfBuffer ? [{
+              filename: pdfResult.filename,
+              content: pdfResult.pdfBuffer,
+              contentType: 'application/pdf'
+            }] : []
           }).catch(err => console.error('Failed to send W-4 notification to Judy:', err.message))
         }
       }
@@ -524,10 +530,29 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
             '',
             verbiage
           ].filter(Boolean).join('\n')
-          sendEmail({
+          const documentFile = files.find(f => f.fieldname === 'document')
+          const attachments = []
+          if (pdfResult.pdfBuffer) {
+            attachments.push({
+              filename: pdfResult.filename,
+              content: pdfResult.pdfBuffer,
+              contentType: 'application/pdf'
+            })
+          }
+          if (documentFile?.path) {
+            attachments.push({
+              filename: documentFile.originalname || documentFile.filename,
+              content: await fs.readFile(documentFile.path),
+              contentType: documentFile.mimetype || 'application/octet-stream'
+            })
+          }
+          await sendEmail({
             to: stateEmail,
             subject: `Background check authorization: ${applicant.first_name} ${applicant.last_name}`,
-            text: body
+            text: body,
+            from: `"${applicant.first_name} ${applicant.last_name} (Applicant via OPCS)" <${getSetting('mailgun_from_email') || 'noreply@optimalprimeservices.com'}>`,
+            replyTo: applicant.email,
+            attachments
           }).catch(err => console.error('Failed to send background check to state email:', err.message))
         }
       }
@@ -541,12 +566,32 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
             : (formData.accountType || 'Not specified')
           const summary = formData.accountType === 'no-account'
             ? `Applicant selected "I DO NOT HAVE A BANK ACCOUNT".`
-            : `Account type: ${accountType}. Bank info on file in submitted Direct Deposit form.`
-          sendEmail({
+            : `Account type: ${accountType}. Bank info on file in submitted Direct Deposit form.\nBank: ${formData.bankName || 'Not provided'}\nRouting: ${formData.routingNumber || 'Not provided'}\nAccount ending: ${formData.accountNumber ? String(formData.accountNumber).slice(-4) : 'Not provided'}`
+          await sendEmail({
             to: judyEmail,
             subject: `Direct Deposit submitted: ${applicant.first_name} ${applicant.last_name}`,
-            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted Direct Deposit.\n\n${summary}`
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted Direct Deposit.\n\n${summary}`,
+            attachments: pdfResult.pdfBuffer ? [{
+              filename: pdfResult.filename,
+              content: pdfResult.pdfBuffer,
+              contentType: 'application/pdf'
+            }] : []
           }).catch(err => console.error('Failed to send banking summary to Judy:', err.message))
+        }
+
+        const badgePhotoEmail = getSetting('badge_photo_email') || 'hr@optimalprimeservices.com'
+        const badgePhoto = files.find(f => f.fieldname === 'photo')
+        if (badgePhotoEmail && badgePhoto?.path && isMailgunConfigured()) {
+          await sendEmail({
+            to: badgePhotoEmail,
+            subject: `Name badge photo: ${applicant.first_name} ${applicant.last_name}`,
+            text: `${applicant.first_name} ${applicant.last_name} (${applicant.email}) submitted a name badge photo.`,
+            attachments: [{
+              filename: badgePhoto.originalname || badgePhoto.filename,
+              content: await fs.readFile(badgePhoto.path),
+              contentType: badgePhoto.mimetype || 'application/octet-stream'
+            }]
+          }).catch(err => console.error('Failed to send badge photo to HR:', err.message))
         }
       }
 
