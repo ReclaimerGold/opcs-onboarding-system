@@ -76,6 +76,16 @@ const FORM_TYPES = {
   6: '8850',
   7: '9061'
 }
+const REQUIRED_ONBOARDING_STEP_COUNT = 6
+
+function getRequiredSubmittedStepCount(db, applicantId) {
+  const row = db.prepare(`
+    SELECT COUNT(DISTINCT step_number) as count
+    FROM form_submissions
+    WHERE applicant_id = ? AND step_number BETWEEN 1 AND ?
+  `).get(applicantId, REQUIRED_ONBOARDING_STEP_COUNT)
+  return row?.count ?? 0
+}
 
 /**
  * Validate that all legally required form fields are present for preview (no upload check).
@@ -320,16 +330,13 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     // During onboarding: if user goes backwards and resubmits a form, replace and regenerate that step's
     // submission (one row per step, PDF regenerated and re-uploaded). After onboarding (all 7 steps done),
     // a resubmit inserts a new row (duplicate submission).
-    const distinctSteps = db.prepare(`
-      SELECT COUNT(DISTINCT step_number) as count FROM form_submissions WHERE applicant_id = ?
-    `).get(req.applicantId)
-    const distinctStepCount = distinctSteps?.count ?? 0
+    const distinctStepCount = getRequiredSubmittedStepCount(db, req.applicantId)
     const existingForStep = db.prepare(`
       SELECT id, google_drive_id, pdf_encrypted_path, pending_pdf_path FROM form_submissions
       WHERE applicant_id = ? AND step_number = ?
       ORDER BY submitted_at DESC LIMIT 1
     `).get(req.applicantId, step)
-    const shouldOverwrite = existingForStep && distinctStepCount < 7
+    const shouldOverwrite = existingForStep && distinctStepCount < REQUIRED_ONBOARDING_STEP_COUNT
     const existingSubmission = shouldOverwrite ? {
       id: existingForStep.id,
       google_drive_id: existingForStep.google_drive_id || '',
@@ -400,10 +407,10 @@ router.post('/submit/:step', upload.any(), async (req, res) => {
     const afterSubmitDistinct = shouldOverwrite
       ? distinctStepCount
       : (existingForStep ? distinctStepCount : distinctStepCount + 1)
-    const completedSteps = Math.min(7, afterSubmitDistinct)
+    const completedSteps = Math.min(REQUIRED_ONBOARDING_STEP_COUNT, afterSubmitDistinct)
 
-    // Onboarding is complete when all 7 steps submitted AND all required approvals are approved
-    let isOnboardingComplete = afterSubmitDistinct >= 7
+    // Onboarding is complete when all required steps are submitted and all approvals are approved.
+    let isOnboardingComplete = afterSubmitDistinct >= REQUIRED_ONBOARDING_STEP_COUNT
     if (isOnboardingComplete && managerRequiredForms.length > 0) {
       const pendingOrRejected = db.prepare(`
         SELECT COUNT(*) as count FROM document_approvals
@@ -1039,11 +1046,8 @@ router.post('/i9/upload-document', upload.single('document'), async (req, res) =
     const db = getDatabase()
     const applicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(req.applicantId)
 
-    // During onboarding (distinct form steps < 7): overwrite. After: insert new version.
-    const distinctSteps = db.prepare(`
-      SELECT COUNT(DISTINCT step_number) as count FROM form_submissions WHERE applicant_id = ?
-    `).get(req.applicantId)
-    const duringOnboarding = (distinctSteps?.count ?? 0) < 7
+    // During onboarding (required steps 1-6): overwrite. After completion: insert a new version.
+    const duringOnboarding = getRequiredSubmittedStepCount(db, req.applicantId) < REQUIRED_ONBOARDING_STEP_COUNT
 
     if (!applicant) {
       await fs.unlink(req.file.path)

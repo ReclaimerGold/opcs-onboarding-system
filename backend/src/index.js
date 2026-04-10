@@ -101,9 +101,10 @@ app.use(session({
 }))
 
 // Rate limiting - per-user for authenticated requests so form wizard burst doesn't hit limit
+// E2E_TEST=1: raise limit significantly so the full Playwright suite (500+ API calls) never hits the cap
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // requests per window per key (higher for form wizard: progress, drafts, applicant, i9 docs, etc.)
+  max: process.env.E2E_TEST ? 10_000 : 500, // requests per window per key
   keyGenerator: (req) => (req.session?.applicantId ? `user-${req.session.applicantId}` : getClientIp(req)),
   standardHeaders: true,
   legacyHeaders: false

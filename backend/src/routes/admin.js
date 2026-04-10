@@ -33,6 +33,7 @@ const REQUIRED_EMPLOYER_SETTINGS = [
   '8850_employer_zip',
   '8850_employer_phone'
 ]
+const REQUIRED_ONBOARDING_STEP_COUNT = 6
 
 function isEmailAndFormsConfigured() {
   return REQUIRED_EMPLOYER_SETTINGS.every(key => {
@@ -68,17 +69,19 @@ router.get('/dashboard', async (req, res) => {
     const completedOnboarding = db.prepare(`
       SELECT COUNT(DISTINCT applicant_id) as count 
       FROM form_submissions 
+      WHERE step_number BETWEEN 1 AND ?
       GROUP BY applicant_id 
-      HAVING COUNT(*) >= 7
-    `).all().length
+      HAVING COUNT(DISTINCT step_number) >= ?
+    `).all(REQUIRED_ONBOARDING_STEP_COUNT, REQUIRED_ONBOARDING_STEP_COUNT).length
 
     // In progress onboarding
     const inProgress = db.prepare(`
       SELECT COUNT(DISTINCT applicant_id) as count
       FROM form_submissions
+      WHERE step_number BETWEEN 1 AND ?
       GROUP BY applicant_id
-      HAVING COUNT(*) > 0 AND COUNT(*) < 7
-    `).all().length
+      HAVING COUNT(DISTINCT step_number) > 0 AND COUNT(DISTINCT step_number) < ?
+    `).all(REQUIRED_ONBOARDING_STEP_COUNT, REQUIRED_ONBOARDING_STEP_COUNT).length
 
     // Recent login attempts (last 24 hours)
     const recentLogins = db.prepare(`
@@ -461,10 +464,10 @@ router.get('/onboarding-status', async (req, res) => {
     // Get all matching records for filtering by status
     const allApplicants = db.prepare(fullQuery).all(...params)
 
-    // Transform and filter by status (cap completed_steps at 7 and progress at 100)
+    // Transform and filter by status (cap required progress at 6 steps and progress at 100)
     let transformedApplicants = allApplicants.map(app => {
-      const steps = Math.min(7, app.completed_steps || 0)
-      const isCompleted = steps >= 7
+      const steps = Math.min(REQUIRED_ONBOARDING_STEP_COUNT, app.completed_steps || 0)
+      const isCompleted = steps >= REQUIRED_ONBOARDING_STEP_COUNT
       return {
         id: app.id,
         firstName: app.first_name,
@@ -473,8 +476,8 @@ router.get('/onboarding-status', async (req, res) => {
         isAdmin: app.is_admin === 1,
         role: app.role || (app.is_admin === 1 ? 'admin' : 'applicant'),
         completedSteps: steps,
-        totalSteps: 7,
-        progress: isCompleted ? 100 : Math.min(100, Math.round((steps / 7) * 100)),
+        totalSteps: REQUIRED_ONBOARDING_STEP_COUNT,
+        progress: isCompleted ? 100 : Math.min(100, Math.round((steps / REQUIRED_ONBOARDING_STEP_COUNT) * 100)),
         status: isCompleted ? 'completed' : steps > 0 ? 'in_progress' : 'not_started',
         createdAt: app.created_at,
         lastSubmission: app.last_submission
@@ -2063,9 +2066,9 @@ router.get('/onboarding-status/export', async (req, res) => {
     const applicants = db.prepare(fullQuery).all(...params)
 
     let data = applicants.map(app => {
-      const steps = Math.min(7, app.completed_steps || 0)
-      const isCompleted = steps >= 7
-      const progressPct = isCompleted ? 100 : Math.min(100, Math.round((steps / 7) * 100))
+      const steps = Math.min(REQUIRED_ONBOARDING_STEP_COUNT, app.completed_steps || 0)
+      const isCompleted = steps >= REQUIRED_ONBOARDING_STEP_COUNT
+      const progressPct = isCompleted ? 100 : Math.min(100, Math.round((steps / REQUIRED_ONBOARDING_STEP_COUNT) * 100))
       return {
         id: app.id,
         firstName: app.first_name,

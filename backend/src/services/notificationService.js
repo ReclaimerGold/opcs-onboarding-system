@@ -1,6 +1,8 @@
 import { getDatabase } from '../database/init.js'
 import { sendNotificationEmail, sendDigestEmail, isMailgunConfigured } from './mailgunService.js'
 
+const REQUIRED_ONBOARDING_STEP_COUNT = 6
+
 /**
  * Notification Type Registry
  * Centralizes all notification type metadata, defaults, and targeting rules.
@@ -609,7 +611,7 @@ export function checkStaleOnboarding() {
     LEFT JOIN form_submissions fs ON fs.applicant_id = a.id
     WHERE a.is_active = 1
       AND (a.role = 'applicant' OR a.role = 'employee')
-      AND (SELECT COUNT(DISTINCT step_number) FROM form_submissions WHERE applicant_id = a.id) < 7
+      AND (SELECT COUNT(DISTINCT step_number) FROM form_submissions WHERE applicant_id = a.id AND step_number BETWEEN 1 AND ${REQUIRED_ONBOARDING_STEP_COUNT}) < ${REQUIRED_ONBOARDING_STEP_COUNT}
     GROUP BY a.id
     HAVING julianday('now') - julianday(last_activity) >= 7
   `).all()
@@ -651,7 +653,7 @@ export function checkOnboardingReminders() {
     LEFT JOIN form_submissions fs ON fs.applicant_id = a.id
     WHERE a.is_active = 1
       AND (a.role = 'applicant' OR a.role = 'employee')
-      AND (SELECT COUNT(DISTINCT step_number) FROM form_submissions WHERE applicant_id = a.id) < 7
+      AND (SELECT COUNT(DISTINCT step_number) FROM form_submissions WHERE applicant_id = a.id AND step_number BETWEEN 1 AND ${REQUIRED_ONBOARDING_STEP_COUNT}) < ${REQUIRED_ONBOARDING_STEP_COUNT}
     GROUP BY a.id
     HAVING julianday('now') - julianday(last_activity) >= 3
   `).all()

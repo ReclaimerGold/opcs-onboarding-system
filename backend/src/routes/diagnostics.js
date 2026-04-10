@@ -149,9 +149,9 @@ ${loginAttempts.map(la => {
 | ID | Name | Email | Admin | Steps Completed | Progress | Status | Created |
 |----|------|-------|-------|-----------------|----------|--------|---------|
 ${onboardingStatus.map(app => {
-      const progress = Math.round(((app.completed_steps || 0) / 7) * 100)
-      const status = app.completed_steps >= 7 ? '✅ Completed' : app.completed_steps > 0 ? '🔄 In Progress' : '⏸️ Not Started'
-      return `| ${app.id} | ${app.first_name} ${app.last_name} | ${app.email} | ${app.is_admin ? 'Yes' : 'No'} | ${app.completed_steps || 0}/7 | ${progress}% | ${status} | ${app.created_at} |`
+      const progress = Math.round((Math.min(app.completed_steps || 0, 6) / 6) * 100)
+      const status = app.completed_steps >= 6 ? '✅ Completed' : app.completed_steps > 0 ? '🔄 In Progress' : '⏸️ Not Started'
+      return `| ${app.id} | ${app.first_name} ${app.last_name} | ${app.email} | ${app.is_admin ? 'Yes' : 'No'} | ${Math.min(app.completed_steps || 0, 6)}/6 | ${progress}% | ${status} | ${app.created_at} |`
     }).join('\n')}
 
 ### Recent Audit Logs (last 100)
@@ -237,8 +237,8 @@ ${testResults.frontend.rawOutput ? `\n\`\`\`\n${testResults.frontend.rawOutput.s
         onboardingStatus: onboardingStatus.map(app => ({
           ...app,
           isAdmin: app.is_admin === 1,
-          progress: Math.round(((app.completed_steps || 0) / 7) * 100),
-          status: app.completed_steps >= 7 ? 'completed' : app.completed_steps > 0 ? 'in_progress' : 'not_started'
+          progress: Math.round((Math.min(app.completed_steps || 0, 6) / 6) * 100),
+          status: app.completed_steps >= 6 ? 'completed' : app.completed_steps > 0 ? 'in_progress' : 'not_started'
         })),
         auditLogs: auditLogs.map(log => ({
           ...log,

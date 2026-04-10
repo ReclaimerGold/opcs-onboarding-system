@@ -9,6 +9,7 @@ import { getSetting } from '../utils/getSetting.js'
 import { getClientIp } from '../middleware/clientIp.js'
 
 const router = express.Router()
+const REQUIRED_ONBOARDING_STEP_COUNT = 6
 
 /** Session cookie duration when "Remember me" is checked (30 days). Default is 15 min (set in index.js). */
 const SESSION_MAX_AGE_REMEMBER_ME = 30 * 24 * 60 * 60 * 1000
@@ -55,8 +56,8 @@ router.post('/signup', async (req, res) => {
         WHERE applicant_id = ?
       `).get(existingApplicant.id)
 
-      const completedSteps = Math.min(7, submissions?.count ?? 0)
-      const isOnboardingComplete = (submissions?.count ?? 0) >= 7
+      const completedSteps = Math.min(REQUIRED_ONBOARDING_STEP_COUNT, submissions?.count ?? 0)
+      const isOnboardingComplete = (submissions?.count ?? 0) >= REQUIRED_ONBOARDING_STEP_COUNT
 
       return res.status(400).json({
         error: isOnboardingComplete
@@ -440,8 +441,8 @@ router.post('/login', async (req, res) => {
       WHERE applicant_id = ?
     `).get(applicant.id)
 
-    const completedSteps = Math.min(7, submissions?.count ?? 0)
-    const isOnboardingComplete = (submissions?.count ?? 0) >= 7
+    const completedSteps = Math.min(REQUIRED_ONBOARDING_STEP_COUNT, submissions?.count ?? 0)
+    const isOnboardingComplete = (submissions?.count ?? 0) >= REQUIRED_ONBOARDING_STEP_COUNT
 
     // Set session
     req.session.applicantId = applicant.id

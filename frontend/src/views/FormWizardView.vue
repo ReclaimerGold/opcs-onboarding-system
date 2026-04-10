@@ -170,7 +170,7 @@
           <div class="absolute top-5 left-0 right-0 h-1 bg-gray-200 z-0"></div>
           <div 
             class="absolute top-5 left-0 h-1 bg-primary z-0 transition-all duration-300"
-            :style="{ width: `${((currentStep - 1) / 7) * 100}%` }"
+            :style="{ width: `${(Math.min(currentStep - 1, REQUIRED_ONBOARDING_STEP_COUNT) / REQUIRED_ONBOARDING_STEP_COUNT) * 100}%` }"
           ></div>
           
           <!-- Step Circles Container -->
@@ -350,7 +350,7 @@
                       : 'text-gray-600 group-hover:text-gray-900'
                   ]"
                 >
-                  {{ getStepLabel(7) }}
+                  {{ getStepLabel(7) }} (Optional)
                 </div>
                 <div 
                   v-if="getStepStatus(7).hasWarning" 
@@ -683,6 +683,8 @@ const stepLabels = {
   6: '8850',
   7: '9061'
 }
+const REQUIRED_ONBOARDING_STEP_COUNT = 6
+const REQUIRED_STEP_NUMBERS = [1, 2, 3, 4, 5, 6]
 
 // Step dependencies - what data is required from previous steps
 const stepDependencies = {
@@ -863,12 +865,13 @@ const loadProgress = async () => {
     }
     
     // Set current step: respect resubmit link (query) so we don't overwrite with first incomplete
-    if (completedSteps.value.size < 7) {
+    const requiredCompletedCount = REQUIRED_STEP_NUMBERS.filter(step => completedSteps.value.has(step)).length
+    if (requiredCompletedCount < REQUIRED_ONBOARDING_STEP_COUNT) {
       const queryStep = route.query.step ? parseInt(route.query.step) : 0
       if (queryStep >= 1 && queryStep <= 7) {
         currentStep.value = queryStep
       } else {
-        for (let i = 1; i <= 7; i++) {
+        for (let i = 1; i <= REQUIRED_ONBOARDING_STEP_COUNT; i++) {
           if (!completedSteps.value.has(i)) {
             currentStep.value = i
             break
@@ -876,7 +879,7 @@ const loadProgress = async () => {
         }
       }
     } else {
-      router.push('/dashboard')
+      currentStep.value = 7
     }
   } catch (error) {
     console.error('Error fetching progress:', error)
@@ -1347,7 +1350,7 @@ const handleStepComplete = async (step) => {
   }
   
   // Move to next step
-  if (step < 7) {
+  if (step < REQUIRED_ONBOARDING_STEP_COUNT) {
     currentStep.value = step + 1
     validateCurrentStep()
     // Clear preview when moving to next step
@@ -1357,7 +1360,7 @@ const handleStepComplete = async (step) => {
     pdfPreviewUrl.value = null
     currentFormData.value = null
   } else {
-    // Step 7 completed - check if admin and password setup required
+    // Required onboarding is complete after Step 6; Step 7 remains optional.
     if (authStore.isAdmin) {
       try {
         const passwordStatus = await api.get('/auth/password-status')

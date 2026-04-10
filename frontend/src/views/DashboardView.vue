@@ -91,7 +91,7 @@
               <div>
                 <p class="text-sm font-medium text-blue-700 mb-1">Overall Progress</p>
                 <p class="text-2xl font-bold text-blue-900">{{ progress }}%</p>
-                <p class="text-xs text-blue-600 mt-1">{{ completedStepsCount }}/7 steps completed</p>
+                <p class="text-xs text-blue-600 mt-1">{{ completedStepsCount }}/6 required steps completed</p>
               </div>
               <div class="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center">
                 <svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,7 +196,7 @@
                   'w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 relative z-10',
                   getStepStatus(step).status === 'completed'
                     ? 'bg-green-500 text-white shadow-md'
-                    : getStepStatus(step).status === 'current' && completedStepsCount < 7
+                    : getStepStatus(step).status === 'current' && completedStepsCount < 6
                     ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30 animate-pulse'
                     : getStepStatus(step).status === 'current'
                     ? 'bg-primary text-white ring-4 ring-primary ring-opacity-30'
@@ -928,6 +928,8 @@ const stepNames = {
   6: 'Form 8850',
   7: 'Form 9061'
 }
+const REQUIRED_ONBOARDING_STEP_COUNT = 6
+const REQUIRED_STEP_NUMBERS = [1, 2, 3, 4, 5, 6]
 
 const isStepCompleted = (step) => {
   return completedSteps.value.has(step)
@@ -1038,13 +1040,16 @@ onMounted(async () => {
     stepNumbers.forEach(step => completedSteps.value.add(step))
     
     // Determine current step (first incomplete step)
-    if (completedSteps.value.size < 7) {
-      for (let i = 1; i <= 7; i++) {
+    const requiredCompletedCount = REQUIRED_STEP_NUMBERS.filter(step => completedSteps.value.has(step)).length
+    if (requiredCompletedCount < REQUIRED_ONBOARDING_STEP_COUNT) {
+      for (let i = 1; i <= REQUIRED_ONBOARDING_STEP_COUNT; i++) {
         if (!completedSteps.value.has(i) && canAccessStep(i)) {
           currentStep.value = i
           break
         }
       }
+    } else if (!completedSteps.value.has(7) && canAccessStep(7)) {
+      currentStep.value = 7
     }
     
     await loadUploadedDocuments()
@@ -1097,7 +1102,7 @@ const getDocumentByCategory = (category) => {
 }
 
 // Computed properties for summary
-const completedStepsCount = computed(() => completedSteps.value.size)
+const completedStepsCount = computed(() => REQUIRED_STEP_NUMBERS.filter(step => completedSteps.value.has(step)).length)
 
 const i9DocumentsCount = computed(() => {
   let count = 0
@@ -1137,7 +1142,7 @@ const i9DocumentsStatus = computed(() => {
 })
 
 const currentStepName = computed(() => {
-  if (completedSteps.value.size === 7) {
+  if (completedStepsCount.value >= REQUIRED_ONBOARDING_STEP_COUNT) {
     return 'Complete!'
   }
   if (currentStep.value) {
@@ -1147,11 +1152,11 @@ const currentStepName = computed(() => {
 })
 
 const currentStepStatus = computed(() => {
-  if (completedSteps.value.size === 7) {
-    return 'All steps completed'
+  if (completedStepsCount.value >= REQUIRED_ONBOARDING_STEP_COUNT) {
+    return completedSteps.value.has(7) ? 'All steps completed' : 'All required steps completed'
   }
   if (currentStep.value) {
-    return `Step ${currentStep.value} of 7`
+    return currentStep.value === 7 ? 'Optional Form 9061 available' : `Step ${currentStep.value} of ${REQUIRED_ONBOARDING_STEP_COUNT}`
   }
   return 'Ready to begin'
 })
