@@ -6,7 +6,9 @@ import fs from 'fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const dbPath = path.join(__dirname, '../../database/onboarding.db')
+const dbPath = process.env.DATABASE_PATH
+  ? path.resolve(process.env.DATABASE_PATH)
+  : path.join(__dirname, '../../database/onboarding.db')
 const dbDir = path.dirname(dbPath)
 
 // Ensure database directory exists
