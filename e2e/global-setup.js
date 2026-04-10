@@ -11,4 +11,8 @@ export default async () => {
     cwd: backendDir,
     stdio: 'inherit'
   })
+  execSync('node scripts/seed-e2e-data.js', {
+    cwd: backendDir,
+    stdio: 'inherit'
+  })
 }

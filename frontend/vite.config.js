@@ -23,7 +23,7 @@ export default defineConfig({
     allowedHosts: ['onboarding.reiffenberger.net', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
         changeOrigin: true,
         configure: (proxy) => {
           // Ensure session cookie is attributed to frontend origin so it is sent on subsequent requests

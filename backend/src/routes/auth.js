@@ -10,6 +10,7 @@ import { getClientIp } from '../middleware/clientIp.js'
 
 const router = express.Router()
 const REQUIRED_ONBOARDING_STEP_COUNT = 6
+const testResetTokens = new Map()
 
 /** Session cookie duration when "Remember me" is checked (30 days). Default is 15 min (set in index.js). */
 const SESSION_MAX_AGE_REMEMBER_ME = 30 * 24 * 60 * 60 * 1000
@@ -18,6 +19,36 @@ function applyRememberMe(req) {
   if (req.body.rememberMe === true || req.body.rememberMe === 'true') {
     req.session.cookie.maxAge = SESSION_MAX_AGE_REMEMBER_ME
   }
+}
+
+function getPublicFrontendUrl(req) {
+  const configured = (process.env.FRONTEND_URL || '').trim()
+  if (configured) return configured.replace(/\/+$/, '')
+
+  const origin = req.get('origin')
+  if (origin) return origin.replace(/\/+$/, '')
+
+  const referer = req.get('referer')
+  if (referer) {
+    try {
+      return new URL(referer).origin
+    } catch {
+      // Ignore malformed referer
+    }
+  }
+
+  const forwardedProto = req.get('x-forwarded-proto')
+  const forwardedHost = req.get('x-forwarded-host')
+  if (forwardedProto && forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`.replace(/\/+$/, '')
+  }
+
+  const host = req.get('host')
+  if (host) {
+    return `${req.protocol}://${host}`.replace(/\/+$/, '')
+  }
+
+  return 'http://localhost:9999'
 }
 
 /**
@@ -926,6 +957,8 @@ router.post('/change-password', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body
+    const isE2ETestMode = Boolean(process.env.E2E_TEST || process.env.NODE_ENV === 'test')
+    const genericSuccessMessage = 'If an account exists with this email, we have sent password reset instructions.'
 
     if (!email) {
       return res.status(400).json({
@@ -938,7 +971,7 @@ router.post('/forgot-password', async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase()
 
     // Check if Mailgun is configured
-    if (!isMailgunConfigured()) {
+    if (!isMailgunConfigured() && !isE2ETestMode) {
       return res.status(503).json({
         error: 'Email service is not configured. Please contact an administrator.',
         code: 'EMAIL_NOT_CONFIGURED'
@@ -953,9 +986,6 @@ router.post('/forgot-password', async (req, res) => {
       FROM applicants 
       WHERE LOWER(TRIM(email)) = ?
     `).get(normalizedEmail)
-
-    // Always return success message to prevent user enumeration
-    const genericSuccessMessage = 'If an account exists with this email, we have sent password reset instructions.'
 
     if (!applicant) {
       // Log the attempt but don't reveal if account exists
@@ -985,8 +1015,33 @@ router.post('/forgot-password', async (req, res) => {
     `).run(applicant.id, tokenHash, expiresAt)
 
     // Build reset URL
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:9999'
+    const frontendUrl = getPublicFrontendUrl(req)
     const resetLink = `${frontendUrl}/reset-password?token=${token}`
+
+    if (isE2ETestMode) {
+      testResetTokens.set(normalizedEmail, {
+        token,
+        applicantId: applicant.id,
+        createdAt: Date.now()
+      })
+    }
+
+    if (isE2ETestMode) {
+      await auditLog({
+        userId: applicant.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        resourceType: 'AUTH',
+        resourceId: applicant.id,
+        ipAddress: getClientIp(req),
+        userAgent: req.get('user-agent'),
+        details: { email: applicant.email, delivery: 'test-bypass' }
+      })
+
+      return res.json({
+        success: true,
+        message: genericSuccessMessage
+      })
+    }
 
     // Send email
     try {
@@ -1024,6 +1079,31 @@ router.post('/forgot-password', async (req, res) => {
       code: 'FORGOT_PASSWORD_ERROR'
     })
   }
+})
+
+/**
+ * GET /api/auth/test/reset-token
+ * Testing-only helper for Playwright/Vitest to complete password reset flows.
+ */
+router.get('/test/reset-token', (req, res) => {
+  if (!(process.env.E2E_TEST || process.env.NODE_ENV === 'test')) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  const email = String(req.query.email || '').trim().toLowerCase()
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' })
+  }
+
+  const data = testResetTokens.get(email)
+  if (!data) {
+    return res.status(404).json({ error: 'No reset token found for that email' })
+  }
+
+  return res.json({
+    token: data.token,
+    resetPath: `/reset-password?token=${data.token}`
+  })
 })
 
 /**
