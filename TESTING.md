@@ -1,203 +1,144 @@
 # Testing Guide
 ## OPCS Onboarding System
 
-This document describes the testing framework and how to run tests for the OPCS Onboarding System.
+This project uses a layered testing strategy:
 
-## Testing Frameworks
+- `Vitest` for backend unit/integration tests
+- `Vitest` + Vue Test Utils for frontend component tests
+- `Playwright` for browser smoke and regression coverage
+- `GitHub Actions` for lint, unit tests, Playwright smoke, Docker build validation, and nightly full regression
 
-### Backend Testing (Jest)
-- **Framework**: Jest with ES modules support
-- **Location**: `backend/src/__tests__/`
-- **Configuration**: `backend/jest.config.js`
-
-### Frontend Testing (Vitest)
-- **Framework**: Vitest with Vue Test Utils
-- **Location**: `frontend/src/__tests__/` or `frontend/src/**/*.test.js`
-- **Configuration**: `frontend/vitest.config.js`
-
-## Running Tests
-
-### Backend Tests
+## Quick Commands
 
 ```bash
-# Run all backend tests
-cd backend && npm test
+# Lint everything
+npm run lint
 
-# Run tests in watch mode
-cd backend && npm run test:watch
+# Run backend + frontend unit tests
+npm test
 
-# Run tests with coverage
-cd backend && npm run test:coverage
-```
-
-### Frontend Tests
-
-```bash
-# Run all frontend tests
-cd frontend && npm test
-
-# Run tests in watch mode
-cd frontend && npm test -- --watch
-
-# Run tests with UI
-cd frontend && npm run test:ui
-
-# Run tests with coverage
-cd frontend && npm run test:coverage
-```
-
-## Test Structure
-
-### Backend Test Files
-
-- `backend/src/routes/__tests__/auth.test.js` - Authentication route tests
-- `backend/src/routes/__tests__/forms.test.js` - Form submission tests
-- `backend/src/services/__tests__/pdfService.test.js` - PDF service tests
-- `backend/src/database/__tests__/init.test.js` - Database schema tests
-
-### Frontend Test Files
-
-- `frontend/src/components/__tests__/` - Component tests
-- `frontend/src/utils/__tests__/` - Utility function tests
-
-## Writing Tests
-
-### Backend Test Example
-
-```javascript
-import { describe, it, expect, beforeEach } from '@jest/globals'
-import { functionToTest } from '../module.js'
-
-describe('Module Name', () => {
-  beforeEach(() => {
-    // Setup before each test
-  })
-
-  it('should do something', () => {
-    const result = functionToTest(input)
-    expect(result).toBe(expected)
-  })
-})
-```
-
-### Frontend Test Example
-
-```javascript
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
-import Component from '../Component.vue'
-
-describe('Component', () => {
-  it('should render correctly', () => {
-    const wrapper = mount(Component, {
-      props: { propName: 'value' }
-    })
-    expect(wrapper.text()).toContain('expected text')
-  })
-})
-```
-
-## End-to-End (E2E) Tests (Playwright)
-
-Browser-based E2E tests cover the full login and onboarding flow.
-
-### Prerequisites
-
-1. **Start the app** (backend on 3000, frontend on 9999):
-
-   ```bash
-   npm run dev
-   ```
-
-   Or start backend and frontend separately. Playwright will reuse an existing server when not in CI.
-
-2. **Install Playwright browsers** (once per machine):
-
-   ```bash
-   npx playwright install chromium
-   ```
-
-   On Linux, if Chromium fails to launch with missing shared library errors (e.g. `libnspr4.so`), install system dependencies:
-
-   ```bash
-   npx playwright install-deps
-   ```
-
-### Running E2E Tests
-
-```bash
-# Run all E2E tests (Chromium)
+# Run all Playwright coverage
 npm run test:e2e
 
-# Run with Playwright UI
+# Fast browser confidence check
+npm run test:e2e:smoke
+
+# Full browser regression run
+npm run test:e2e:regression
+
+# Open Playwright UI
 npm run test:e2e:ui
 ```
 
-### What the E2E Suite Covers
+## Test Layers
 
-- **Login** (`e2e/login.spec.js`): Login page load, signup and redirect, logout and re-login.
-- **Onboarding** (`e2e/onboarding.spec.js`): Full 6-step flow: signup → W-4 (with SSN consent) → I-9 (List B + List C + file uploads) → Background → Direct Deposit → Acknowledgements → Form 8850 → dashboard.
+### Backend (`backend`)
 
-Before E2E runs, `globalSetup` seeds signature placements for W-4, I-9, and 8850 so the form wizard is available without manual admin setup.
+- Runner: `Vitest`
+- Command: `npm run test:backend`
+- Coverage command: `npm run test:coverage -w opcs-onboarding-backend`
+- Focus: auth routes, forms routes, PDF field mapping, service-level logic, database-safe regression checks
 
-### Fixtures
+Current critical regression examples include:
 
-- `e2e/fixtures/minimal.pdf` – minimal PDF used for I-9 List B and List C document uploads in the onboarding test.
+- password-reset support hooks for E2E
+- W-4 zero placeholders and employer block mapping
+- I-9 employer/date mapping
+- Form 8850 date, contact, and title mapping
+- Form 9061 wage/start-date/job-title mapping
 
-## Test Coverage Goals
+### Frontend (`frontend`)
 
-- **Minimum Coverage**: 80% for critical paths
-- **Critical Paths**:
-  - Authentication (signup/login)
-  - Form submission
-  - PDF generation
-  - Document retention
-  - Data validation
+- Runner: `Vitest` with `jsdom`
+- Command: `npm run test:frontend`
+- Coverage command: `npm run test:coverage -w opcs-onboarding-frontend`
+- Focus: reusable UI components, critical form behavior, and settings-driven UI
 
-## Continuous Integration
+Current critical regression examples include:
 
-Tests should be run:
-- Before committing code
-- In CI/CD pipeline
-- Before deploying to production
+- validation utilities
+- shared form field rendering
+- Step 5 handbook settings override behavior
 
-## Test Database
+### Browser / E2E (`e2e`)
 
-Backend tests use a separate test database that is:
-- Created fresh for each test suite
-- Cleaned up after each test
-- Never contains production data
+- Runner: `Playwright`
+- Base URL: `http://localhost:9999`
+- Backend test server: `http://localhost:3001`
+- Browser: Chromium
 
-## Mocking
+Playwright projects:
 
-- **External APIs**: Mock Google Drive API calls in tests
-- **File System**: Use temporary directories for file operations
-- **Database**: Use in-memory SQLite for faster tests
+- `setup`: seeds auth state for admin and seeded user
+- `unauthenticated`: login, onboarding, navigation, password-reset coverage
+- `admin`: dashboard, settings, approvals, PDF/admin flows
+- `user`: signed-in user dashboard coverage
 
-## Best Practices
+Tag strategy:
 
-1. **Test Isolation**: Each test should be independent
-2. **Clean Setup**: Use `beforeEach` to set up test data
-3. **Clean Teardown**: Clean up after tests
-4. **Descriptive Names**: Test names should describe what they test
-5. **AAA Pattern**: Arrange, Act, Assert
-6. **No SSN in Tests**: Never include real SSNs in test data
+- `@smoke`: fastest high-signal checks for CI
+- `@regression`: broader end-to-end coverage, including smoke-tagged specs
+
+### E2E prerequisites
+
+Install the browser once:
+
+```bash
+npx playwright install chromium
+```
+
+On Linux, install Playwright system dependencies if Chromium fails to launch:
+
+```bash
+npx playwright install-deps
+```
+
+### E2E notes
+
+- `playwright.config.js` starts the backend and frontend automatically unless matching dev servers are already running.
+- `e2e/global-setup.js` seeds the database before tests run.
+- `backend/scripts/seed-e2e-data.js` provides the baseline admin user, applicant user, signature placement, and employer/settings data used by the suite.
+- The reset-password suite uses the test-only endpoint `/api/auth/test/reset-token` when `E2E_TEST=1` so the browser flow can be tested without real Mailgun delivery.
+
+### Key browser coverage
+
+- login and onboarding flow
+- password reset page states plus full reset completion
+- admin dashboard visibility
+- approval queue access
+- settings persistence for employer/company and handbook configuration
+
+## Writing Tests
+
+Prefer targeted regression tests over broad, brittle ones.
+
+- Add backend tests for pure mapping/business logic when a bug is about data semantics.
+- Add frontend component tests when the bug is UI-state driven but does not require a real browser.
+- Add Playwright coverage when the bug depends on routing, auth, file upload, persistence, or multiple screens.
+
+## CI Expectations
+
+The main CI workflow runs:
+
+- `npm run lint`
+- `npm test`
+- `npm run test:e2e:smoke`
+- Docker image build validation
+
+A scheduled nightly workflow run executes the full Playwright regression suite and uploads artifacts.
 
 ## Troubleshooting
 
-### Rate Limiting Errors (429)
-- Rate limiting is configured for auth endpoints (20 requests per 15 minutes)
-- Tests may hit this limit if run repeatedly
-- Solution: Tests use separate rate limiters or bypass rate limiting in test mode
+### Playwright browser launch issues
 
-### Database Locked Errors
-- Ensure database connections are closed after tests
-- Use separate test database files
+- Run `npx playwright install chromium`
+- On Linux, run `npx playwright install-deps`
 
-### Module Import Errors
-- Ensure Jest/Vitest config matches project structure
-- Check that ES module syntax is correct
+### Test data looks stale
 
-### Playwright: Browser won't launch (e.g. libnspr4.so missing)
-- Run `npx playwright install-deps` to install system dependencies for Chromium.
-- Or use a different channel: `npx playwright install chromium` and ensure your OS has the required libraries (see [Playwright docs](https://playwright.dev/docs/ci)).
+- Re-run `npm run test:e2e`; global setup reseeds the E2E database state before the suite starts
+
+### Password reset E2E does not return a token
+
+- Confirm the backend is running with `E2E_TEST=1`
+- Confirm the forgot-password request was submitted for a seeded email such as `e2e-admin@example.com`

@@ -234,6 +234,13 @@ To add a new notification type:
 - Document breaking changes clearly
 - Update API documentation when endpoints change
 
+### Testing Workflow
+- Run `npm run lint` before opening a PR
+- Run `npm test` for backend and frontend unit coverage
+- Run `npm run test:e2e:smoke` for browser confidence on auth, onboarding, settings, and admin flows
+- Run `npm run test:e2e:regression` when touching cross-flow behavior, Playwright specs, or PDF/settings integrations
+- Update `TESTING.md` when test commands, CI gates, or framework choices change
+
 ## Code Review Process
 
 1. Ensure all tests pass

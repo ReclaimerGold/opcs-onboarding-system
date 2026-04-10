@@ -553,18 +553,23 @@ This system is designed to comply with:
 
 ### Running Tests
 ```bash
-# Backend tests (Jest)
-cd backend && npm test
-cd backend && npm run test:watch  # Watch mode
-cd backend && npm run test:coverage  # With coverage
+# Lint backend + frontend
+npm run lint
 
-# Frontend tests (Vitest)
-cd frontend && npm test
-cd frontend && npm run test:ui  # UI mode
-cd frontend && npm run test:coverage  # With coverage
+# Backend + frontend unit tests
+npm test
+
+# All Playwright browser tests
+npm run test:e2e
+
+# Fast browser smoke suite
+npm run test:e2e:smoke
+
+# Full browser regression suite
+npm run test:e2e:regression
 ```
 
-See `TESTING.md` for complete testing documentation.
+See `TESTING.md` for the full testing matrix, Playwright seed/reset details, and CI expectations.
 
 ### Building for Production
 ```bash
