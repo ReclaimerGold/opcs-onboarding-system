@@ -54,6 +54,10 @@ bun.lockb
 coverage/
 .nyc_output/
 
+# Playwright auth state (contains session tokens — never commit)
+e2e/.auth/
+playwright-report/
+
 # Misc
 *.local
 .cache/

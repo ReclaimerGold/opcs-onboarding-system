@@ -49,6 +49,8 @@ Thumbs.db
 **/*.spec.js
 coverage/
 .nyc_output/
+e2e/.auth/
+playwright-report/
 
 # Development files
 Dockerfile.dev
