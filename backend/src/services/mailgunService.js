@@ -38,8 +38,11 @@ export function isMailgunConfigured() {
  * @param {string} options.subject - Email subject
  * @param {string} options.text - Plain text content
  * @param {string} options.html - HTML content
+ * @param {string} [options.from] - Optional override from header
+ * @param {string} [options.replyTo] - Optional reply-to address
+ * @param {Array<{ filename: string, content: Buffer|string|Uint8Array, contentType?: string }>} [options.attachments] - Optional attachments
  */
-export async function sendEmail({ to, subject, text, html }) {
+export async function sendEmail({ to, subject, text, html, from, replyTo, attachments = [] }) {
   const config = getMailgunConfig()
 
   if (!config) {
@@ -48,14 +51,24 @@ export async function sendEmail({ to, subject, text, html }) {
 
   const { apiKey, domain, fromEmail } = config
 
-  // Build form data for Mailgun API
-  const formData = new URLSearchParams()
-  formData.append('from', fromEmail)
+  const formData = new FormData()
+  formData.append('from', from || fromEmail)
   formData.append('to', to)
   formData.append('subject', subject)
-  formData.append('text', text)
+  formData.append('text', text || '')
   if (html) {
     formData.append('html', html)
+  }
+  if (replyTo) {
+    formData.append('h:Reply-To', replyTo)
+  }
+  for (const attachment of attachments) {
+    if (!attachment?.filename || !attachment?.content) continue
+    const contentType = attachment.contentType || 'application/octet-stream'
+    const buffer = Buffer.isBuffer(attachment.content)
+      ? attachment.content
+      : Buffer.from(attachment.content)
+    formData.append('attachment', new Blob([buffer], { type: contentType }), attachment.filename)
   }
 
   // Mailgun API endpoint
@@ -64,10 +77,9 @@ export async function sendEmail({ to, subject, text, html }) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Authorization': `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`
     },
-    body: formData.toString()
+    body: formData
   })
 
   if (!response.ok) {
