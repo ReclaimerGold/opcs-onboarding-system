@@ -174,7 +174,15 @@ router.get('/google-address-validation-key', requireAuth, (req, res) => {
 router.get('/form-options', requireAuth, (req, res) => {
   try {
     const db = getDatabase()
-    const keys = ['w4_educational_link_url', 'w4_educational_link_label', 'timezone']
+    const keys = [
+      'w4_educational_link_url',
+      'w4_educational_link_label',
+      'w4_helper_sheet_url',
+      'w4_helper_sheet_label',
+      'employee_handbook_url',
+      'employee_handbook_label',
+      'timezone'
+    ]
     const result = {}
     for (const key of keys) {
       const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key)

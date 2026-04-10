@@ -26,13 +26,13 @@
               Open the Optimal Prime Cleaning Services Employee Handbook using the button below. You must read it and acknowledge below before continuing.
             </p>
             <a
-              href="https://docs.google.com/document/d/16ReSJXndKUYTKubDnUJOLKQZoufrZMmh6xca_HDvkzo/edit?usp=sharing"
+              :href="employeeHandbookUrl"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
               @click="hasOpenedHandbook = true"
             >
-              Open Employee Handbook
+              {{ employeeHandbookLabel }}
             </a>
             <p v-if="!formData.handbookAcknowledgement" class="mt-4 p-3 bg-amber-50 border-l-4 border-amber-400 rounded-md text-sm text-amber-800">
               You must open the Employee Handbook using the button above (it will open in a new tab) before you can acknowledge below. Your acknowledgement is required before continuing.
@@ -237,6 +237,8 @@ const agreementScrollRef = ref(null)
 const hasScrolledAgreementToBottom = ref(false)
 const emergencyContactError = ref('')
 const emergencyContactPhoneError = ref('')
+const employeeHandbookUrl = ref('https://docs.google.com/document/d/16ReSJXndKUYTKubDnUJOLKQZoufrZMmh6xca_HDvkzo/edit?usp=sharing')
+const employeeHandbookLabel = ref('Open Employee Handbook')
 const SCROLL_THRESHOLD = 10
 
 function onAgreementScroll() {
@@ -309,6 +311,17 @@ onMounted(async () => {
     } catch (error) {
       console.error('Error loading applicant data:', error)
     }
+  }
+  try {
+    const formOptions = await api.get('/settings/form-options')
+    if (formOptions.data?.employee_handbook_url) {
+      employeeHandbookUrl.value = formOptions.data.employee_handbook_url
+    }
+    if (formOptions.data?.employee_handbook_label) {
+      employeeHandbookLabel.value = formOptions.data.employee_handbook_label
+    }
+  } catch (error) {
+    console.error('Error loading handbook settings:', error)
   }
   nextTick(() => {
     if (!formData.value.signatureData && props.sessionSignature) {

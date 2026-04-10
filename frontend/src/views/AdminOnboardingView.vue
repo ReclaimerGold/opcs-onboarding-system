@@ -154,6 +154,15 @@
               <p class="text-sm text-gray-600 mb-4">Fill in the fields below. These values are used on I-9 and Form 8850.</p>
               <form class="space-y-4" @submit.prevent="saveEmployerSettings">
                 <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Legal employer / company name <span class="text-red-600">(Required)</span></label>
+                  <input
+                    v-model="employerForm['8850_employer_name']"
+                    type="text"
+                    placeholder="e.g. Optimal Prime Cleaning Services"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+                <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">I-9 / 8850 Employer authorized representative name <span class="text-red-600">(Required)</span></label>
                   <input
                     v-model="employerForm.i9_employer_authorized_rep_name"
@@ -250,6 +259,43 @@
                     </div>
                   </div>
                 </div>
+                <div class="border-t pt-4 mt-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-2">W-4 Helper Sheet <span class="text-gray-500 font-normal">(optional)</span></h4>
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Helper Sheet URL</label>
+                      <input
+                        v-model="employerForm.w4_helper_sheet_url"
+                        type="url"
+                        placeholder="https://..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Helper Sheet label</label>
+                      <input
+                        v-model="employerForm.w4_helper_sheet_label"
+                        type="text"
+                        placeholder="e.g. W-4 Selections Helper Sheet"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="border-t pt-4 mt-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-2">Employee Handbook <span class="text-gray-500 font-normal">(optional)</span></h4>
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Handbook URL</label>
+                      <input
+                        v-model="employerForm.employee_handbook_url"
+                        type="url"
+                        placeholder="https://..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div class="flex flex-wrap items-center gap-3 pt-2">
                   <button
                     type="submit"
@@ -323,6 +369,7 @@ const setupStatus = ref({
 
 /** Step 6: inline employer + W-4 educational form (required for Email & Forms) */
 const employerForm = ref({
+  '8850_employer_name': '',
   i9_employer_authorized_rep_name: '',
   '8850_employer_ein': '',
   '8850_employer_address': '',
@@ -331,7 +378,10 @@ const employerForm = ref({
   '8850_employer_zip': '',
   '8850_employer_phone': '',
   w4_educational_link_url: '',
-  w4_educational_link_label: ''
+  w4_educational_link_label: '',
+  w4_helper_sheet_url: '',
+  w4_helper_sheet_label: '',
+  employee_handbook_url: ''
 })
 const savingEmployer = ref(false)
 const employerSaveError = ref('')
@@ -366,6 +416,7 @@ const currentStepComplete = computed(() => {
 const employerFormValid = computed(() => {
   const f = employerForm.value
   return !!(
+    (f['8850_employer_name'] || '').trim() &&
     (f.i9_employer_authorized_rep_name || '').trim() &&
     (f['8850_employer_ein'] || '').replace(/\D/g, '').length === 9 &&
     (f['8850_employer_address'] || '').trim() &&
@@ -385,6 +436,7 @@ async function loadEmployerSettings() {
     const res = await api.get('/settings')
     const s = res.data || {}
     employerForm.value = {
+      '8850_employer_name': s['8850_employer_name'] || '',
       i9_employer_authorized_rep_name: s.i9_employer_authorized_rep_name || '',
       '8850_employer_ein': s['8850_employer_ein'] ? formatEIN(s['8850_employer_ein']) : '',
       '8850_employer_address': s['8850_employer_address'] || '',
@@ -393,7 +445,10 @@ async function loadEmployerSettings() {
       '8850_employer_zip': s['8850_employer_zip'] || '',
       '8850_employer_phone': s['8850_employer_phone'] ? formatPhoneNumber(s['8850_employer_phone']) : '',
       w4_educational_link_url: s.w4_educational_link_url || '',
-      w4_educational_link_label: s.w4_educational_link_label || ''
+      w4_educational_link_label: s.w4_educational_link_label || '',
+      w4_helper_sheet_url: s.w4_helper_sheet_url || '',
+      w4_helper_sheet_label: s.w4_helper_sheet_label || '',
+      employee_handbook_url: s.employee_handbook_url || ''
     }
   } catch (err) {
     console.error('Load employer settings:', err)
@@ -415,6 +470,7 @@ async function saveEmployerSettings() {
   try {
     await api.post('/settings', {
       settings: {
+        '8850_employer_name': (employerForm.value['8850_employer_name'] || '').trim(),
         i9_employer_authorized_rep_name: (employerForm.value.i9_employer_authorized_rep_name || '').trim(),
         '8850_employer_ein': (employerForm.value['8850_employer_ein'] || '').replace(/\D/g, '').length === 9 ? employerForm.value['8850_employer_ein'] : '',
         '8850_employer_address': (employerForm.value['8850_employer_address'] || '').trim(),
@@ -423,7 +479,10 @@ async function saveEmployerSettings() {
         '8850_employer_zip': (employerForm.value['8850_employer_zip'] || '').trim(),
         '8850_employer_phone': (employerForm.value['8850_employer_phone'] || '').replace(/\D/g, '').length === 10 ? employerForm.value['8850_employer_phone'] : '',
         w4_educational_link_url: (employerForm.value.w4_educational_link_url || '').trim(),
-        w4_educational_link_label: (employerForm.value.w4_educational_link_label || '').trim()
+        w4_educational_link_label: (employerForm.value.w4_educational_link_label || '').trim(),
+        w4_helper_sheet_url: (employerForm.value.w4_helper_sheet_url || '').trim(),
+        w4_helper_sheet_label: (employerForm.value.w4_helper_sheet_label || '').trim(),
+        employee_handbook_url: (employerForm.value.employee_handbook_url || '').trim()
       }
     })
     await fetchSetupStatus()

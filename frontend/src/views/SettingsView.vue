@@ -818,6 +818,51 @@
             />
           </div>
           <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">W-4 Helper Sheet URL</label>
+            <input
+              v-model="settings.w4_helper_sheet_url"
+              type="url"
+              placeholder="https://..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">W-4 Helper Sheet label</label>
+            <input
+              v-model="settings.w4_helper_sheet_label"
+              type="text"
+              placeholder="e.g. W-4 Selections Helper Sheet"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Employee Handbook URL</label>
+            <input
+              v-model="settings.employee_handbook_url"
+              type="url"
+              placeholder="https://..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Employee Handbook button label</label>
+            <input
+              v-model="settings.employee_handbook_label"
+              type="text"
+              placeholder="Open Employee Handbook"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Legal employer / company name <span class="text-red-600">(Required)</span></label>
+            <input
+              v-model="settings['8850_employer_name']"
+              type="text"
+              placeholder="e.g. Optimal Prime Cleaning Services"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">I-9 / 8850 Employer authorized rep name <span class="text-red-600">(Required)</span></label>
             <input
               v-model="settings.i9_employer_authorized_rep_name"
@@ -826,6 +871,24 @@
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
             />
             <p class="mt-1 text-xs text-gray-500">Name used for employer/authorized representative on I-9 and Form 8850. Must be set before applicants can access onboarding forms.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Authorized rep title</label>
+            <input
+              v-model="settings.i9_employer_authorized_rep_title"
+              type="text"
+              placeholder="e.g. Owner or Authorized Representative"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">8850 person to contact</label>
+            <input
+              v-model="settings['8850_contact_name']"
+              type="text"
+              placeholder="e.g. Jason King"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
           </div>
           <div class="border-t pt-4 mt-4">
             <h4 class="text-sm font-semibold text-gray-800 mb-2">Form 8850 employer (Page 2) <span class="text-red-600">– required</span></h4>
@@ -871,6 +934,29 @@
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">8850 Employer ZIP</label>
                 <input v-model="settings['8850_employer_zip']" type="text" placeholder="57104" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary" />
+              </div>
+            </div>
+          </div>
+          <div class="border-t pt-4 mt-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">ETA Form 9061 defaults</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Default starting wage</label>
+                <input
+                  v-model="settings['9061_default_starting_wage']"
+                  type="text"
+                  placeholder="e.g. 18.00/hour"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Badge photo recipient</label>
+                <input
+                  v-model="settings.badge_photo_email"
+                  type="email"
+                  placeholder="e.g. hr@optimalprimeservices.com"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                />
               </div>
             </div>
           </div>
@@ -1486,13 +1572,22 @@ const settings = ref({
   background_check_state_verbiage: '',
   w4_educational_link_url: '',
   w4_educational_link_label: '',
+  w4_helper_sheet_url: '',
+  w4_helper_sheet_label: '',
+  employee_handbook_url: '',
+  employee_handbook_label: '',
+  '8850_employer_name': '',
   i9_employer_authorized_rep_name: '',
+  i9_employer_authorized_rep_title: '',
+  '8850_contact_name': '',
   '8850_employer_ein': '',
   '8850_employer_address': '',
   '8850_employer_city': '',
   '8850_employer_state': '',
   '8850_employer_zip': '',
   '8850_employer_phone': '',
+  '9061_default_starting_wage': '',
+  badge_photo_email: '',
   trusted_proxy_ips: '',
   timezone: ''
 })

@@ -1,28 +1,6 @@
 <template>
   <div>
     <SSNConsentModal :open="showConsentModal" v-model:consented="ssnConsented" @signature="onOnboardingSignature" />
-    <!-- W-4 Disclaimer -->
-    <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
-      <h3 class="text-sm font-semibold text-gray-900 mb-2">Federal W-4 - Employee's Withholding Certificate</h3>
-      <p class="text-xs text-gray-700 mb-2">
-        Complete Form W-4 so that your employer can withhold the correct federal income tax from your pay. 
-        Give Form W-4 to your employer. Your withholding is subject to review by the IRS.
-      </p>
-      <p class="text-xs text-gray-700 mb-2">
-        <strong>Important:</strong> Does your name match the name on your social security card? If not, to ensure 
-        you get credit for your earnings, contact SSA at 1-800-772-1213 or go to 
-        <a href="https://www.ssa.gov" target="_blank" class="text-primary hover:underline">www.ssa.gov</a>.
-      </p>
-      <p class="text-xs text-gray-700">
-        If you want to view form w-4 you can also 
-        <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">click here to go to the IRS Website</a>.
-      </p>
-      <p v-if="w4EducationalLinkUrl" class="text-xs text-gray-700 mt-2">
-        <a :href="w4EducationalLinkUrl" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">{{ w4EducationalLinkLabel || 'For Educational Purposes only' }}</a>
-        — opens in a new window.
-      </p>
-    </div>
-    
     <form @submit.prevent="handleSubmit" class="space-y-6">
       <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Step 1: Personal Information & W-4</h2>
@@ -411,6 +389,31 @@
           :initial-image="formData.signatureData || (sessionSignature || null)"
         />
       </div>
+
+      <div class="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
+        <h3 class="text-sm font-semibold text-gray-900 mb-2">Federal W-4 - Employee's Withholding Certificate</h3>
+        <p class="text-xs text-gray-700 mb-2">
+          Complete Form W-4 so that your employer can withhold the correct federal income tax from your pay.
+          Give Form W-4 to your employer. Your withholding is subject to review by the IRS.
+        </p>
+        <p class="text-xs text-gray-700 mb-2">
+          <strong>Important:</strong> Does your name match the name on your social security card? If not, to ensure
+          you get credit for your earnings, contact SSA at 1-800-772-1213 or go to
+          <a href="https://www.ssa.gov" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">www.ssa.gov</a>.
+        </p>
+        <p class="text-xs text-gray-700">
+          If you want to view form W-4 you can also
+          <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">click here to go to the IRS Website</a>.
+        </p>
+        <p v-if="w4EducationalLinkUrl" class="text-xs text-gray-700 mt-2">
+          <a :href="w4EducationalLinkUrl" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">{{ w4EducationalLinkLabel || 'For Educational Purposes only' }}</a>
+          — opens in a new window.
+        </p>
+        <p v-if="w4HelperSheetUrl" class="text-xs text-gray-700 mt-2">
+          <strong>This Might Help with your W-4 selections!</strong>
+          <a :href="w4HelperSheetUrl" target="_blank" rel="noopener noreferrer" class="ml-1 text-primary hover:underline">{{ w4HelperSheetLabel || 'W-4 Selections Helper Sheet' }}</a>
+        </p>
+      </div>
       
       <div class="flex justify-between items-center">
         <div class="flex items-center space-x-4">
@@ -496,6 +499,8 @@ const phoneLocked = ref(false)
 const emailLocked = ref(false)
 const w4EducationalLinkUrl = ref('')
 const w4EducationalLinkLabel = ref('')
+const w4HelperSheetUrl = ref('')
+const w4HelperSheetLabel = ref('')
 
 // Draft functionality
 const { isSaving, lastSaved, saveDraft } = useFormDraft(1, formData)
@@ -582,6 +587,10 @@ onMounted(async () => {
     if (formOptions.data?.w4_educational_link_url) {
       w4EducationalLinkUrl.value = formOptions.data.w4_educational_link_url
       w4EducationalLinkLabel.value = formOptions.data.w4_educational_link_label || 'For Educational Purposes only'
+    }
+    if (formOptions.data?.w4_helper_sheet_url) {
+      w4HelperSheetUrl.value = formOptions.data.w4_helper_sheet_url
+      w4HelperSheetLabel.value = formOptions.data.w4_helper_sheet_label || 'W-4 Selections Helper Sheet'
     }
   } catch (err) {
     console.error('Error loading form options:', err)

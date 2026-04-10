@@ -4,7 +4,8 @@
     
     <form @submit.prevent="handleSubmit" class="space-y-6">
       <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Step 7: ETA Form 9061</h2>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Step 7: ETA Form 9061</h2>
+        <p class="text-sm text-gray-600 mb-6">This step is optional for onboarding completion. Submit it if it applies to the applicant.</p>
         
         <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
           <p class="text-sm text-blue-800">
@@ -392,7 +393,7 @@
           class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
         >
           <span v-if="loading">Generating PDF & saving…</span>
-          <span v-else>Complete Onboarding</span>
+          <span v-else>Submit Optional Form</span>
         </button>
       </div>
     </form>
